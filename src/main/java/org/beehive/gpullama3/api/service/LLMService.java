@@ -1,173 +1,211 @@
 package org.beehive.gpullama3.api.service;
 
-import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.inference.state.State;
+import jakarta.annotation.PostConstruct;
+import org.beehive.gpullama3.Options;
 import org.beehive.gpullama3.inference.sampler.Sampler;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.beehive.gpullama3.inference.state.State;
+import org.beehive.gpullama3.model.Model;
+import org.beehive.gpullama3.model.format.ChatFormat;
+import org.beehive.gpullama3.model.loader.ModelLoader;
+import org.springframework.boot.ApplicationArguments;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.IntConsumer;
+
+import static org.beehive.gpullama3.inference.sampler.Sampler.selectSampler;
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadModel;
 
 @Service
 public class LLMService {
 
-    @Autowired
-    private ModelInitializationService initService;
+    private final ApplicationArguments args;
 
-    @Autowired
-    private TokenizerService tokenizerService;
+    private Options options;
+    private Model model;
 
-    public CompletableFuture<String> generateCompletion(
-            String prompt,
-            int maxTokens,
-            double temperature,
-            double topP,
-            List<String> stopSequences) {
-
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                System.out.println("Starting completion generation...");
-                System.out.println("Prompt: " + prompt.substring(0, Math.min(50, prompt.length())) + "...");
-                System.out.println("Max tokens: " + maxTokens + ", Temperature: " + temperature);
-
-                // Get initialized components
-                Model model = initService.getModel();
-
-                // Convert prompt to tokens
-                List<Integer> promptTokens = tokenizerService.encode(prompt);
-                System.out.println("Prompt tokens: " + promptTokens.size());
-
-                // Convert stop sequences to token sets
-                Set<Integer> stopTokens = new HashSet<>();
-                if (stopSequences != null) {
-                    for (String stop : stopSequences) {
-                        stopTokens.addAll(tokenizerService.encode(stop));
-                    }
-                    System.out.println("Stop tokens: " + stopTokens.size());
-                }
-
-                // Create custom sampler with request-specific parameters
-                //Sampler sampler = initService.createCustomSampler(temperature, topP, System.currentTimeMillis());
-                Sampler sampler = initService.getSampler();
-
-                // Create state based on model type
-                State state = createStateForModel(model);
-
-                // Generate tokens using your existing method
-                List<Integer> generatedTokens = model.generateTokens(
-                        state,
-                        0,
-                        promptTokens,
-                        stopTokens,
-                        maxTokens,
-                        sampler,
-                        false,
-                        token -> {} // No callback for non-streaming
-                );
-
-                // Decode tokens back to text
-                String result = tokenizerService.decode(generatedTokens);
-                System.out.println("Generated " + generatedTokens.size() + " tokens");
-                System.out.println("Completion finished successfully");
-
-                return result;
-
-            } catch (Exception e) {
-                System.err.println("Error generating completion: " + e.getMessage());
-                e.printStackTrace();
-                throw new RuntimeException("Error generating completion", e);
-            }
-        });
+    public LLMService(ApplicationArguments args) {
+        this.args = args;
     }
 
-    public void generateStreamingCompletion(
-            String prompt,
-            int maxTokens,
-            double temperature,
-            double topP,
-            List<String> stopSequences,
-            SseEmitter emitter) {
+    @PostConstruct
+    public void init() {
+        try {
+            System.out.println("Initializing LLM service...");
 
+            // Step 1: Parse service options
+            System.out.println("Step 1: Parsing service options...");
+            options = Options.parseServiceOptions(args.getSourceArgs());
+            System.out.println("Model path: " + options.modelPath());
+            System.out.println("Context length: " + options.maxTokens());
+
+            // Step 2: Load model weights
+            System.out.println("\nStep 2: Loading model...");
+            System.out.println("Loading model from: " + options.modelPath());
+            model = ModelLoader.loadModel(options.modelPath(), options.maxTokens(), true);
+            System.out.println("✓ Model loaded successfully");
+            System.out.println("  Model type: " + model.getClass().getSimpleName());
+            System.out.println("  Vocabulary size: " + model.configuration().vocabularySize());
+            System.out.println("  Context length: " + model.configuration().contextLength());
+
+            System.out.println("\n✓ Model service initialization completed successfully!");
+            System.out.println("=== Ready to serve requests ===\n");
+
+        } catch (Exception e) {
+            System.err.println("✗ Failed to initialize model service: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Model initialization failed", e);
+        }
+    }
+
+    public String generateResponse(String message, String systemMessage) {
+        return generateResponse(message, systemMessage, 150, 0.7, 0.9);
+    }
+
+    public String generateResponse(String message, String systemMessage, int maxTokens, double temperature, double topP) {
+        try {
+            // Create sampler and state like runInstructOnce
+            Sampler sampler = selectSampler(model.configuration().vocabularySize(), (float) temperature, (float) topP, System.currentTimeMillis());
+            State state = model.createNewState();
+
+            // Use model's ChatFormat
+            ChatFormat chatFormat = model.chatFormat();
+            List<Integer> promptTokens = new ArrayList<>();
+
+            // Add begin of text if needed
+            if (model.shouldAddBeginOfText()) {
+                promptTokens.add(chatFormat.getBeginOfText());
+            }
+
+            // Add system message properly formatted
+            if (model.shouldAddSystemPrompt() && systemMessage != null && !systemMessage.trim().isEmpty()) {
+                promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.SYSTEM, systemMessage)));
+            }
+
+            // Add user message properly formatted
+            promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.USER, message)));
+            promptTokens.addAll(chatFormat.encodeHeader(new ChatFormat.Message(ChatFormat.Role.ASSISTANT, "")));
+
+            // Handle reasoning tokens if needed (for Deepseek-R1-Distill-Qwen)
+            if (model.shouldIncludeReasoning()) {
+                List<Integer> thinkStartTokens = model.tokenizer().encode("<think>\n", model.tokenizer().getSpecialTokens().keySet());
+                promptTokens.addAll(thinkStartTokens);
+            }
+
+            // Use proper stop tokens from chat format
+            Set<Integer> stopTokens = chatFormat.getStopTokens();
+
+            long startTime = System.currentTimeMillis();
+
+            // Use CPU path for now (GPU path disabled as noted)
+            List<Integer> generatedTokens = model.generateTokens(
+                    state, 0, promptTokens, stopTokens, maxTokens, sampler, false, token -> {}
+            );
+
+            // Remove stop tokens if present
+            if (!generatedTokens.isEmpty() && stopTokens.contains(generatedTokens.getLast())) {
+                generatedTokens.removeLast();
+            }
+
+            long duration = System.currentTimeMillis() - startTime;
+            double tokensPerSecond = generatedTokens.size() * 1000.0 / duration;
+            System.out.printf("COMPLETED tokens=%d duration=%dms rate=%.1f tok/s%n",
+                    generatedTokens.size(), duration, tokensPerSecond);
+
+
+            String responseText = model.tokenizer().decode(generatedTokens);
+
+            // Add reasoning prefix for non-streaming if needed
+            if (model.shouldIncludeReasoning()) {
+                responseText = "<think>\n" + responseText;
+            }
+
+            return responseText;
+
+        } catch (Exception e) {
+            System.err.println("FAILED " + e.getMessage());
+            throw new RuntimeException("Failed to generate response", e);
+        }
+    }
+
+    public void generateStreamingResponse(String message, String systemMessage, SseEmitter emitter) {
         CompletableFuture.runAsync(() -> {
             try {
-                System.out.println("Starting streaming completion generation...");
+                Sampler sampler = selectSampler(model.configuration().vocabularySize(), 0.7f, 0.9f, System.currentTimeMillis());
+                State state = model.createNewState();
 
-                Model model = initService.getModel();
+                // Use proper chat format like in runInstructOnce
+                ChatFormat chatFormat = model.chatFormat();
+                List<Integer> promptTokens = new ArrayList<>();
 
-                List<Integer> promptTokens = tokenizerService.encode(prompt);
-
-                Set<Integer> stopTokens = new HashSet<>();
-                if (stopSequences != null) {
-                    for (String stop : stopSequences) {
-                        stopTokens.addAll(tokenizerService.encode(stop));
-                    }
+                if (model.shouldAddBeginOfText()) {
+                    promptTokens.add(chatFormat.getBeginOfText());
                 }
 
-                //Sampler sampler = initService.createCustomSampler(temperature, topP, System.currentTimeMillis());
-                Sampler sampler = initService.getSampler();
-                State state = createStateForModel(model);
+                if (model.shouldAddSystemPrompt() && systemMessage != null && !systemMessage.trim().isEmpty()) {
+                    promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.SYSTEM, systemMessage)));
+                }
+
+                promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.USER, message)));
+                promptTokens.addAll(chatFormat.encodeHeader(new ChatFormat.Message(ChatFormat.Role.ASSISTANT, "")));
+
+                // Handle reasoning tokens for streaming
+                if (model.shouldIncludeReasoning()) {
+                    List<Integer> thinkStartTokens = model.tokenizer().encode("<think>\n", model.tokenizer().getSpecialTokens().keySet());
+                    promptTokens.addAll(thinkStartTokens);
+                    emitter.send(SseEmitter.event().data("<think>\n")); // Output immediately
+                }
+
+                Set<Integer> stopTokens = chatFormat.getStopTokens();
 
                 final int[] tokenCount = {0};
-
-                // Streaming callback
-                IntConsumer tokenCallback = token -> {
-                    try {
-                        String tokenText = tokenizerService.decode(List.of(token));
-                        tokenCount[0]++;
-
-                        String eventData = String.format(
-                                "data: {\"choices\":[{\"text\":\"%s\",\"index\":0,\"finish_reason\":null}]}\n\n",
-                                escapeJson(tokenText)
-                        );
-
-                        emitter.send(SseEmitter.event().data(eventData));
-
-                        if (tokenCount[0] % 10 == 0) {
-                            System.out.println("Streamed " + tokenCount[0] + " tokens");
+                long startTime = System.currentTimeMillis();
+                List<Integer> generatedTokens = model.generateTokens(
+                        state, 0, promptTokens, stopTokens, 150, sampler, false,
+                        token -> {
+                            try {
+                                // Only display tokens that should be displayed (like in your original)
+                                if (model.tokenizer().shouldDisplayToken(token)) {
+                                    String tokenText = model.tokenizer().decode(List.of(token));
+                                    emitter.send(SseEmitter.event().data(tokenText));
+                                    tokenCount[0]++;
+                                }
+                            } catch (Exception e) {
+                                emitter.completeWithError(e);
+                            }
                         }
+                );
 
-                    } catch (Exception e) {
-                        System.err.println("Error in streaming callback: " + e.getMessage());
-                        emitter.completeWithError(e);
-                    }
-                };
+                long duration = System.currentTimeMillis() - startTime;
+                double tokensPerSecond = tokenCount[0] * 1000.0 / duration;
+                System.out.printf("COMPLETED tokens=%d duration=%dms rate=%.1f tok/s%n",
+                        tokenCount[0], duration, tokensPerSecond);
 
-                model.generateTokens(state, 0, promptTokens, stopTokens, maxTokens, sampler, false, tokenCallback);
-
-                // Send completion event
-                emitter.send(SseEmitter.event().data("data: [DONE]\n\n"));
+                emitter.send(SseEmitter.event().data("[DONE]"));
                 emitter.complete();
 
-                System.out.println("Streaming completion finished. Total tokens: " + tokenCount[0]);
-
             } catch (Exception e) {
-                System.err.println("Error in streaming generation: " + e.getMessage());
-                e.printStackTrace();
+                System.err.println("FAILED " + e.getMessage());
                 emitter.completeWithError(e);
             }
         });
     }
 
-    /**
-     * Create appropriate State subclass based on the model type
-     */
-    private State createStateForModel(Model model) {
-        try {
-            return model.createNewState();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create state for model", e);
+    // Getters for other services to access the initialized components
+    public Options getOptions() {
+        if (options == null) {
+            throw new IllegalStateException("Model service not initialized yet");
         }
+        return options;
     }
 
-    private String escapeJson(String str) {
-        if (str == null) return "";
-        return str.replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t")
-                .replace("\\", "\\\\");
+    public Model getModel() {
+        if (model == null) {
+            throw new IllegalStateException("Model service not initialized yet");
+        }
+        return model;
     }
 }
