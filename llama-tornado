@@ -204,6 +204,14 @@ class LlamaRunner:
     def _add_llama_args(self, cmd: List[str], args: argparse.Namespace) -> List[str]:
         """Add LLaMA-specific arguments to the command."""
 
+        # For service mode, only pass the model path and max-tokens
+        if hasattr(args, 'service') and args.service:
+            llama_args = [
+                "--model", args.model_path,
+                "--max-tokens", str(args.max_tokens),
+            ]
+            return cmd + llama_args
+
         llama_args = [
             "--model", args.model_path,
             "--temperature", str(args.temperature),
@@ -238,14 +246,19 @@ class LlamaRunner:
 
         # Show service-specific information
         if args.service:
-            print("Starting TornadoVM LLM REST API Service...")
+            print("Starting GPULlama3.java REST API Service...")
             print(f"Model: {args.model_path}")
-            print("API endpoints will be available at:")
-            print("  - http://localhost:8080/v1/completions")
-            print("  - http://localhost:8080/v1/completions/stream")
-            print("  - http://localhost:8080/v1/models")
-            print("  - http://localhost:8080/v1/health")
-            print("\nPress Ctrl+C to stop the service")
+            print("API endpoints available at:")
+            print("  - http://localhost:8080/chat")
+            print("  - http://localhost:8080/chat/stream")
+            print("  - http://localhost:8080/health")
+            print("")
+            print("Example usage:")
+            print('  curl -X POST http://localhost:8080/chat \\')
+            print('    -H "Content-Type: application/json" \\')
+            print('    -d \'{"message": "Hello!"}\'')
+            print("")
+            print("Press Ctrl+C to stop the service")
             print("-" * 60)
 
 
