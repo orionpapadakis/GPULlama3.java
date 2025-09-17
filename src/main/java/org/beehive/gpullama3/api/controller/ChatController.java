@@ -19,30 +19,43 @@ public class ChatController {
 
     @PostMapping("/chat")
     public Map<String, String> chat(@RequestBody ChatRequest request) {
-        logRequest("NON_STREAMING", request, 150, 0.7, 0.9);
+        // Use request parameters with fallbacks to defaults
+        int maxTokens = request.getMaxTokens() != null ? request.getMaxTokens() : 150;
+        double temperature = request.getTemperature() != null ? request.getTemperature() : 0.7;
+        double topP = request.getTopP() != null ? request.getTopP() : 0.9;
+
+        logRequest("NON_STREAMING", request, maxTokens, temperature, topP);
 
         if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
             throw new IllegalArgumentException("Message cannot be empty");
         }
 
-        String response = llmService.generateResponse(request.getMessage(), request.getSystemMessage());
+        String response = llmService.generateResponse(request.getMessage(), request.getSystemMessage(),
+                maxTokens, temperature, topP);
 
         return Map.of("response", response);
     }
 
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChat(@RequestBody ChatRequest request) {
-        logRequest("STREAMING", request, 150, 0.7, 0.9);
+        // Use request parameters with fallbacks to defaults
+        int maxTokens = request.getMaxTokens() != null ? request.getMaxTokens() : 150;
+        double temperature = request.getTemperature() != null ? request.getTemperature() : 0.7;
+        double topP = request.getTopP() != null ? request.getTopP() : 0.9;
+
+        logRequest("STREAMING", request, maxTokens, temperature, topP);
 
         if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
             throw new IllegalArgumentException("Message cannot be empty");
         }
 
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
-        llmService.generateStreamingResponse(request.getMessage(), request.getSystemMessage(), emitter);
+        llmService.generateStreamingResponse(request.getMessage(), request.getSystemMessage(),
+                emitter, maxTokens, temperature, topP);
 
         return emitter;
     }
+
 
     @GetMapping("/health")
     public Map<String, String> health() {
@@ -69,11 +82,29 @@ public class ChatController {
     public static class ChatRequest {
         private String message;
         private String systemMessage;
+        private Integer maxTokens;
+        private Double temperature;
+        private Double topP;
+        private Long seed;
 
+        // Getters and Setters
         public String getMessage() { return message; }
         public void setMessage(String message) { this.message = message; }
 
         public String getSystemMessage() { return systemMessage; }
         public void setSystemMessage(String systemMessage) { this.systemMessage = systemMessage; }
+
+        public Integer getMaxTokens() { return maxTokens; }
+        public void setMaxTokens(Integer maxTokens) { this.maxTokens = maxTokens; }
+
+        public Double getTemperature() { return temperature; }
+        public void setTemperature(Double temperature) { this.temperature = temperature; }
+
+        public Double getTopP() { return topP; }
+        public void setTopP(Double topP) { this.topP = topP; }
+
+        public Long getSeed() { return seed; }
+        public void setSeed(Long seed) { this.seed = seed; }
     }
+
 }

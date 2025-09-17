@@ -61,14 +61,22 @@ public class LLMService {
         }
     }
 
+    /**
+     * Generate response with default parameters.
+     */
     public String generateResponse(String message, String systemMessage) {
         return generateResponse(message, systemMessage, 150, 0.7, 0.9);
     }
 
     public String generateResponse(String message, String systemMessage, int maxTokens, double temperature, double topP) {
+        return generateResponse(message, systemMessage, maxTokens, temperature, topP, null);
+    }
+
+    public String generateResponse(String message, String systemMessage, int maxTokens, double temperature, double topP, Long seed) {
         try {
             // Create sampler and state like runInstructOnce
-            Sampler sampler = selectSampler(model.configuration().vocabularySize(), (float) temperature, (float) topP, System.currentTimeMillis());
+            long actualSeed = seed != null ? seed : System.currentTimeMillis();
+            Sampler sampler = selectSampler(model.configuration().vocabularySize(), (float) temperature, (float) topP, actualSeed);
             State state = model.createNewState();
 
             // Use model's ChatFormat
@@ -115,7 +123,6 @@ public class LLMService {
             System.out.printf("COMPLETED tokens=%d duration=%dms rate=%.1f tok/s%n",
                     generatedTokens.size(), duration, tokensPerSecond);
 
-
             String responseText = model.tokenizer().decode(generatedTokens);
 
             // Add reasoning prefix for non-streaming if needed
@@ -132,9 +139,20 @@ public class LLMService {
     }
 
     public void generateStreamingResponse(String message, String systemMessage, SseEmitter emitter) {
+        generateStreamingResponse(message, systemMessage, emitter, 150, 0.7, 0.9);
+    }
+
+    public void generateStreamingResponse(String message, String systemMessage, SseEmitter emitter,
+            int maxTokens, double temperature, double topP) {
+        generateStreamingResponse(message, systemMessage, emitter, maxTokens, temperature, topP, null);
+    }
+
+    public void generateStreamingResponse(String message, String systemMessage, SseEmitter emitter,
+            int maxTokens, double temperature, double topP, Long seed) {
         CompletableFuture.runAsync(() -> {
             try {
-                Sampler sampler = selectSampler(model.configuration().vocabularySize(), 0.7f, 0.9f, System.currentTimeMillis());
+                long actualSeed = seed != null ? seed : System.currentTimeMillis();
+                Sampler sampler = selectSampler(model.configuration().vocabularySize(), (float) temperature, (float) topP, actualSeed);
                 State state = model.createNewState();
 
                 // Use proper chat format like in runInstructOnce
@@ -164,13 +182,14 @@ public class LLMService {
                 final int[] tokenCount = {0};
                 long startTime = System.currentTimeMillis();
                 List<Integer> generatedTokens = model.generateTokens(
-                        state, 0, promptTokens, stopTokens, 150, sampler, false,
+                        state, 0, promptTokens, stopTokens, maxTokens, sampler, false,
                         token -> {
                             try {
                                 // Only display tokens that should be displayed (like in your original)
                                 if (model.tokenizer().shouldDisplayToken(token)) {
                                     String tokenText = model.tokenizer().decode(List.of(token));
                                     emitter.send(SseEmitter.event().data(tokenText));
+                                    //emitter.send(SseEmitter.event().comment("flush"));
                                     tokenCount[0]++;
                                 }
                             } catch (Exception e) {
