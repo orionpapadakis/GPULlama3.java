@@ -50,8 +50,14 @@ public class ChatController {
         }
 
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
-        llmService.generateStreamingResponse(request.getMessage(), request.getSystemMessage(),
-                emitter, maxTokens, temperature, topP);
+        llmService.generateStreamingResponse(
+                request.getMessage(),
+                request.getSystemMessage(),
+                emitter,
+                maxTokens,
+                temperature,
+                topP,
+                request.getSeed());
 
         return emitter;
     }

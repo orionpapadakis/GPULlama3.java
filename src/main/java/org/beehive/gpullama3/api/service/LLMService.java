@@ -138,15 +138,6 @@ public class LLMService {
         }
     }
 
-    public void generateStreamingResponse(String message, String systemMessage, SseEmitter emitter) {
-        generateStreamingResponse(message, systemMessage, emitter, 150, 0.7, 0.9);
-    }
-
-    public void generateStreamingResponse(String message, String systemMessage, SseEmitter emitter,
-            int maxTokens, double temperature, double topP) {
-        generateStreamingResponse(message, systemMessage, emitter, maxTokens, temperature, topP, null);
-    }
-
     public void generateStreamingResponse(String message, String systemMessage, SseEmitter emitter,
             int maxTokens, double temperature, double topP, Long seed) {
         CompletableFuture.runAsync(() -> {
@@ -170,11 +161,12 @@ public class LLMService {
                 promptTokens.addAll(chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.USER, message)));
                 promptTokens.addAll(chatFormat.encodeHeader(new ChatFormat.Message(ChatFormat.Role.ASSISTANT, "")));
 
-                // Handle reasoning tokens for streaming
+                // Include reasoning for Deepseek-R1-Distill-Qwen
                 if (model.shouldIncludeReasoning()) {
                     List<Integer> thinkStartTokens = model.tokenizer().encode("<think>\n", model.tokenizer().getSpecialTokens().keySet());
                     promptTokens.addAll(thinkStartTokens);
-                    emitter.send(SseEmitter.event().data("<think>\n")); // Output immediately
+                    // We are in streaming, immediately output the think start
+                    emitter.send(SseEmitter.event().data("<think>\n"));
                 }
 
                 Set<Integer> stopTokens = chatFormat.getStopTokens();
