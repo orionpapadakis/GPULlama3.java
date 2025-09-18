@@ -132,6 +132,7 @@ public record Options(Path modelPath, String prompt, String systemPrompt, String
     public static Options parseServiceOptions(String[] args) {
         Path modelPath = null;
         int maxTokens = 512; // Default context length
+        Boolean useTornadovm = null;
 
         for (int i = 0; i < args.length; i++) {
             String optionName = args[i];
@@ -152,10 +153,15 @@ public record Options(Path modelPath, String prompt, String systemPrompt, String
             switch (optionName) {
                 case "--model", "-m" -> modelPath = Paths.get(nextArg);
                 case "--max-tokens", "-n" -> maxTokens = Integer.parseInt(nextArg);
+                case "--use-tornadovm" -> useTornadovm = Boolean.parseBoolean(nextArg);
             }
         }
 
         require(modelPath != null, "Missing argument: --model <path> is required");
+
+        if (useTornadovm == null) {
+            useTornadovm = getDefaultTornadoVM();
+        }
 
         // Create service-mode Options object
         return new Options(
@@ -170,7 +176,7 @@ public record Options(Path modelPath, String prompt, String systemPrompt, String
                 maxTokens,
                 false,          // stream - handled per request
                 false,                  // echo - not used in service
-                getDefaultTornadoVM(),
+                useTornadovm,
                 true
         );
     }

@@ -45,7 +45,7 @@ public class LLMService {
             // Step 2: Load model weights
             System.out.println("\nStep 2: Loading model...");
             System.out.println("Loading model from: " + options.modelPath());
-            model = ModelLoader.loadModel(options.modelPath(), options.maxTokens(), true);
+            model = ModelLoader.loadModel(options.modelPath(), options.maxTokens(), true, options.useTornadovm());
             System.out.println("✓ Model loaded successfully");
             System.out.println("  Model type: " + model.getClass().getSimpleName());
             System.out.println("  Vocabulary size: " + model.configuration().vocabularySize());

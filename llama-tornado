@@ -248,6 +248,12 @@ class LlamaRunner:
         if args.service:
             print("Starting GPULlama3.java REST API Service...")
             print(f"Model: {args.model_path}")
+            # Display GPU/backend configuration
+            if args.use_gpu:
+                print(f"GPU Acceleration: Enabled ({args.backend.value.upper()} backend)")
+                print(f"GPU Memory: {args.gpu_memory}")
+            else:
+                print("GPU Acceleration: Disabled (CPU mode)")
             print("API endpoints available at:")
             print("  - http://localhost:8080/chat")
             print("  - http://localhost:8080/chat/stream")
