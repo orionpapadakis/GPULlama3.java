@@ -159,8 +159,9 @@ public record Options(Path modelPath, String prompt, String systemPrompt, String
 
         require(modelPath != null, "Missing argument: --model <path> is required");
 
+        // Do not use tornado by default
         if (useTornadovm == null) {
-            useTornadovm = getDefaultTornadoVM();
+            useTornadovm = false;
         }
 
         // Create service-mode Options object
