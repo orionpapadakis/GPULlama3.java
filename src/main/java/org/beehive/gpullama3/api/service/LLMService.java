@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.IntConsumer;
 
 import static org.beehive.gpullama3.inference.sampler.Sampler.selectSampler;
 import static org.beehive.gpullama3.model.loader.ModelLoader.loadModel;
@@ -172,23 +173,29 @@ public class LLMService {
                 Set<Integer> stopTokens = chatFormat.getStopTokens();
 
                 final int[] tokenCount = {0};
-                long startTime = System.currentTimeMillis();
-                List<Integer> generatedTokens = model.generateTokens(
-                        state, 0, promptTokens, stopTokens, maxTokens, sampler, false,
-                        token -> {
-                            try {
-                                // Only display tokens that should be displayed (like in your original)
-                                if (model.tokenizer().shouldDisplayToken(token)) {
-                                    String tokenText = model.tokenizer().decode(List.of(token));
-                                    emitter.send(SseEmitter.event().data(tokenText));
-                                    //emitter.send(SseEmitter.event().comment("flush"));
-                                    tokenCount[0]++;
-                                }
-                            } catch (Exception e) {
-                                emitter.completeWithError(e);
-                            }
+                IntConsumer tokenConsumer = token -> {
+                    try {
+                        // Only display tokens that should be displayed (like in your original)
+                        if (model.tokenizer().shouldDisplayToken(token)) {
+                            String tokenText = model.tokenizer().decode(List.of(token));
+                            emitter.send(SseEmitter.event().data(tokenText));
+                            //emitter.send(SseEmitter.event().comment("flush"));
+                            tokenCount[0]++;
                         }
-                );
+                    } catch (Exception e) {
+                        emitter.completeWithError(e);
+                    }
+                };
+
+
+                long startTime = System.currentTimeMillis();
+                if (options.useTornadovm()) {
+                    // GPU path
+                    throw new UnsupportedOperationException("Tornadovm is not supported");
+                } else {
+                    // CPU path
+                    model.generateTokens(state, 0, promptTokens, stopTokens, maxTokens, sampler, false, tokenConsumer);
+                }
 
                 long duration = System.currentTimeMillis() - startTime;
                 double tokensPerSecond = tokenCount[0] * 1000.0 / duration;
