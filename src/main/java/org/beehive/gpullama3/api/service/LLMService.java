@@ -2,11 +2,13 @@ package org.beehive.gpullama3.api.service;
 
 import jakarta.annotation.PostConstruct;
 import org.beehive.gpullama3.Options;
+import org.beehive.gpullama3.auxiliary.LastRunMetrics;
 import org.beehive.gpullama3.inference.sampler.Sampler;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.loader.ModelLoader;
+import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -179,7 +181,6 @@ public class LLMService {
                         if (model.tokenizer().shouldDisplayToken(token)) {
                             String tokenText = model.tokenizer().decode(List.of(token));
                             emitter.send(SseEmitter.event().data(tokenText));
-                            //emitter.send(SseEmitter.event().comment("flush"));
                             tokenCount[0]++;
                         }
                     } catch (Exception e) {
@@ -187,20 +188,33 @@ public class LLMService {
                     }
                 };
 
+                // Initialize TornadoVM plan once per request if GPU path is enabled
+                TornadoVMMasterPlan tornadoVMPlan = null;
+                if (options.useTornadovm()) {
+                    tornadoVMPlan = TornadoVMMasterPlan.initializeTornadoVMPlan(state, model);
+                }
 
-                long startTime = System.currentTimeMillis();
+                // Select execution path
                 if (options.useTornadovm()) {
                     // GPU path
-                    throw new UnsupportedOperationException("Tornadovm is not supported");
+                    model.generateTokensGPU(state, 0, promptTokens, stopTokens, maxTokens, sampler, false, tokenConsumer, tornadoVMPlan);
                 } else {
                     // CPU path
                     model.generateTokens(state, 0, promptTokens, stopTokens, maxTokens, sampler, false, tokenConsumer);
                 }
 
-                long duration = System.currentTimeMillis() - startTime;
-                double tokensPerSecond = tokenCount[0] * 1000.0 / duration;
-                System.out.printf("COMPLETED tokens=%d duration=%dms rate=%.1f tok/s%n",
-                        tokenCount[0], duration, tokensPerSecond);
+                LastRunMetrics metrics = LastRunMetrics.getMetrics();
+                double seconds = metrics.totalSeconds();
+                int  tokens = metrics.totalTokens();
+                double tokensPerSecond = tokens / seconds;
+                System.out.printf("COMPLETED - [ achieved tok/s: %.2f. Tokens: %d, seconds: %.2f ]\n",
+                        tokensPerSecond, tokens, seconds);
+
+                // Send metrics as named event before [DONE]
+                String metricsString = LastRunMetrics.getMetricsString();
+                if (!metricsString.isEmpty()) {
+                    emitter.send(SseEmitter.event().name("metrics").data(metricsString));
+                }
 
                 emitter.send(SseEmitter.event().data("[DONE]"));
                 emitter.complete();
