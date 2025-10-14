@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm;
 
 import org.beehive.gpullama3.auxiliary.Tuple2;
-import org.beehive.gpullama3.inference.weights.tornado.TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.FP16Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.inference.state.State;
@@ -43,7 +43,7 @@ import java.util.List;
      * @see GridScheduler
      */
     // @formatter:on
-    public class TornadoVMLayerPlanner<S extends State, C extends Configuration, W extends TornadoWeights> {
+    public class TornadoVMLayerPlanner<S extends State, C extends Configuration, W extends FP16Weights> implements TornadoVMGenericLayerPlanner{
         protected static final int LOCAL_WORK_GROUP_SIZE_ALLOC = 32;
         protected static final int THREAD_SCALE_FOR_LOGITS = 8;
 

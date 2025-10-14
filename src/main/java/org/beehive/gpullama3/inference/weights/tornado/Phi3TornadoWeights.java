@@ -4,7 +4,7 @@ import org.beehive.gpullama3.core.model.GGMLType;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 
-public class Phi3TornadoWeights extends TornadoWeights {
+public class Phi3TornadoWeights extends FP16Weights {
 
     // Phi3-specific weight arrays
     public HalfFloatArray[] wqkvLayered;    // Combined QKV weights: (layer, op_size, dim) where op_size = dim + 2 * (n_kv_heads * head_dim)
@@ -26,7 +26,7 @@ public class Phi3TornadoWeights extends TornadoWeights {
             HalfFloatArray wclsByteArray,
             GGMLType weightType) {
 
-        // Call to TornadoWeights constructor with null values for unused standard weights
+        // Call to FP16Weights constructor with null values for unused standard weights
         super(tokenEmbeddingTable,
                 rms_att_weightLayered,
                 null,  // wqLayered - not used in Phi3, using combined wqkv instead

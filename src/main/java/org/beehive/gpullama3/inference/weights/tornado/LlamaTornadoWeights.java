@@ -5,13 +5,13 @@ import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 
 /**
- * A model-specific implementation of {@link TornadoWeights} for the Llama model.
+ * A model-specific implementation of {@link FP16Weights} for the Llama model.
  * This class encapsulates the weights required for performing GPU-accelerated
  * inference of the Llama model using TornadoVM.
  *
  * <p><b>Note:</b> This weight format can also be used with the Mistral model.</p>
  */
-public class LlamaTornadoWeights extends TornadoWeights {
+public class LlamaTornadoWeights extends FP16Weights {
 
     // @formatter:off
     public LlamaTornadoWeights(
@@ -30,7 +30,7 @@ public class LlamaTornadoWeights extends TornadoWeights {
             FloatArray freq_cis_imagFlat,
             HalfFloatArray wclsByteArray,
             GGMLType weightType) {
-        // call to TornadoWeights constructor
+        // call to FP16Weights constructor
         super(tokenEmbeddingTable,
                 rms_att_weightLayered,
                 wqLayered,

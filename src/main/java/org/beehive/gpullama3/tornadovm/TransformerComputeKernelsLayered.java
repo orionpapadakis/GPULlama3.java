@@ -5,6 +5,7 @@ import uk.ac.manchester.tornado.api.annotations.Parallel;
 import uk.ac.manchester.tornado.api.math.TornadoMath;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
+import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
 import uk.ac.manchester.tornado.api.types.arrays.IntArray;
 
 public class TransformerComputeKernelsLayered {
@@ -968,6 +969,136 @@ public class TransformerComputeKernelsLayered {
         for (@Parallel int i = 0; i < size; i++) {
             float result = arrayA.get(i) + arrayB.get(i);
             arrayA.set(i, result);
+        }
+    }
+
+    /**
+     * Matrix-vector multiplication for Q8_0 quantized weights.
+     *
+     * @param context Kernel context
+     * @param x Input activations (FloatArray)
+     * @param output Output array (FloatArray)
+     * @param weightsQ Quantized weights (Int8Array) - from Q8_0QuantizedTensor.getQuants()
+     * @param weightScales Scale factors (HalfFloatArray) - from Q8_0QuantizedTensor.getScales()
+     * @param dim1 Input dimension (n - number of columns)
+     * @param dim0 Output dimension (d - number of rows)
+     * @param localWorkGroupSize Local workgroup size
+     */
+    public static void matrixVectorGeneric(KernelContext context, FloatArray x, FloatArray output, Int8Array weightsQ, HalfFloatArray weightScales, int dim1, int dim0, int localWorkGroupSize) {
+
+        // One row per workgroup
+        int rowId = context.groupIdx;
+        int localId = context.localIdx;
+
+        // Early exit if this workgroup is beyond output dimension
+        if (rowId >= dim0) {
+            return;
+        }
+
+        float sum = matrixVectorRowMajorOptimizedQ8_0(
+                context, localWorkGroupSize, x, weightsQ, weightScales, dim1
+        );
+
+        // Thread 0 writes the result
+        if (localId == 0) {
+            output.set(rowId, sum);
+        }
+    }
+
+    /**
+     * Helper method to compute dot product for a single row with Q8_0 quantized weights.
+     * Uses 4-way unrolling for better performance.
+     */
+    public static float matrixVectorRowMajorOptimizedQ8_0(KernelContext context, int localSize, FloatArray x, Int8Array weightsQ, HalfFloatArray weightScales, int n) {
+        int rowId = context.groupIdx;
+        int localId = context.localIdx;
+        int blockSize = 32;
+
+        // Allocate local memory for reduction
+        float[] localSums = context.allocateFloatLocalArray(localSize);
+
+        int rowOffset = rowId * n;
+        int scalesRowOffset = rowId * (n / blockSize);
+
+        // 4-way unrolling
+        float partialSum1 = 0.0f;
+        float partialSum2 = 0.0f;
+        float partialSum3 = 0.0f;
+        float partialSum4 = 0.0f;
+
+        // Main loop - process 4 elements at a time
+        for (int j = localId * 4; j < n - 3; j += localSize * 4) {
+            int blockIdx = j / blockSize;
+            float scale = weightScales.get(scalesRowOffset + blockIdx).getFloat32();
+
+            // Dequantize and multiply
+            partialSum1 += ((float) weightsQ.get(rowOffset + j) * scale) * x.get(j);
+            partialSum2 += ((float) weightsQ.get(rowOffset + j + 1) * scale) * x.get(j + 1);
+            partialSum3 += ((float) weightsQ.get(rowOffset + j + 2) * scale) * x.get(j + 2);
+            partialSum4 += ((float) weightsQ.get(rowOffset + j + 3) * scale) * x.get(j + 3);
+        }
+
+        float partialSum = partialSum1 + partialSum2 + partialSum3 + partialSum4;
+
+        // Handle remaining elements
+        for (int j = ((n / 4) * 4) + localId; j < n; j += localSize) {
+            int blockIdx = j / blockSize;
+            float scale = weightScales.get(scalesRowOffset + blockIdx).getFloat32();
+            partialSum += ((float) weightsQ.get(rowOffset + j) * scale) * x.get(j);
+        }
+
+        // Store partial sum
+        localSums[localId] = partialSum;
+        context.localBarrier();
+
+        // Parallel reduction
+        for (int stride = localSize / 2; stride > 0; stride >>= 1) {
+            if (localId < stride) {
+                localSums[localId] += localSums[localId + stride];
+            }
+            context.localBarrier();
+        }
+
+        return localSums[0];
+    }
+
+    public static void matrixVectorGenericWithResidual(KernelContext context, FloatArray x, FloatArray hb, Int8Array w_quants, HalfFloatArray w_scales, int n, int d, int localWorkGroupSize) {
+        // One row per workgroup (not per thread)
+        int rowId = context.groupIdx;
+        int localId = context.localIdx;
+        int localSize = localWorkGroupSize;
+
+        // Early exit if this workgroup is beyond our output dimension
+        if (rowId >= d) {
+            return;
+        }
+
+        float sum = matrixVectorRowMajorOptimizedQ8_0(context, localSize, x, w_quants, w_scales, n);
+
+        // Thread 0 in each workgroup writes the final result
+        if (localId == 0) {
+            float result = hb.get(rowId) + sum;
+            hb.set(rowId, result);
+        }
+    }
+
+    public static void fusedFeedForwardWithSiLUAndGLUActivation(KernelContext context, FloatArray x, FloatArray hb, Int8Array w1_quants, HalfFloatArray w1_scales, Int8Array w3_quants, HalfFloatArray w3_scales, int n, int d, int localWorkGroupSize) {
+        // One row per workgroup (not per thread)
+        int rowId = context.groupIdx;
+        int localId = context.localIdx;
+
+        if (rowId >= d) {
+            return;
+        }
+
+        float sum1 = matrixVectorRowMajorOptimizedQ8_0(context, localWorkGroupSize, x, w1_quants, w1_scales, n);
+        float sum3 = matrixVectorRowMajorOptimizedQ8_0(context, localWorkGroupSize, x, w3_quants, w3_scales, n);
+
+        // Thread 0 in each workgroup writes the final result
+        if (localId == 0) {
+            float silu = siluActivation(sum1);  // Using the new SiLU method
+            float result = silu * sum3;
+            hb.set(rowId, result);
         }
     }
 

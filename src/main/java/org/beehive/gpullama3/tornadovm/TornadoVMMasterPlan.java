@@ -1,6 +1,7 @@
 package org.beehive.gpullama3.tornadovm;
 
 import org.beehive.gpullama3.auxiliary.Tuple2;
+import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.inference.state.Phi3State;
 import org.beehive.gpullama3.inference.state.Qwen2State;
 import org.beehive.gpullama3.inference.state.Qwen3State;
@@ -28,7 +29,7 @@ public class TornadoVMMasterPlan {
     List<ImmutableTaskGraph> taskGraphs;
 
     public TornadoVMMasterPlan(State state, Model model) {
-        TornadoVMLayerPlanner tornadoVMLayerPlanner = createPlanner(state, model);
+        TornadoVMGenericLayerPlanner tornadoVMLayerPlanner = createPlanner(state, model);
         Tuple2<List<ImmutableTaskGraph>, GridScheduler> tornadoVMPlan = shouldUseNvidiaScheduler(model)
                 ? tornadoVMLayerPlanner.setupTornadoForwardPlanLayered()
                 : tornadoVMLayerPlanner.setupTornadoForwardPlanLayeredNonNvidia();
@@ -96,14 +97,23 @@ public class TornadoVMMasterPlan {
     /**
      * Dispatcher method to select the TornadoVMLayerPlanner for the model.
      */
-    TornadoVMLayerPlanner createPlanner(State state, Model model) {
+    TornadoVMGenericLayerPlanner createPlanner(State state, Model model) {
         return switch (model.getModelType()) {
-            case LLAMA_3, MISTRAL -> new TornadoVMLayerPlanner(state, model);
+            case LLAMA_3 -> createLlama3Planner(state, model);
+            case MISTRAL -> new TornadoVMLayerPlanner(state, model);
             case PHI_3 -> new Phi3TornadoVMLayerPlanner((Phi3State) state, model);
             case QWEN_2, DEEPSEEK_R1_DISTILL_QWEN -> new Qwen2TornadoVMLayerPlanner((Qwen2State) state, model);
             case QWEN_3 -> new Qwen3TornadoVMLayerPlanner((Qwen3State) state, model);
             case UNKNOWN -> throw new UnsupportedOperationException("Unknown model type");
         };
+    }
+
+    private TornadoVMGenericLayerPlanner createLlama3Planner(State state, Model model) {
+        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
+            return new TornadoVMQ8_0LayerPlanner(state, model);
+        } else {
+            return new TornadoVMLayerPlanner(state, model);
+        }
     }
 
     /**
