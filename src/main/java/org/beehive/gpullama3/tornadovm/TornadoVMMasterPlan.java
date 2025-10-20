@@ -104,7 +104,7 @@ public class TornadoVMMasterPlan {
             case MISTRAL -> new TornadoVMLayerPlanner(state, model);
             case PHI_3 -> new Phi3TornadoVMLayerPlanner((Phi3State) state, model);
             case QWEN_2, DEEPSEEK_R1_DISTILL_QWEN -> createQWEN2Planner(state, model);
-            case QWEN_3 -> new Qwen3TornadoVMLayerPlanner((Qwen3State) state, model);
+            case QWEN_3 -> createQWEN3Planner(state, model);
             case UNKNOWN -> throw new UnsupportedOperationException("Unknown model type");
         };
     }
@@ -122,6 +122,14 @@ public class TornadoVMMasterPlan {
             return new Qwen2Q8_0TornadoVMLayerPlanner((Qwen2State) state, model);
         } else {
             return new Qwen2TornadoVMLayerPlanner((Qwen2State) state, model);
+        }
+    }
+
+    private TornadoVMGenericLayerPlanner createQWEN3Planner(State state, Model model) {
+        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
+            return new Qwen3Q8_0TornadoVMLayerPlanner((Qwen3State) state, model);
+        } else {
+            return new Qwen3TornadoVMLayerPlanner((Qwen3State) state, model);
         }
     }
 
