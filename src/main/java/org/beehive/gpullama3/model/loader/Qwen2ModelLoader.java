@@ -12,7 +12,6 @@ import org.beehive.gpullama3.inference.weights.standard.Qwen2StandardWeights;
 import org.beehive.gpullama3.inference.weights.tornado.Qwen2TornadoWeights;
 import org.beehive.gpullama3.inference.weights.tornado.Qwen2TornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Configuration;
-import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.format.ChatFormat.ChatTokens;
 import org.beehive.gpullama3.model.qwen2.Qwen2;
@@ -188,7 +187,25 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
                 outputWeight.ggmlType()
         );
     }
-    // @formatter:on
+
+    // Helper methods
+    private FloatTensor[] loadLayerWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, String layerName, String suffix) {
+        FloatTensor[] weights = new FloatTensor[config.numberOfLayers()];
+        for (int i = 0; i < config.numberOfLayers(); i++) {
+            String key = String.format("blk.%d.%s.%s", i, layerName, suffix);
+            weights[i] = ModelLoader.loadQuantized(tensorEntries.get(key));
+        }
+        return weights;
+    }
+
+    private FloatArray[] loadLayerWeightsAsFloatArraysFromBuffer(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, String layerName, String suffix) {
+        FloatArray[] weights = new FloatArray[config.numberOfLayers()];
+        for (int i = 0; i < config.numberOfLayers(); i++) {
+            String key = String.format("blk.%d.%s.%s", i, layerName, suffix);
+            weights[i] = ModelLoader.floatBufferToFloatArray(tensorEntries.get(key));
+        }
+        return weights;
+    }
 
     private HalfFloatArray[] loadLayerWeightsAsHalfFloatArrays(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, String layerName, String suffix) {
         HalfFloatArray[] weights = new HalfFloatArray[config.numberOfLayers()];
