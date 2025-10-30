@@ -102,7 +102,7 @@ public class TornadoVMMasterPlan {
         return switch (model.getModelType()) {
             case LLAMA_3 -> createLlama3Planner(state, model);
             case MISTRAL -> new TornadoVMLayerPlanner(state, model);
-            case PHI_3 -> new Phi3TornadoVMLayerPlanner((Phi3State) state, model);
+            case PHI_3 -> createPhi3Planner(state, model);
             case QWEN_2, DEEPSEEK_R1_DISTILL_QWEN -> createQWEN2Planner(state, model);
             case QWEN_3 -> createQWEN3Planner(state, model);
             case UNKNOWN -> throw new UnsupportedOperationException("Unknown model type");
@@ -122,6 +122,14 @@ public class TornadoVMMasterPlan {
             return new Qwen2Q8_0TornadoVMLayerPlanner((Qwen2State) state, model);
         } else {
             return new Qwen2TornadoVMLayerPlanner((Qwen2State) state, model);
+        }
+    }
+
+    private TornadoVMGenericLayerPlanner createPhi3Planner(State state, Model model) {
+        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
+            return new Phi3TornadoVMLayerPlannerQ8_0((Phi3State) state, model);
+        } else {
+            return new Phi3TornadoVMLayerPlanner((Phi3State) state, model);
         }
     }
 
@@ -148,7 +156,8 @@ public class TornadoVMMasterPlan {
         TornadoRuntime runtime = TornadoRuntimeProvider.getTornadoRuntime();
         String platformName = runtime.getBackend(0).getDefaultDevice().getPlatformName().toLowerCase(Locale.ROOT);
 
-        boolean isNvidia = platformName.contains("nvidia");
+        // TODO: FIX THIS
+        boolean isNvidia = platformName.contains("ptx");
         boolean isNotMistral = model.getModelType() != ModelType.MISTRAL;
 
         boolean result = isNvidia && isNotMistral;
