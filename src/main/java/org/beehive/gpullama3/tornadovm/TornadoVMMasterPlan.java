@@ -100,8 +100,7 @@ public class TornadoVMMasterPlan {
      */
     TornadoVMGenericLayerPlanner createPlanner(State state, Model model) {
         return switch (model.getModelType()) {
-            case LLAMA_3 -> createLlama3Planner(state, model);
-            case MISTRAL -> new TornadoVMLayerPlanner(state, model);
+            case LLAMA_3, MISTRAL -> createLlama3Planner(state, model);
             case PHI_3 -> createPhi3Planner(state, model);
             case QWEN_2, DEEPSEEK_R1_DISTILL_QWEN -> createQWEN2Planner(state, model);
             case QWEN_3 -> createQWEN3Planner(state, model);
