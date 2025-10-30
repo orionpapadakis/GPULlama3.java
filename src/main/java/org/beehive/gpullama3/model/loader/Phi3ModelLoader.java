@@ -95,13 +95,39 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
         if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
             System.out.println("Loading model weights in TornadoVM format (loading " + outputWeight.ggmlType() + " -> " + GGMLType.F16 + ")");
         }
-        return new Phi3TornadoWeights(ModelLoader.loadTensorAsFloatArray(tokenEmbeddings), loadLayerWeightsAsFloatArraysFromBuffer(tensorEntries, config, "attn_norm", "weight"),
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "attn_qkv", "weight"),      // Combined QKV
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "attn_output", "weight"),   // wo
-                loadLayerWeightsAsFloatArraysFromBuffer(tensorEntries, config, "ffn_norm", "weight"), loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "ffn_down", "weight"),      // wDown
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "ffn_up", "weight"),        // wUp (not combined in reference)
-                ModelLoader.floatBufferToFloatArray(tensorEntries.get("output_norm.weight")), FloatArray.fromArray(ropeFreqs.first()), FloatArray.fromArray(ropeFreqs.second()),
-                ModelLoader.loadTensorAsHalfFloatArray(outputWeight), outputWeight.ggmlType());
+        return new Phi3TornadoWeights(
+                loadTensorAsFloatArray(tokenEmbeddings),
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),      // Combined QKV
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),   // wo
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),      // wDown
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),        // wUp (not combined in reference)
+                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
+                FloatArray.fromArray(ropeFreqs.first()),
+                FloatArray.fromArray(ropeFreqs.second()),
+                loadTensorAsHalfFloatArray(outputWeight),
+                outputWeight.ggmlType()
+        );
+    }
+
+    public Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
+                                              Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+                                              GGMLTensorEntry outputWeight) {
+        return new Phi3TornadoWeightsQ8_0(
+                loadTensorAsFloatArray(tokenEmbeddings),
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),      // Combined QKV
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),   // wo
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),      // wDown
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),        // wUp (not combined in reference)
+                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
+                FloatArray.fromArray(ropeFreqs.first()),
+                FloatArray.fromArray(ropeFreqs.second()),
+                loadQ8_0QuantizedTensor(outputWeight),
+                outputWeight.ggmlType()
+        );
     }
 
     public Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
