@@ -156,11 +156,10 @@ public class TornadoVMMasterPlan {
         String platformName = runtime.getBackend(0).getDefaultDevice().getPlatformName().toLowerCase(Locale.ROOT);
 
         // TODO: FIX THIS
-        boolean isNvidia = platformName.contains("ptx");
+        boolean isNvidia = platformName.contains("nvidia") || platformName.contains("cuda")  || platformName.contains("ptx");
         boolean isNotMistral = model.getModelType() != ModelType.MISTRAL;
 
         boolean result = isNvidia && isNotMistral;
-
         return result;
     }
 
