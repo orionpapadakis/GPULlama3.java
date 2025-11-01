@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.tornadovm;
+package org.beehive.gpullama3.tornadovm.utils;
 
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.math.TornadoMath;

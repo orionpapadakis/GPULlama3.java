@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.tornadovm;
+package org.beehive.gpullama3.tornadovm.kernels;
 
 import uk.ac.manchester.tornado.api.KernelContext;
 import uk.ac.manchester.tornado.api.math.TornadoMath;

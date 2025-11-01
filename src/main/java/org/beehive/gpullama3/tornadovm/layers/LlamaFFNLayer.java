@@ -1,54 +1,63 @@
-package org.beehive.gpullama3.tornadovm;
+package org.beehive.gpullama3.tornadovm.layers;
 
-import org.beehive.gpullama3.auxiliary.Tuple2;
-import org.beehive.gpullama3.inference.state.Qwen2State;
-import org.beehive.gpullama3.inference.weights.tornado.Qwen2TornadoWeights;
-import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.model.qwen2.Qwen2Configuration;
-import org.beehive.gpullama3.tornadovm.kernels.Qwen2Kernels;
-import org.beehive.gpullama3.tornadovm.kernels.Qwen3Kernels;
-import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernels;
+import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.core.model.tensor.F16FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.F32FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.Q4_0FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.Q8_0FloatTensor;
+import org.beehive.gpullama3.inference.state.State;
+import org.beehive.gpullama3.inference.weights.Weights;
+import org.beehive.gpullama3.inference.weights.tornado.LlamaTornadoWeights;
+import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
 import uk.ac.manchester.tornado.api.WorkerGrid;
 import uk.ac.manchester.tornado.api.WorkerGrid1D;
-import uk.ac.manchester.tornado.api.WorkerGrid2D;
 import uk.ac.manchester.tornado.api.enums.DataTransferMode;
 
-import java.util.ArrayList;
-import java.util.List;
+public class LlamaFFNLayer extends AbstractLayer{
 
-public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State, Qwen2Configuration, Qwen2TornadoWeights> {
+    TaskGraph ffunnLayerTaskGraph;
+    LlamaFFNLayer(String taskGraph, State state, Weights weights, Configuration config) {
+        super(taskGraph, state, weights, config);
 
-    /**
-     * Constructs a TornadoVMLayerPlanner for the given Qwen2 model.
-     *
-     * @param state
-     *         The state object containing model tensors and buffers
-     * @param model
-     *         The Qwen2 model instance containing configuration and weights
-     */
-    public Qwen2TornadoVMLayerPlanner(Qwen2State state, Model model) {
-        super(state, model);
+        // Ensure we have the Tornado-specific weights layout
+        if (!(weights instanceof LlamaTornadoWeights llamaWeights)) {
+            throw new IllegalArgumentException(
+                    "LlamaFFNLayer requires LlamaTornadoWeights with layered layout");
+        }
+
+        GGMLType wt = weights.getWeightType();
+        switch (wt) {
+            case F16,  -> { setupFFNLayered(llamaWeights, config); }
+            case Q8_0 ->  { setupFFNLayered(llamaWeights, config); }
+            default -> throw new UnsupportedOperationException(
+                    "Quantization format " + wt + " is not supported");
+        }
+
+        setupGridSchedulersLayered(config);
     }
 
     @Override
-    public Tuple2<List<ImmutableTaskGraph>, GridScheduler> setupTornadoForwardPlanLayered() {
-        List<ImmutableTaskGraph> taskGraphs = new ArrayList<>();
+    GridScheduler getGridScheduler() {
+        return null;
+    }
 
-        state.temp.init(0.0f);
-        state.tempFFN.init(0.0f);
-        state.tempLogits.init(0.0f);
-        state.wrapLogits.init(0.0f);
+    @Override
+    TaskGraph getTaskGraph() {
+        return null;
+    }
 
-        TaskGraph activationUpdate = new TaskGraph("activationUpdate")
-                .transferToDevice(DataTransferMode.EVERY_EXECUTION, state.wrapX)
-                .task("updateX", TransformerComputeKernels::emptyTaskToForceCopyIn, state.wrapX)
-                .persistOnDevice(state.wrapX);
-        taskGraphs.add(activationUpdate.snapshot());
+    @Override
+    ImmutableTaskGraph getImmutableTaskGraph() {
+        return null;
+    }
 
+
+    TaskGraph setupFFNLayered(LlamaTornadoWeights weights, Configuration config) {
         TaskGraph unifiedLayer = null;
         for (int layerIndex =0; layerIndex < config.numberOfLayers(); layerIndex++) {
             unifiedLayer = new TaskGraph("layer_" + layerIndex);
@@ -60,16 +69,12 @@ public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State
                     weights.wkLayered[layerIndex],
                     weights.wvLayered[layerIndex],
                     weights.woLayered[layerIndex],
-                    weights.q_biasLayered[layerIndex],
-                    weights.k_biasLayered[layerIndex],
-                    weights.v_biasLayered[layerIndex],
                     weights.rms_ffn_weightLayered[layerIndex],
                     weights.w1Layered[layerIndex],
                     weights.w2Layered[layerIndex],
                     weights.w3Layered[layerIndex]
             );
             unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
-
             unifiedLayer.task("reductionsOneBlock" , TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.temp,
                             state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
                     .task("mapContext", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb,
@@ -80,14 +85,12 @@ public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State
                             state.wrapXb,  state.wrapK, weights.wkLayered[layerIndex], config.dim(), config.kvDim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
                     .task("vmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context,
                             state.wrapXb,   state.wrapV, weights.wvLayered[layerIndex], config.dim(), config.kvDim(),  LOCAL_WORK_GROUP_SIZE_ALLOC)
-                    .task("qbias", TransformerComputeKernelsLayered::addInPlace, state.wrapQ, weights.q_biasLayered[layerIndex], config.dim())
-                    .task("kbias", TransformerComputeKernelsLayered::addInPlace, state.wrapK, weights.k_biasLayered[layerIndex], config.kvDim())
-                    .task("vbias", TransformerComputeKernelsLayered::addInPlace, state.wrapV, weights.v_biasLayered[layerIndex], config.kvDim())
-                    .task("rope", Qwen3Kernels::ropeRotation,context, state.positionHolder, state.wrapQ, state.wrapK, config.numberOfKeyValueHeads(),
+                    .task("rope", TransformerComputeKernelsLayered::ropeRotation,context,
+                            state.positionHolder, state.wrapQ, state.wrapK, config.kvDim(),
                             config.headSize())
                     .task("copyToCaches", TransformerComputeKernelsLayered::copyToCache,
                             state.wrapKeyCache, state.wrapK,  state.wrapValueCache, state.wrapV, state.positionHolder, config.kvDim(), layerIndex, config.contextLength())
-                    .task("parallel-attention", Qwen2Kernels::processHeadsFlashAttention, context,
+                    .task("parallel-attention", TransformerComputeKernelsLayered::processHeadsFlashAttention, context,
                             state.wrapQ, state.wrapKeyCache, state.wrapValueCache, state.wrapXb,
                             config.numberOfHeads(), config.headSize(), config.kvDim(), config.kvMul(),
                             state.positionHolder, layerIndex, config.contextLength())
@@ -106,40 +109,33 @@ public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State
                     );
             taskGraphs.add(unifiedLayer.snapshot());
         }
-
-        TaskGraph lastUnifiedLayer = unifiedLayer;
-        TaskGraph logits = new TaskGraph("logits")
-                .consumeFromDevice(lastUnifiedLayer.getTaskGraphName(),
-                        state.wrapX
-                )
-                .transferToDevice(DataTransferMode.EVERY_EXECUTION,
-                        state.tempLogits
-                )
-                .transferToDevice(DataTransferMode.FIRST_EXECUTION,
-                        context,
-                        state.wrapLogits,
-                        weights.wclsHalfFloat,
-                        weights.rms_final_weight_as_floatArray
-                )
-                .task("reductionsOneBlockLogits", TransformerComputeKernels::reductionOneBlockWithLayer, context, state.tempLogits,
-                        state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
-                .task("mapContextLogits", TransformerComputeKernels::reductionOneBlock2WithLogits, context, state.wrapX,
-                        weights.rms_final_weight_as_floatArray, state.tempLogits);
-        logits = configureQuantizedMatrixVectorFinalWeight(logits);
-        logits.transferToHost(DataTransferMode.EVERY_EXECUTION, state.wrapLogits);
-        taskGraphs.add(logits.snapshot());
-        // @formatter:on
-
-        return new Tuple2<>(taskGraphs, setupQwen2GridSchedulersLayeredNonNvidia());
+        return null;
     }
 
-    @Override
-    public Tuple2<List<ImmutableTaskGraph>, GridScheduler> setupTornadoForwardPlanLayeredNonNvidia() {
-        return setupTornadoForwardPlanLayered();
+    protected TaskGraph configureLayerDataTransfers(TaskGraph unifiedLayer, int layerIndex) {
+        // First layer: Transfer initial data to device (one-time transfer)
+        if (layerIndex == 0) {
+            // Transfer all attention-related data: query, key, value matrices and their caches
+            unifiedLayer.transferToDevice(DataTransferMode.EVERY_EXECUTION, state.positionHolder, state.temp, state.tempFFN); //
+            unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION, //
+                    context, state.wrapXb, state.wrapXb2, //
+                    state.wrapQ, state.wrapK, state.wrapV, //
+                    state.wrapKeyCache, state.wrapValueCache, //
+                    state.wrapAtt, state.wrapHb); //
+        } else {
+            // Subsequent layers: Consume data already on device from previous layer
+            unifiedLayer.consumeFromDevice(context, state.wrapXb, state.wrapXb2, //
+                    state.wrapQ, state.wrapK, state.wrapV, //
+                    state.wrapKeyCache, state.wrapValueCache, //
+                    state.wrapAtt, state.wrapHb, //
+                    state.positionHolder //
+            );
+        }
+        return unifiedLayer;
     }
 
-    private GridScheduler setupQwen2GridSchedulersLayeredNonNvidia() {
-        //throw new UnsupportedOperationException("setupQwen2GridSchedulersLayeredNonNvidia Not supported yet.");
+
+    private GridScheduler setupGridSchedulersLayered(Configuration config) {
         GridScheduler tornadoForwardScheduler = new GridScheduler();
 
         // Single worker for tasks running with a single thread
@@ -152,11 +148,9 @@ public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State
         // config.dim / 2 Worker for RoPE
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim/2,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((config.dim/2+127)/128,1,1), dim3(128,1,1)>>>
-        int h = config.numberOfHeads();
-        int ic = config.headSize() / 2;
-        WorkerGrid ropeWorker = new WorkerGrid2D(h, ic);
-        ropeWorker.setGlobalWork(h, ic, 1);
-        ropeWorker.setLocalWork(1, 1, 1);
+        WorkerGrid ropeWorker = new WorkerGrid1D(config.dim() / 2);
+        ropeWorker.setGlobalWork(config.dim() / 2, 1, 1);
+        ropeWorker.setLocalWork(128, 1, 1);
 
         // config.dim Worker for Row major access
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim*LOCAL_WORK_GROUP_SIZE_ALLOC,1,1], localWorkSize=[LOCAL_WORK_GROUP_SIZE_ALLOC,1,1])
@@ -172,13 +166,6 @@ public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State
         WorkerGrid configKvDimRowMajorGlobalWorker = new WorkerGrid1D(configKvDimRowMajorGlobal);
         configKvDimRowMajorGlobalWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
 
-        WorkerGrid qBiasWorker = new WorkerGrid1D(config.dim());
-        qBiasWorker.setGlobalWork(config.dim(), 1, 1);
-        qBiasWorker.setLocalWork(config.dim() / 8, 1, 1);
-        WorkerGrid kvBiasWorker = new WorkerGrid1D(config.kvDim());
-        kvBiasWorker.setGlobalWork(config.kvDim(), 1, 1);
-        kvBiasWorker.setLocalWork(32, 1, 1);
-
         // config.hiddenDim * 32 Worker for Row major access
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.hiddenDim*LOCAL_WORK_GROUP_SIZE_ALLOC,1,1], localWorkSize=[LOCAL_WORK_GROUP_SIZE_ALLOC,1,1])
         // CUDA equivalent: kernel<<<dim3(config.hiddenDim,1,1), dim3(LOCAL_WORK_GROUP_SIZE_ALLOC,1,1)>>>
@@ -191,31 +178,22 @@ public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State
         // CUDA equivalent: kernel<<<dim3((config.dim+255)/256,1,1), dim3(256,1,1)>>>
         WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
         rmsNormWorker.setGlobalWork(config.dim(), 1, 1);  // Set global work size to total dimension
-        rmsNormWorker.setLocalWork(32, 1, 1);         // Set local work size to 256 (standard efficient size)
+        rmsNormWorker.setLocalWork(256, 1, 1);         // Set local work size to 256 (standard efficient size)
 
         // Parallel attention worker configuration
-        // Calculate optimal local work size based on head dimension
-        int optimalLocalSize = Math.min(config.headSize(), 64); // Start with 64 threads per head
-        if (config.headSize() % optimalLocalSize != 0) {
-            // Find largest divisor of headSize <= 64
-            for (int size = 64; size >= 1; size--) {
-                if (config.headSize() % size == 0) {
-                    optimalLocalSize = size;
-                    break;
-                }
-            }
-        }
-
+        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.numberOfHeads,1,1], localWorkSize=[4,1,1])
+        // CUDA equivalent: kernel<<<dim3((config.numberOfHeads+3)/4,1,1), dim3(4,1,1)>>>
         WorkerGrid parallelAttentionWorker = new WorkerGrid1D(config.numberOfHeads());
-        parallelAttentionWorker.setGlobalWork(config.numberOfHeads() * optimalLocalSize, 1, 1);
-        parallelAttentionWorker.setLocalWork(optimalLocalSize, 1, 1);
+        // the global group work size is numberOfHeads * localWorkGroupSize, where the localWorkGroupSize is currently 4
+        parallelAttentionWorker.setGlobalWork(config.numberOfHeads() * 8, 1, 1);
+        parallelAttentionWorker.setLocalWork(8, 1, 1); // Set local work size to 4 (for parallel attention)
 
         // Copy to caches worker configuration
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((config.dim+127)/128,1,1), dim3(128,1,1)>>>
         WorkerGrid copyToCachesWorker = new WorkerGrid1D(config.kvDim());
-        copyToCachesWorker.setGlobalWork(config.kvDim(), 1, 1);
-        copyToCachesWorker.setLocalWork(32, 1, 1); // Set local work size to 32 (for copying to caches)
+        copyToCachesWorker.setGlobalWork(config.dim(), 1, 1);
+        copyToCachesWorker.setLocalWork(128, 1, 1); // Set local work size to 32 (for copying to caches)
 
         // Map workers to tasks
         tornadoForwardScheduler.addWorkerGrid("activationUpdate.updateX", singleWorker);
@@ -223,9 +201,6 @@ public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".qmatmul", configDimRowMajorGlobalWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".kmatmul", configKvDimRowMajorGlobalWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".vmatmul", configKvDimRowMajorGlobalWorker);
-            tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".qbias", qBiasWorker);
-            tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".kbias", kvBiasWorker);
-            tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".vbias", kvBiasWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".rope", ropeWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".matmul1", configDimRowMajorGlobalWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".projectionTwo", configDimRowMajorGlobalWorker);
@@ -251,4 +226,5 @@ public class Qwen2TornadoVMLayerPlanner extends TornadoVMLayerPlanner<Qwen2State
 
         return tornadoForwardScheduler;
     }
+
 }

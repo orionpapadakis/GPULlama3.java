@@ -5,6 +5,9 @@ import org.beehive.gpullama3.inference.weights.tornado.FP16Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.inference.state.State;
+import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernels;
+import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
+import org.beehive.gpullama3.tornadovm.layers.Activation;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.KernelContext;
@@ -73,6 +76,9 @@ import java.util.List;
             state.temp.init(0.0f);
             state.tempFFN.init(0.0f);
             state.tempLogits.init(0.0f);
+
+            Activation activation = new Activation("activationUpdate", state, weights, config);
+            taskGraphs.add(activation.getImmutableTaskGraph());
 
             // @formatter:off
             TaskGraph activationUpdate = new TaskGraph("activationUpdate")

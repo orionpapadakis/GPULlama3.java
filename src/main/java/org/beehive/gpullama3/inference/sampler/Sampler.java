@@ -3,7 +3,7 @@ package org.beehive.gpullama3.inference.sampler;
 import org.beehive.gpullama3.Options;
 import org.beehive.gpullama3.core.model.tensor.FloatTensor;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.tornadovm.FloatArrayUtils;
+import org.beehive.gpullama3.tornadovm.utils.FloatArrayUtils;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 import java.util.random.RandomGenerator;
