@@ -94,8 +94,7 @@ public final class GGUF {
         }
         // Padding to the nearest multiple of `ALIGNMENT`.
         // uint8_t _padding[ALIGNMENT - (sizeof(header + tensor_infos) % ALIGNMENT)];
-        //long _padding = -fileChannel.position() & (ALIGNMENT - 1);
-        long _padding = getAlignment() - (fileChannel.position() % getAlignment());
+        long _padding = (getAlignment() - (fileChannel.position() % getAlignment())) % getAlignment();
         fileChannel.position(fileChannel.position() + _padding);
         // Tensor data.
         //

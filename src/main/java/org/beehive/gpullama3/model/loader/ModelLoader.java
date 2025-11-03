@@ -11,11 +11,13 @@ import org.beehive.gpullama3.core.model.tensor.FloatTensor;
 import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
 import org.beehive.gpullama3.core.model.tensor.Q4_0FloatTensor;
 import org.beehive.gpullama3.core.model.tensor.Q8_0FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
 import org.beehive.gpullama3.core.types.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.LlamaStandardWeights;
 import org.beehive.gpullama3.inference.weights.tornado.LlamaTornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;
@@ -24,8 +26,11 @@ import uk.ac.manchester.tornado.api.types.HalfFloat;
 import uk.ac.manchester.tornado.api.types.arrays.ByteArray;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
+import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
@@ -142,6 +147,14 @@ public abstract class ModelLoader {
         return array;
     }
 
+    public static Q8_0QuantizedTensor[] loadArrayAsQ8_0QuantizedTensor(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+        Q8_0QuantizedTensor[] array = new Q8_0QuantizedTensor[size];
+        for (int i = 0; i < size; i++) {
+            array[i] = loadQ8_0QuantizedTensor(getTensorEntry.apply(i));
+        }
+        return array;
+    }
+
     //@formatter:off
 
     public static FloatArray floatBufferToFloatArray(GGMLTensorEntry tensorEntry) {
@@ -203,6 +216,46 @@ public abstract class ModelLoader {
         }
     }
 
+    public static Q8_0QuantizedTensor loadQ8_0QuantizedTensor(GGMLTensorEntry entry) {
+        if (entry.ggmlType() != GGMLType.Q8_0) {
+            throw new IllegalArgumentException("Expected Q8_0 tensor, got: " + entry.ggmlType() + " for tensor: " + entry.name());
+        }
+
+        int[] shape = entry.shape();
+        int size = FloatTensor.numberOfElements(shape);
+        int numBlocks = size / GGMLType.Q8_0.getBlockSize();
+
+        if (size % GGMLType.Q8_0.getBlockSize() != 0) {
+            throw new IllegalArgumentException("Q8_0 tensor size must be multiple of " + GGMLType.Q8_0.getBlockSize() + ", got: " + size + " for tensor: " + entry.name());
+        }
+
+        MemorySegment q8Segment = entry.memorySegment();
+
+        // allocate the arrays for quantized data (int8) and scales (fp16)
+        HalfFloatArray scales = new HalfFloatArray(numBlocks);
+        Int8Array quants = new Int8Array(size);
+
+        // unpack Q8_0 blocks: [2 bytes fp16 scale][32 bytes int8 quants]
+        ValueLayout.OfShort shortLayout = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+        ValueLayout.OfByte byteLayout = ValueLayout.JAVA_BYTE;
+
+        for (int block = 0; block < numBlocks; block++) {
+            long blockOffset = block * 34L;  // 34 bytes per block
+
+            // read fp16 scale (first 2 bytes of block)
+            short scaleRaw = q8Segment.get(shortLayout, blockOffset);
+            scales.set(block, new HalfFloat(scaleRaw));
+
+            // read 32 int8 quantized values (remaining bytes of block)
+            for (int i = 0; i < 32; i++) {
+                byte quantValue = q8Segment.get(byteLayout, blockOffset + 2 + i);
+                quants.set(block * 32 + i, quantValue);
+            }
+        }
+
+        return new Q8_0QuantizedTensor(size, scales, quants, q8Segment);
+    }
+
     public static FloatTensor[] loadArrayOfQuantized(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         FloatTensor[] array = new FloatTensor[size];
         for (int i = 0; i < size; i++) {
@@ -254,9 +307,14 @@ public abstract class ModelLoader {
 
         if (useTornadovm) {
             if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
-                System.out.println("Loading model weights in TornadoVM format (loading " + outputWeight.ggmlType() + " -> " + GGMLType.F16 + ")");
+                System.out.println("Loading model weights in TornadoVM format (loading " + outputWeight.ggmlType() + ")");
             }
-            return createTornadoVMWeights(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
+
+            if (outputWeight.ggmlType() == GGMLType.Q8_0) {
+                return createTornadoVMWeightsQ8_0(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
+            } else {
+                return createTornadoVMWeights(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
+             }
         } else {
             return createStandardWeights(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
         }
@@ -277,6 +335,26 @@ public abstract class ModelLoader {
                 loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")), floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
                 FloatArray.fromArray(ropeFreqs.first()), FloatArray.fromArray(ropeFreqs.second()), loadTensorAsHalfFloatArray(outputWeight), outputWeight.ggmlType()) {
         };
+    }
+
+    private Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,  Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings, GGMLTensorEntry outputWeight) {
+        return new Q8_0Weights(
+                loadTensorAsFloatArray(tokenEmbeddings),
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
+                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
+                FloatArray.fromArray(ropeFreqs.first()),
+                FloatArray.fromArray(ropeFreqs.second()),
+                loadQ8_0QuantizedTensor(outputWeight),
+                outputWeight.ggmlType()
+        );
     }
 
     /**

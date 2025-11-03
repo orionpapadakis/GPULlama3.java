@@ -1,36 +1,37 @@
 package org.beehive.gpullama3.inference.weights.tornado;
 
 import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
-import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 
-/**
- * A model-specific implementation of {@link FP16Weights} for the Llama model.
- * This class encapsulates the weights required for performing GPU-accelerated
- * inference of the Llama model using TornadoVM.
- *
- * <p><b>Note:</b> This weight format can also be used with the Mistral model.</p>
- */
-public class LlamaTornadoWeights extends FP16Weights {
+
+public class Qwen3Q8_0TornadoWeights extends Q8_0Weights{
+
+    //attnKNorm
+    public FloatArray[] rms_att_KNormLayered;
+    //attnQNorm
+    public FloatArray[] rms_att_QNormLayered;
 
     // @formatter:off
-    public LlamaTornadoWeights(
+    public Qwen3Q8_0TornadoWeights(
             FloatArray tokenEmbeddingTable,
             FloatArray[] rms_att_weightLayered,
-            HalfFloatArray[] wqLayered,
-            HalfFloatArray[] wkLayered,
-            HalfFloatArray[] wvLayered,
-            HalfFloatArray[] woLayered,
+            Q8_0QuantizedTensor[] wqLayered,
+            Q8_0QuantizedTensor[] wkLayered,
+            Q8_0QuantizedTensor[] wvLayered,
+            Q8_0QuantizedTensor[] woLayered,
+            FloatArray[] rms_att_KNormLayered,
+            FloatArray[] rms_att_QNormLayered,
             FloatArray[] rms_ffn_weightLayered,
-            HalfFloatArray[] w1Layered,
-            HalfFloatArray[] w2Layered,
-            HalfFloatArray[] w3Layered,
+            Q8_0QuantizedTensor[] w1Layered,
+            Q8_0QuantizedTensor[] w2Layered,
+            Q8_0QuantizedTensor[] w3Layered,
             FloatArray rms_final_weight_as_floatArray,
             FloatArray freq_cis_realFlat,
             FloatArray freq_cis_imagFlat,
-            HalfFloatArray wclsByteArray,
+            Q8_0QuantizedTensor wclsByteArray,
             GGMLType weightType) {
-        // call to FP16Weights constructor
+        // call to Q8_0Weights constructor
         super(tokenEmbeddingTable,
                 rms_att_weightLayered,
                 wqLayered,
@@ -46,6 +47,10 @@ public class LlamaTornadoWeights extends FP16Weights {
                 freq_cis_imagFlat,
                 wclsByteArray,
                 weightType);
+        // init qwen3-specific fields
+        this.rms_att_KNormLayered = rms_att_KNormLayered;
+        this.rms_att_QNormLayered = rms_att_QNormLayered;
     }
     // @formatter:on
+
 }

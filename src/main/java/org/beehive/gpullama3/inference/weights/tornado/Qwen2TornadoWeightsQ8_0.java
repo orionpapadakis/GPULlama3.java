@@ -1,23 +1,24 @@
 package org.beehive.gpullama3.inference.weights.tornado;
 
 import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
-import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 
-public class Qwen2TornadoWeights extends FP16Weights {
+
+public class Qwen2TornadoWeightsQ8_0 extends Q8_0Weights {
 
     // Qwen2-specific tornado weights
     public FloatArray[] q_biasLayered;
     public FloatArray[] k_biasLayered;
     public FloatArray[] v_biasLayered;
 
-    public Qwen2TornadoWeights(FloatArray tokenEmbeddingTable, FloatArray[] rms_att_weightLayered, HalfFloatArray[] wqLayered, HalfFloatArray[] wkLayered, HalfFloatArray[] wvLayered,
-            FloatArray[] wqBiasLayered,
-            FloatArray[] wkBiasLayered,
-            FloatArray[] wvBiasLayered,
-            HalfFloatArray[] woLayered, FloatArray[] rms_ffn_weightLayered, HalfFloatArray[] w1Layered,
-            HalfFloatArray[] w2Layered, HalfFloatArray[] w3Layered, FloatArray rms_final_weight_as_floatArray, FloatArray freq_cis_realFlat, FloatArray freq_cis_imagFlat, HalfFloatArray wclsByteArray,
-            GGMLType weightType) {
+    public Qwen2TornadoWeightsQ8_0(FloatArray tokenEmbeddingTable, FloatArray[] rms_att_weightLayered, Q8_0QuantizedTensor[] wqLayered, Q8_0QuantizedTensor[] wkLayered, Q8_0QuantizedTensor[] wvLayered,
+                                   FloatArray[] wqBiasLayered,
+                                   FloatArray[] wkBiasLayered,
+                                   FloatArray[] wvBiasLayered,
+                                   Q8_0QuantizedTensor[] woLayered, FloatArray[] rms_ffn_weightLayered, Q8_0QuantizedTensor[] w1Layered,
+                                   Q8_0QuantizedTensor[] w2Layered, Q8_0QuantizedTensor[] w3Layered, FloatArray rms_final_weight_as_floatArray, FloatArray freq_cis_realFlat, FloatArray freq_cis_imagFlat, Q8_0QuantizedTensor wclsByteArray,
+                                   GGMLType weightType) {
         // call to FP16Weights constructor
         super(tokenEmbeddingTable,
                 rms_att_weightLayered,

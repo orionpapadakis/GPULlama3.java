@@ -1,10 +1,12 @@
 package org.beehive.gpullama3.tornadovm;
 
 import org.beehive.gpullama3.auxiliary.Tuple2;
+import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.inference.state.Phi3State;
 import org.beehive.gpullama3.inference.state.Qwen2State;
 import org.beehive.gpullama3.inference.state.Qwen3State;
 import org.beehive.gpullama3.inference.state.State;
+import org.beehive.gpullama3.inference.weights.tornado.Qwen2Q8_0TornadoVMLayerPlanner;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;
@@ -28,7 +30,7 @@ public class TornadoVMMasterPlan {
     List<ImmutableTaskGraph> taskGraphs;
 
     public TornadoVMMasterPlan(State state, Model model) {
-        TornadoVMLayerPlanner tornadoVMLayerPlanner = createPlanner(state, model);
+        TornadoVMGenericLayerPlanner tornadoVMLayerPlanner = createPlanner(state, model);
         Tuple2<List<ImmutableTaskGraph>, GridScheduler> tornadoVMPlan = shouldUseNvidiaScheduler(model)
                 ? tornadoVMLayerPlanner.setupTornadoForwardPlanLayered()
                 : tornadoVMLayerPlanner.setupTornadoForwardPlanLayeredNonNvidia();
@@ -96,14 +98,46 @@ public class TornadoVMMasterPlan {
     /**
      * Dispatcher method to select the TornadoVMLayerPlanner for the model.
      */
-    TornadoVMLayerPlanner createPlanner(State state, Model model) {
+    TornadoVMGenericLayerPlanner createPlanner(State state, Model model) {
         return switch (model.getModelType()) {
-            case LLAMA_3, MISTRAL -> new TornadoVMLayerPlanner(state, model);
-            case PHI_3 -> new Phi3TornadoVMLayerPlanner((Phi3State) state, model);
-            case QWEN_2, DEEPSEEK_R1_DISTILL_QWEN -> new Qwen2TornadoVMLayerPlanner((Qwen2State) state, model);
-            case QWEN_3 -> new Qwen3TornadoVMLayerPlanner((Qwen3State) state, model);
+            case LLAMA_3, MISTRAL -> createLlama3Planner(state, model);
+            case PHI_3 -> createPhi3Planner(state, model);
+            case QWEN_2, DEEPSEEK_R1_DISTILL_QWEN -> createQWEN2Planner(state, model);
+            case QWEN_3 -> createQWEN3Planner(state, model);
             case UNKNOWN -> throw new UnsupportedOperationException("Unknown model type");
         };
+    }
+
+    private TornadoVMGenericLayerPlanner createLlama3Planner(State state, Model model) {
+        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
+            return new TornadoVMQ8_0LayerPlanner(state, model);
+        } else {
+            return new TornadoVMLayerPlanner(state, model);
+        }
+    }
+
+    private TornadoVMGenericLayerPlanner createQWEN2Planner(State state, Model model) {
+        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
+            return new Qwen2Q8_0TornadoVMLayerPlanner((Qwen2State) state, model);
+        } else {
+            return new Qwen2TornadoVMLayerPlanner((Qwen2State) state, model);
+        }
+    }
+
+    private TornadoVMGenericLayerPlanner createPhi3Planner(State state, Model model) {
+        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
+            return new Phi3TornadoVMLayerPlannerQ8_0((Phi3State) state, model);
+        } else {
+            return new Phi3TornadoVMLayerPlanner((Phi3State) state, model);
+        }
+    }
+
+    private TornadoVMGenericLayerPlanner createQWEN3Planner(State state, Model model) {
+        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
+            return new Qwen3Q8_0TornadoVMLayerPlanner((Qwen3State) state, model);
+        } else {
+            return new Qwen3TornadoVMLayerPlanner((Qwen3State) state, model);
+        }
     }
 
     /**
@@ -121,11 +155,11 @@ public class TornadoVMMasterPlan {
         TornadoRuntime runtime = TornadoRuntimeProvider.getTornadoRuntime();
         String platformName = runtime.getBackend(0).getDefaultDevice().getPlatformName().toLowerCase(Locale.ROOT);
 
-        boolean isNvidia = platformName.contains("nvidia");
+        // TODO: FIX THIS
+        boolean isNvidia = platformName.contains("nvidia") || platformName.contains("cuda")  || platformName.contains("ptx");
         boolean isNotMistral = model.getModelType() != ModelType.MISTRAL;
 
         boolean result = isNvidia && isNotMistral;
-
         return result;
     }
 

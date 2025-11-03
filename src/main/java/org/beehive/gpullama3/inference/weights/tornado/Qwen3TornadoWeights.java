@@ -5,13 +5,13 @@ import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 
 /**
- * A model-specific implementation of {@link TornadoWeights} for the Qwen3 model.
+ * A model-specific implementation of {@link FP16Weights} for the Qwen3 model.
  * This class encapsulates the weights required for performing GPU-accelerated
  * inference of the Qwen3 model using TornadoVM.
  *
  * <p><b>Note:</b> This weight format can also be used with the Mistral model.</p>
  */
-public class Qwen3TornadoWeights extends TornadoWeights {
+public class Qwen3TornadoWeights extends FP16Weights {
 
     //attnKNorm
     public FloatArray[] rms_att_KNormLayered;
@@ -37,7 +37,7 @@ public class Qwen3TornadoWeights extends TornadoWeights {
             FloatArray freq_cis_imagFlat,
             HalfFloatArray wclsByteArray,
             GGMLType weightType) {
-        // call to TornadoWeights constructor
+        // call to FP16Weights constructor
         super(tokenEmbeddingTable,
                 rms_att_weightLayered,
                 wqLayered,
