@@ -3,29 +3,11 @@ package org.beehive.gpullama3.model.loader;
 import org.beehive.gpullama3.Options;
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.GGUF;
-import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
-import org.beehive.gpullama3.core.model.tensor.F16FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.F32FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
-import org.beehive.gpullama3.core.model.tensor.Q4_0FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.Q8_0FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
-import org.beehive.gpullama3.core.types.Pair;
-import org.beehive.gpullama3.inference.operation.RoPE;
-import org.beehive.gpullama3.inference.weights.Weights;
-import org.beehive.gpullama3.inference.weights.standard.LlamaStandardWeights;
-import org.beehive.gpullama3.inference.weights.tornado.LlamaTornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights;
-import org.beehive.gpullama3.model.Configuration;
+import org.beehive.gpullama3.core.model.tensor.*;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;
-import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import uk.ac.manchester.tornado.api.types.HalfFloat;
-import uk.ac.manchester.tornado.api.types.arrays.ByteArray;
-import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
-import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
-import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
+import uk.ac.manchester.tornado.api.types.arrays.*;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -37,6 +19,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.function.IntFunction;
+
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsHalfFloatArray;
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsFloatArray;
 
 public abstract class ModelLoader {
 
@@ -109,6 +94,10 @@ public abstract class ModelLoader {
         return modelType.loadModel(fileChannel, gguf, contextLength, loadWeights, useTornadovm);
     }
 
+    /**
+     * Dispatcher method for loading a standard (non-tornado) tensor based on type.
+     * Used in CPU-path.
+     */
     public static FloatTensor loadQuantized(GGMLTensorEntry entry) {
         GGMLType ggmlType = entry.ggmlType();
         return switch (ggmlType) {
@@ -118,6 +107,55 @@ public abstract class ModelLoader {
             case F16 -> new F16FloatTensor(FloatTensor.numberOfElements(entry.shape()), entry.memorySegment());
             default -> throw new UnsupportedOperationException("Quantization format " + ggmlType);
         };
+    }
+
+    /**
+     * Dispatcher method for loading a standard tensor array based on type.
+     * Used in CPU-path.
+     */
+    public static FloatTensor[] loadArrayOfQuantized(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+        FloatTensor[] array = new FloatTensor[size];
+        for (int i = 0; i < size; i++) {
+            array[i] = loadQuantized(getTensorEntry.apply(i));
+        }
+        return array;
+    }
+
+    /**
+     * [WIP]
+     * Dispatcher method for loading a TornadoVM tensor based on type.
+     * Used in GPU-path.
+     *
+     * TODO: fix this to follow loadQuantized logic
+     */
+    public static FloatTensor loadTornadoTensor(GGMLTensorEntry entry) {
+        GGMLType ggmlType = entry.ggmlType();
+        int size = FloatTensor.numberOfElements(entry.shape());
+        return switch (ggmlType) {
+//            case F32 -> new F32QuantizedTensor(size, entry.memorySegment());
+            case Q8_0 -> loadQ8_0QuantizedTensor(entry);
+//            case Q4_0 -> throw new UnsupportedOperationException("Not yet implemented");
+//            //FloatTensor.numberOfElements(entry.shape()), entry.memorySegment()
+//            case F16 -> new F16QuantizedTensor(size, entry.memorySegment());
+//            /*{
+//                HalfFloatArray array = new HalfFloatArray();
+//                array.getSegment().copyFrom(entry.memorySegment());
+//                // or array.getSegmentWithHeader() ?
+//            }*/
+            default -> throw new UnsupportedOperationException("Quantization format " + ggmlType);
+        };
+    }
+
+    /**
+     * Dispatcher method for loading a TornadoVM tensor array based on type.
+     * Used in GPU-path.
+     */
+    public static FloatTensor[] loadTornadoTensorArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+        FloatTensor[] array = new FloatTensor[size];
+        for (int i = 0; i < size; i++) {
+            array[i] = loadTornadoTensor(getTensorEntry.apply(i));
+        }
+        return array;
     }
 
     public static FloatArray[] loadArrayAsFloatArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
@@ -206,6 +244,8 @@ public abstract class ModelLoader {
         }
     }
 
+    // TODO: rename to loadQ8_0Tensor
+    // move to a utils class
     public static Q8_0QuantizedTensor loadQ8_0QuantizedTensor(GGMLTensorEntry entry) {
         if (entry.ggmlType() != GGMLType.Q8_0) {
             throw new IllegalArgumentException("Expected Q8_0 tensor, got: " + entry.ggmlType() + " for tensor: " + entry.name());
@@ -230,6 +270,7 @@ public abstract class ModelLoader {
         ValueLayout.OfByte byteLayout = ValueLayout.JAVA_BYTE;
 
         for (int block = 0; block < numBlocks; block++) {
+            // TODO: use GGML type method for the 34L size
             long blockOffset = block * 34L;  // 34 bytes per block
 
             // read fp16 scale (first 2 bytes of block)
@@ -237,6 +278,7 @@ public abstract class ModelLoader {
             scales.set(block, new HalfFloat(scaleRaw));
 
             // read 32 int8 quantized values (remaining bytes of block)
+            // TODO: use GGML type method for the 32 size
             for (int i = 0; i < 32; i++) {
                 byte quantValue = q8Segment.get(byteLayout, blockOffset + 2 + i);
                 quants.set(block * 32 + i, quantValue);
@@ -244,14 +286,6 @@ public abstract class ModelLoader {
         }
 
         return new Q8_0QuantizedTensor(size, scales, quants, q8Segment);
-    }
-
-    public static FloatTensor[] loadArrayOfQuantized(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
-        FloatTensor[] array = new FloatTensor[size];
-        for (int i = 0; i < size; i++) {
-            array[i] = loadQuantized(getTensorEntry.apply(i));
-        }
-        return array;
     }
 
     public static FloatBuffer[] loadArrayOfFloatBuffer(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
@@ -271,104 +305,6 @@ public abstract class ModelLoader {
     }
 
     public abstract Model loadModel();
-
-    //@formatter:off
-    public Weights loadWeights(Map<String, GGMLTensorEntry> tensorEntries, Configuration config) {
-        boolean ropeScaling = tensorEntries.containsKey("rope_freqs");
-        RopeConfig ropeConfig = new RopeConfig(8.0f,         // scaleFactor
-                1.0f,                    // loFreqFactor
-                3.0f,                    // hiFreqFactor
-                8192                     // oldContextLength
-        );
-
-        Pair<float[], float[]> ropeFreqs = RoPE.precomputeFreqsCis(
-                config.contextLength(),         // Maximum sequence length the model can process
-                config.headSize(),              // Dimension of each attention head
-                config.ropeTheta(),             // Base frequency parameter (typically 10000.0)
-                ropeScaling,                    // Whether to apply frequency scaling (determined by model type)
-                ropeConfig.scaleFactor,         // Scale factor for extending context length (NTK-aware scaling)
-                ropeConfig.loFreqFactor,        // Low frequency scaling factor for better long-range dependencies
-                ropeConfig.hiFreqFactor,        // High frequency scaling factor for preserving local precision
-                ropeConfig.oldContextLength     // Original context length the model was trained with
-        );
-
-        GGMLTensorEntry tokenEmbeddings = tensorEntries.get("token_embd.weight");
-        GGMLTensorEntry outputWeight = tensorEntries.getOrDefault("output.weight", tokenEmbeddings);
-
-        if (useTornadovm) {
-            if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
-                System.out.println("Loading model weights in TornadoVM format (loading " + outputWeight.ggmlType() + ")");
-            }
-
-            if (outputWeight.ggmlType() == GGMLType.Q8_0) {
-                return createTornadoVMWeightsQ8_0(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
-            } else {
-                return createTornadoVMWeights(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
-             }
-        } else {
-            return createStandardWeights(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
-        }
-    }
-
-    public Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
-        return new LlamaTornadoWeights(
-                // Load directly to TornadoVM format
-                loadTensorAsFloatArray(tokenEmbeddings), loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")), floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
-                FloatArray.fromArray(ropeFreqs.first()), FloatArray.fromArray(ropeFreqs.second()), loadTensorAsHalfFloatArray(outputWeight), outputWeight.ggmlType()) {
-        };
-    }
-
-    private Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,  Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings, GGMLTensorEntry outputWeight) {
-        return new Q8_0Weights(
-                loadTensorAsFloatArray(tokenEmbeddings),
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
-                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
-                FloatArray.fromArray(ropeFreqs.first()),
-                FloatArray.fromArray(ropeFreqs.second()),
-                loadQ8_0QuantizedTensor(outputWeight),
-                outputWeight.ggmlType()
-        );
-    }
-
-    /**
-     * Creates weights in standard format only
-     */
-    public Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
-        return new LlamaStandardWeights(
-                loadQuantized(tokenEmbeddings),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
-                loadQuantized(tensorEntries.get("output_norm.weight")),
-                new ArrayFloatTensor(ropeFreqs.first()),
-                new ArrayFloatTensor(ropeFreqs.second()),
-                loadQuantized(outputWeight),
-                outputWeight.ggmlType());
-    }
 
     // Helper class to encapsulate RoPE configuration parameters
     private static class RopeConfig {

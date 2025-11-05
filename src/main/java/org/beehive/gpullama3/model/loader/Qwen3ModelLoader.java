@@ -11,10 +11,12 @@ import org.beehive.gpullama3.core.types.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Qwen3StandardWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Qwen3Q8_0TornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Qwen3TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen3Q8_0TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.fp16.Qwen3TornadoWeights;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.format.ChatFormat.ChatTokens;
+import org.beehive.gpullama3.model.llama.LlamaConfiguration;
 import org.beehive.gpullama3.model.qwen3.Qwen3;
 import org.beehive.gpullama3.model.qwen3.Qwen3Configuration;
 import org.beehive.gpullama3.tokenizer.impl.Qwen3Tokenizer;
@@ -52,16 +54,27 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
         int modelContextLength = (int) metadata.get("qwen3.context_length");
         int finalContextLength = (contextLength < 0 || modelContextLength < contextLength) ? modelContextLength : contextLength;
 
-        int vocabSize = metadata.containsKey("qwen3.vocab_size") ? (int) metadata.get("qwen3.vocab_size") : (int) metadata.get("tokenizer.ggml.tokens.length");
+        int vocabSize = vocabulary.size();
 
-        return new Qwen3Configuration((int) metadata.get("qwen3.embedding_length"), (int) metadata.get("qwen3.feed_forward_length"), (int) metadata.get("qwen3.block_count"),
+        return new Qwen3Configuration(
+                (int) metadata.get("qwen3.embedding_length"),
+                (int) metadata.get("qwen3.feed_forward_length"),
+                (int) metadata.get("qwen3.block_count"),
                 (int) metadata.get("qwen3.attention.head_count"),
 
-                metadata.containsKey("qwen3.attention.head_count_kv") ? (int) metadata.get("qwen3.attention.head_count_kv") : (int) metadata.get("qwen3.attention.head_count"),
-                (int) metadata.get("qwen3.attention.key_length"), (int) metadata.get("qwen3.attention.value_length"),
+                metadata.containsKey("qwen3.attention.head_count_kv") ?
+                        (int) metadata.get("qwen3.attention.head_count_kv") :
+                        (int) metadata.get("qwen3.attention.head_count"),
+                (int) metadata.get("qwen3.attention.key_length"),
+                (int) metadata.get("qwen3.attention.value_length"),
 
-                vocabSize, modelContextLength, finalContextLength, false, (float) metadata.get("qwen3.attention.layer_norm_rms_epsilon"),
-                (float) metadata.get("qwen3.rope.freq_base"));
+                vocabSize,
+                modelContextLength,
+                finalContextLength,
+                false,
+                (float) metadata.get("qwen3.attention.layer_norm_rms_epsilon"),
+                (float) metadata.get("qwen3.rope.freq_base")
+        );
     }
 
     @Override
@@ -81,56 +94,73 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
 
     @Override
     protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-                                            GGMLTensorEntry outputWeight) {
+            GGMLTensorEntry outputWeight) {
         float[] ropeFreqsReal = ropeFreqs.first();
         float[] ropeFreqsImag = ropeFreqs.second();
-        return new Qwen3StandardWeights(ModelLoader.loadQuantized(tokenEmbeddings), loadLayerWeights(tensorEntries, config, "attn_norm", "weight"),    // rms_att_weight
-                loadLayerWeights(tensorEntries, config, "attn_q", "weight"),       // wq
-                loadLayerWeights(tensorEntries, config, "attn_k", "weight"),       // wk
-                loadLayerWeights(tensorEntries, config, "attn_v", "weight"),       // wv
-                loadLayerWeights(tensorEntries, config, "attn_output", "weight"),  // wo
-
-                loadLayerWeights(tensorEntries, config, "attn_k_norm", "weight"),  // attnKNorm
-                loadLayerWeights(tensorEntries, config, "attn_q_norm", "weight"),  // attnQNorm
-
-                loadLayerWeights(tensorEntries, config, "ffn_norm", "weight"),     //rms_ffn_weight
-                loadLayerWeights(tensorEntries, config, "ffn_gate", "weight"),     // w1
-                loadLayerWeights(tensorEntries, config, "ffn_down", "weight"),     // w2
-                loadLayerWeights(tensorEntries, config, "ffn_up", "weight"),       // w3
-                ModelLoader.loadQuantized(tensorEntries.get("output_norm.weight")), // rms_final_weight
-                new ArrayFloatTensor(ropeFreqsReal), new ArrayFloatTensor(ropeFreqsImag),
-                tensorEntries.containsKey("output.weight") ? ModelLoader.loadQuantized(tensorEntries.get("output.weight")) : ModelLoader.loadQuantized(tokenEmbeddings), // weights are shared
-                null);
+        return new Qwen3StandardWeights(
+                loadQuantized(tokenEmbeddings),
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),    // rms_att_weight
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),       // wq
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),       // wk
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),       // wv
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),  // wo
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k_norm.weight")),  // attnKNorm
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q_norm.weight")),  // attnQNorm
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),     //rms_ffn_weight
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),     // w1
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),     // w2
+                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),       // w3
+                loadQuantized(tensorEntries.get("output_norm.weight")), // rms_final_weight
+                new ArrayFloatTensor(ropeFreqsReal),
+                new ArrayFloatTensor(ropeFreqsImag),
+                tensorEntries.containsKey("output.weight")
+                        ? ModelLoader.loadQuantized(tensorEntries.get("output.weight"))
+                        : loadQuantized(tokenEmbeddings), // weights are shared
+                null
+        );
     }
 
     @Override
     protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
+                                             GGMLTensorEntry outputWeight) {
         if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
             System.out.println("Loading model weights in TornadoVM format (loading " + outputWeight.ggmlType() + " -> " + GGMLType.F16 + ")");
         }
-        return new Qwen3TornadoWeights(
-                ModelLoader.loadTensorAsFloatArray(tokenEmbeddings),
-                loadLayerWeightsAsFloatArraysFromBuffer(tensorEntries, config, "attn_norm", "weight"),
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "attn_q", "weight"),
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "attn_k", "weight"),
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "attn_v", "weight"),
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "attn_output", "weight"),
-                loadLayerWeightsAsFloatArraysFromBuffer(tensorEntries, config, "attn_k_norm", "weight"),   // attnKNorm
-                loadLayerWeightsAsFloatArraysFromBuffer(tensorEntries, config, "attn_q_norm", "weight"),   // attnQNorm
-                loadLayerWeightsAsFloatArraysFromBuffer(tensorEntries, config, "ffn_norm", "weight"),
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "ffn_gate", "weight"),            // w1
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "ffn_down", "weight"),            // w2
-                loadLayerWeightsAsHalfFloatArrays(tensorEntries, config, "ffn_up", "weight"),              // w3
-                ModelLoader.floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
-                FloatArray.fromArray(ropeFreqs.first()),
-                FloatArray.fromArray(ropeFreqs.second()),
-                ModelLoader.loadTensorAsHalfFloatArray(outputWeight),
-                outputWeight.ggmlType());
+
+        GGMLType ggmlType = outputWeight.ggmlType();
+        return switch(ggmlType) {
+            case F16 -> createTornadoVMWeightsF16(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
+            case Q8_0 -> createTornadoVMWeightsQ8_0(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
+            default -> throw new UnsupportedOperationException("Type: " + ggmlType + " currently not supported for TornadoVM weights.");
+        };
+
     }
 
-    public Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-                                          GGMLTensorEntry outputWeight) {
+    private Weights createTornadoVMWeightsF16(Map<String, GGMLTensorEntry> tensorEntries, Qwen3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+                                              GGMLTensorEntry outputWeight) {
+        return new Qwen3TornadoWeights(
+                loadTensorAsFloatArray(tokenEmbeddings),
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k_norm.weight")),   // attnKNorm
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q_norm.weight")),   // attnQNorm
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),            // w1
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),            // w2
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),              // w3
+                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
+                FloatArray.fromArray(ropeFreqs.first()),
+                FloatArray.fromArray(ropeFreqs.second()),
+                loadTensorAsHalfFloatArray(outputWeight),
+                outputWeight.ggmlType()
+        );
+    }
+
+    private Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Qwen3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+                                                   GGMLTensorEntry outputWeight) {
         return new Qwen3Q8_0TornadoWeights(
                 loadTensorAsFloatArray(tokenEmbeddings),
                 loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),

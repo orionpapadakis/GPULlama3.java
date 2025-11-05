@@ -29,6 +29,8 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
     protected final boolean loadWeights;
     protected final boolean useTornadovm;
 
+    protected Vocabulary vocabulary;
+
     protected AbstractModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean loadWeights, boolean useTornadovm) {
         this.fileChannel = fileChannel;
         this.gguf = gguf;
@@ -47,7 +49,7 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
             Map<String, Object> metadata = gguf.getMetadata();
 
             // Step 1: Load vocabulary
-            Vocabulary vocabulary = loadVocabulary(metadata);
+            this.vocabulary = loadVocabulary(metadata);
 
             // Step 2: Create tokenizer
             Tokenizer tokenizer = createTokenizer(metadata, vocabulary);
