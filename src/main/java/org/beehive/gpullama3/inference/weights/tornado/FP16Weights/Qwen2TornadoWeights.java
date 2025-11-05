@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.inference.weights.tornado;
+package org.beehive.gpullama3.inference.weights.tornado.FP16Weights;
 
 import org.beehive.gpullama3.core.model.GGMLType;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;

@@ -1,6 +1,6 @@
 package org.beehive.gpullama3.model.format;
 
-import org.beehive.gpullama3.tokenizer.impl.Qwen3Tokenizer;
+import org.beehive.gpullama3.tokenizer.Qwen3Tokenizer;
 
 import java.util.*;
 

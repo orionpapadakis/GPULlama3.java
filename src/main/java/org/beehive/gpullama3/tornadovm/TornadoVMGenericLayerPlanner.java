@@ -12,4 +12,8 @@ public interface TornadoVMGenericLayerPlanner {
 
     Tuple2<List<ImmutableTaskGraph>, GridScheduler> setupTornadoForwardPlanLayeredNonNvidia();
 
+    List<ImmutableTaskGraph> getCachedTaskGraphs();
+
+    GridScheduler getCachedGridScheduler();
+
 }

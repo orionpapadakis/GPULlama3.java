@@ -1,8 +1,5 @@
 package org.beehive.gpullama3.model.loader;
 
-import org.beehive.gpullama3.LlamaApp;
-import org.beehive.gpullama3.Options;
-import org.beehive.gpullama3.auxiliary.Timer;
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.GGUF;
 import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
@@ -11,15 +8,15 @@ import org.beehive.gpullama3.core.types.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Phi3StandardWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Phi3TornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Phi3TornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.Phi3TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights.Phi3TornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.phi3.Phi3;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
-import org.beehive.gpullama3.tokenizer.impl.Phi3Tokenizer;
-import org.beehive.gpullama3.tokenizer.impl.Tokenizer;
-import org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary;
+import org.beehive.gpullama3.tokenizer.Phi3Tokenizer;
+import org.beehive.gpullama3.tokenizer.Tokenizer;
+import org.beehive.gpullama3.tokenizer.Vocabulary;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 

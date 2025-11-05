@@ -1,7 +1,8 @@
-package org.beehive.gpullama3.inference.weights.tornado;
+package org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights;
 
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
+import org.beehive.gpullama3.inference.weights.tornado.TornadoWeights;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 public class Q8_0Weights implements TornadoWeights {

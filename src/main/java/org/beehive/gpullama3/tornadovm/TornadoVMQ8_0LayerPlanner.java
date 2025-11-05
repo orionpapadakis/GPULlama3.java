@@ -2,7 +2,7 @@ package org.beehive.gpullama3.tornadovm;
 
 import org.beehive.gpullama3.auxiliary.Tuple2;
 import org.beehive.gpullama3.inference.state.State;
-import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights.Q8_0Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernels;
@@ -529,5 +529,15 @@ public class TornadoVMQ8_0LayerPlanner<S extends State, C extends Configuration,
         // @formatter:on
 
         return new Tuple2<>(taskGraphs, setupGridSchedulersLayeredNonNvidia());
+    }
+
+    @Override
+    public List<ImmutableTaskGraph> getCachedTaskGraphs() {
+        return List.of();
+    }
+
+    @Override
+    public GridScheduler getCachedGridScheduler() {
+        return null;
     }
 }

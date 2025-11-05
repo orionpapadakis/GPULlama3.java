@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.tokenizer.impl;
+package org.beehive.gpullama3.tokenizer;
 
 import java.util.HexFormat;
 import java.util.List;

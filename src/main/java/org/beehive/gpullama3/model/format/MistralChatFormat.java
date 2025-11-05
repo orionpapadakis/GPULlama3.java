@@ -1,6 +1,6 @@
 package org.beehive.gpullama3.model.format;
 
-import org.beehive.gpullama3.tokenizer.impl.MistralTokenizer;
+import org.beehive.gpullama3.tokenizer.MistralTokenizer;
 
 import java.util.ArrayList;
 import java.util.Collections;

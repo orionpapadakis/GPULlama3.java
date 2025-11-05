@@ -1,6 +1,5 @@
 package org.beehive.gpullama3.model.loader;
 
-import org.beehive.gpullama3.Options;
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.GGUF;
 import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
@@ -9,17 +8,17 @@ import org.beehive.gpullama3.core.types.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Qwen2StandardWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Qwen2TornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Qwen2TornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.Qwen2TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights.Qwen2TornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.format.ChatFormat.ChatTokens;
 import org.beehive.gpullama3.model.qwen2.Qwen2;
 import org.beehive.gpullama3.model.qwen2.Qwen2Configuration;
-import org.beehive.gpullama3.tokenizer.impl.Qwen3Tokenizer;
-import org.beehive.gpullama3.tokenizer.impl.Tokenizer;
-import org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary;
+import org.beehive.gpullama3.tokenizer.Qwen3Tokenizer;
+import org.beehive.gpullama3.tokenizer.Tokenizer;
+import org.beehive.gpullama3.tokenizer.Vocabulary;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
@@ -27,7 +26,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.util.Map;
 
-import static org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary.loadQwen3Vocabulary;
+import static org.beehive.gpullama3.tokenizer.Vocabulary.loadQwen3Vocabulary;
 
 public class Qwen2ModelLoader extends ModelLoader {
 

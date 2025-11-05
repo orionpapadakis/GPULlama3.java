@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.tokenizer.vocabulary;
+package org.beehive.gpullama3.tokenizer;
 
 import java.util.Arrays;
 import java.util.Map;

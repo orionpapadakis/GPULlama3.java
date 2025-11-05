@@ -1,7 +1,6 @@
 package org.beehive.gpullama3.model.loader;
 
 import org.beehive.gpullama3.Options;
-import org.beehive.gpullama3.aot.AOT;
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.GGUF;
 import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
@@ -16,8 +15,8 @@ import org.beehive.gpullama3.core.types.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.LlamaStandardWeights;
-import org.beehive.gpullama3.inference.weights.tornado.LlamaTornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.LlamaTornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights.Q8_0Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;
@@ -41,7 +40,6 @@ import java.util.function.IntFunction;
 
 public abstract class ModelLoader {
 
-    public static final boolean USE_AOT = Boolean.parseBoolean(System.getProperty("llama.AOT", "false"));               // Use Ahead-of-Time compilation
 
     protected FileChannel fileChannel;
     protected GGUF gguf;
@@ -99,13 +97,6 @@ public abstract class ModelLoader {
      *         if AOT loading is enabled but the preloaded model is unavailable
      */
     public static Model loadModel(Options options) throws IOException {
-        if (USE_AOT) {
-            Model model = AOT.tryUsePreLoaded(options.modelPath(), options.maxTokens());
-            if (model == null) {
-                throw new IllegalStateException("Failed to load precompiled AOT model.");
-            }
-            return model;
-        }
         return ModelLoader.loadModel(options.modelPath(), options.maxTokens(), true, options.useTornadovm());
     }
 

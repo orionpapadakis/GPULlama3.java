@@ -1,7 +1,6 @@
-package org.beehive.gpullama3.tokenizer.impl;
+package org.beehive.gpullama3.tokenizer;
 
 import org.beehive.gpullama3.core.types.Pair;
-import org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
