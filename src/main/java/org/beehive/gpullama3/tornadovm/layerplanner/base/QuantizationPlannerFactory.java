@@ -1,0 +1,72 @@
+package org.beehive.gpullama3.tornadovm.layerplanner.base;
+
+import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.inference.state.LlamaState;
+import org.beehive.gpullama3.inference.state.Qwen2State;
+import org.beehive.gpullama3.inference.state.Qwen3State;
+import org.beehive.gpullama3.inference.state.State;
+import org.beehive.gpullama3.model.Model;
+import org.beehive.gpullama3.tornadovm.TornadoVMGenericLayerPlanner;
+import org.beehive.gpullama3.tornadovm.layerplanner.model.fp16.LlamaFP16LayerPlanner;
+import org.beehive.gpullama3.tornadovm.layerplanner.model.fp16.Qwen2FP16LayerPlanner;
+import org.beehive.gpullama3.tornadovm.layerplanner.model.fp16.Qwen3FP16LayerPlanner;
+import org.beehive.gpullama3.tornadovm.layerplanner.model.q8_0.LlamaQ8_0LayerPlanner;
+import org.beehive.gpullama3.tornadovm.layerplanner.model.q8_0.Qwen3Q8_0LayerPlanner;
+import org.beehive.gpullama3.tornadovm.layerplanner.model.q8_0.Qwen2Q8_0LayerPlanner;
+
+/**
+ * Factory: Creates the appropriate planner based on model type + quantization.
+ *
+ * Routing Logic: 1. Determine quantization type from GGMLType 2. Determine model type from Model 3. Instantiate appropriate planner
+ *
+ * Example: QuantizationType.FP16 + ModelType.LLAMA_3 → LlamaFP16LayerPlanner QuantizationType.Q8_0 + ModelType.QWEN_2 → Qwen2Q8_0LayerPlanner
+ */
+public class QuantizationPlannerFactory {
+
+    /**
+     * Main factory method: create planner for given model + quantization
+     */
+    public static TornadoVMGenericLayerPlanner create(GGMLType quantization, State state, Model model) {
+        return switch (quantization) {
+            case F32 -> createFP32Planner(state, model);
+            case F16 -> createFP16Planner(state, model);
+            case Q8_0 -> createQ8_0Planner(state, model);
+            default -> throw new UnsupportedOperationException("Quantization not supported: " + quantization);
+        };
+    }
+
+    // ============ FP16 Planners ============
+
+    private static TornadoVMGenericLayerPlanner createFP16Planner(State state, Model model) {
+        return switch (model.getModelType()) {
+            case LLAMA_3, MISTRAL -> new LlamaFP16LayerPlanner((LlamaState) state, model);
+            //            case MISTRAL -> new MistralFP16LayerPlanner(state, model);
+            case QWEN_2 -> new Qwen2FP16LayerPlanner((Qwen2State) state, model);
+            case QWEN_3 -> new Qwen3FP16LayerPlanner((Qwen3State) state, model);
+            //            case PHI_3 -> new Phi3FP16LayerPlanner((Phi3State) state, model);
+            //            case DEEPSEEK_R1_DISTILL_QWEN -> new Qwen2FP16LayerPlanner((Qwen2State) state, model);
+            default -> throw new UnsupportedOperationException("FP16 not supported for model: " + model.getModelType());
+        };
+    }
+
+    // ============ Q8_0 Planners ============
+
+    private static TornadoVMGenericLayerPlanner createQ8_0Planner(State state, Model model) {
+        return switch (model.getModelType()) {
+            case LLAMA_3, MISTRAL -> new LlamaQ8_0LayerPlanner((LlamaState) state, model);
+            case QWEN_2 -> new Qwen2Q8_0LayerPlanner((Qwen2State) state, model);
+            case QWEN_3 -> new Qwen3Q8_0LayerPlanner((Qwen3State) state, model);
+            //            case PHI_3 -> new Phi3Q8_0LayerPlanner((Phi3State) state, model);
+            //            case DEEPSEEK_R1_DISTILL_QWEN -> new Qwen2Q8_0LayerPlanner((Qwen2State) state, model);
+            //            case MISTRAL -> throw new UnsupportedOperationException(
+            //                    "Q8_0 not supported for MISTRAL (use FP16)");
+            default -> throw new UnsupportedOperationException("Q8_0 not supported for model: " + model.getModelType());
+        };
+    }
+
+    // ============ FP32 Planners (FUTURE) ============
+
+    private static TornadoVMGenericLayerPlanner createFP32Planner(State state, Model model) {
+        throw new UnsupportedOperationException("FP32 planners not yet implemented");
+    }
+}
