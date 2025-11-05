@@ -37,7 +37,7 @@ public class LogitsQ8_0Layer extends AbstractLayer{
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
         WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
         rmsNormWorker.setGlobalWork(config.dim(), 1, 1);
-        rmsNormWorker.setLocalWork(256, 1, 1);
+        rmsNormWorker.setLocalWork(32, 1, 1);
         // RMSNorm operations
         int vocabSizeRowMajor = config.vocabularySize() * LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS;
         WorkerGrid vocabWorker = new WorkerGrid1D(vocabSizeRowMajor);

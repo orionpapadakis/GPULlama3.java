@@ -6,6 +6,7 @@ import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.FP16Weights;
 import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.LlamaTornadoWeights;
 import org.beehive.gpullama3.model.Configuration;
+import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
@@ -133,9 +134,12 @@ public class LogitsFP16Layer extends AbstractLayer {
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
             // RMSNorm operations
-            WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
-            rmsNormWorker.setGlobalWork(config.dim(), 1, 1);
-            rmsNormWorker.setLocalWork(256, 1, 1);
+        WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
+
+        rmsNormWorker.setGlobalWork(config.dim(), 1, 1);  // Set global work size to total dimension
+
+        //TODO: XXX
+        rmsNormWorker.setLocalWork(32, 1, 1);         // Set local work size to 256 (standard efficient size)
 
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.vocabularySize,1,1], localWorkSize=[16,1,1])
         // CUDA equivalent: kernel<<<dim3((config.vocabularySize+15)/16,1,1), dim3(16,1,1)>>>
