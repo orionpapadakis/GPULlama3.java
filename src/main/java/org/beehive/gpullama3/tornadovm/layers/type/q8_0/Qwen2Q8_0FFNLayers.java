@@ -422,13 +422,13 @@ public class Qwen2Q8_0FFNLayers extends AbstractLayer {
 
             // First execution: allocate workspace buffers
             unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
-                    context, qwen2State.wrapXb,
+                    context, qwen2State.wrapXb, qwen2State.wrapXb2,
                     qwen2State.wrapQ, qwen2State.wrapK, qwen2State.wrapV,
                     qwen2State.wrapKeyCache, qwen2State.wrapValueCache,
                     qwen2State.wrapAtt, qwen2State.wrapHb);
         } else {
             // Subsequent layers: Consume data from previous layer
-            unifiedLayer.consumeFromDevice(context, qwen2State.wrapXb,
+            unifiedLayer.consumeFromDevice(context, qwen2State.wrapXb, qwen2State.wrapXb2,
                     qwen2State.wrapQ, qwen2State.wrapK, qwen2State.wrapV,
                     qwen2State.wrapKeyCache, qwen2State.wrapValueCache,
                     qwen2State.wrapAtt, qwen2State.wrapHb, qwen2State.positionHolder);

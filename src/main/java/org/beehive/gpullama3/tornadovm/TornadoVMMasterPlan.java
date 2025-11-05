@@ -147,13 +147,6 @@ public class TornadoVMMasterPlan {
         // Factory handles all model × quantization combinations
         TornadoVMGenericLayerPlanner basePlanner = QuantizationPlannerFactory.create(weightType, state, model);
 
-        // ========== STEP 3: Detect Hardware ==========
-        SchedulerType hardwareType = this.schedulerDetectionService;  // Already set in constructor
-
-        // ========== STEP 4: Select Strategy ==========
-//        HardwareStrategy strategy = selectStrategy(hardwareType);
-
-        // ========== STEP 5: Wrap with Hardware Optimization ==========
         return  basePlanner;
     }
 
