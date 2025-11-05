@@ -3,10 +3,13 @@ package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.LlamaTornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.Qwen2TornadoWeights;
 import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights.Qwen3Q8_0TornadoWeights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
+import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
 import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
@@ -35,17 +38,18 @@ public class LogitsQ8_0Layer extends AbstractLayer{
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-        WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
-        rmsNormWorker.setGlobalWork(config.dim(), 1, 1);
-        rmsNormWorker.setLocalWork(32, 1, 1);
-        // RMSNorm operations
-        int vocabSizeRowMajor = config.vocabularySize() * LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS;
-        WorkerGrid vocabWorker = new WorkerGrid1D(vocabSizeRowMajor);
-        vocabWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS, 1, 1);
+
+        WorkerGrid logitsRMS;
+        if (weights instanceof Qwen3Q8_0TornadoWeights) {
+             logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 32);
+        } else {
+             logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
+        }
+
 
         tornadoForwardScheduler.addWorkerGrid("logits.projection", vocabWorker);
-        tornadoForwardScheduler.addWorkerGrid("logits.reductionsOneBlockLogits", rmsNormWorker);
-        tornadoForwardScheduler.addWorkerGrid("logits.mapContextLogits", rmsNormWorker);
+        tornadoForwardScheduler.addWorkerGrid("logits.reductionsOneBlockLogits", logitsRMS);
+        tornadoForwardScheduler.addWorkerGrid("logits.mapContextLogits", logitsRMS);
 
         return tornadoForwardScheduler;
     }
