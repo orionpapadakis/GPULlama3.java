@@ -46,6 +46,9 @@ public class LogitsQ8_0Layer extends AbstractLayer{
              logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
         }
 
+        int vocabSizeRowMajor = config.vocabularySize() * LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS;
+        WorkerGrid vocabWorker = new WorkerGrid1D(vocabSizeRowMajor);
+        vocabWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS, 1, 1);
 
         tornadoForwardScheduler.addWorkerGrid("logits.projection", vocabWorker);
         tornadoForwardScheduler.addWorkerGrid("logits.reductionsOneBlockLogits", logitsRMS);

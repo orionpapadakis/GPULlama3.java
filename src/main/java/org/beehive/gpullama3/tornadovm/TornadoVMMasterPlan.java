@@ -4,17 +4,10 @@ import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.model.ModelType;
 import org.beehive.gpullama3.tornadovm.layerplanner.base.QuantizationPlannerFactory;
-import org.beehive.gpullama3.tornadovm.layers.SchedulerDetectionService;
-import org.beehive.gpullama3.tornadovm.layers.SchedulerType;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TornadoExecutionPlan;
-import uk.ac.manchester.tornado.api.TornadoRuntime;
-import uk.ac.manchester.tornado.api.runtime.TornadoRuntimeProvider;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
-
-import java.util.Locale;
 
 public class TornadoVMMasterPlan {
     public static final boolean ENABLE_TORNADOVM_INIT_TIME = Boolean.parseBoolean(System.getProperty("llama.EnableTimingForTornadoVMInit", "False"));
@@ -22,15 +15,11 @@ public class TornadoVMMasterPlan {
     private final State state;
     private final Configuration config;
     public TornadoExecutionPlan executionPlan;
-    private SchedulerType schedulerDetectionService;
-    TornadoVMGenericLayerPlanner tornadoVMLayerPlanner;
+    GenericLayerPlanner tornadoVMLayerPlanner;
 
     public TornadoVMMasterPlan(State state, Model model) {
-//        this.schedulerDetectionService = SchedulerDetectionService.determineSchedulerType(model);
-
         this.tornadoVMLayerPlanner = createPlannerWithStrategy(state, model);
         this.executionPlan = new TornadoExecutionPlan(tornadoVMLayerPlanner.getCachedTaskGraphs().toArray(new ImmutableTaskGraph[tornadoVMLayerPlanner.getCachedTaskGraphs().size()]));
-
         this.state = state;
         this.config = model.configuration();
     }
@@ -57,7 +46,7 @@ public class TornadoVMMasterPlan {
         }
 
         // 1. Pre-allocate the TornadoVM plan
-        TornadoVMMasterPlan tornadoVMPlan = new TornadoVMMasterPlan(state, model );
+        TornadoVMMasterPlan tornadoVMPlan = new TornadoVMMasterPlan(state, model);
 
         // Record time after plan creation
         if (ENABLE_TORNADOVM_INIT_TIME) {
@@ -89,81 +78,16 @@ public class TornadoVMMasterPlan {
         return tornadoVMPlan;
     }
 
-    /**
-     * Dispatcher method to select the TornadoVMLayerPlanner for the model.
-     */
-//    TornadoVMGenericLayerPlanner createPlanner(State state, Model model) {
-//        return switch (model.getModelType()) {
-//            case LLAMA_3, MISTRAL -> whatcreateLlama3Planner(state, model);
-//            //            case PHI_3 -> createPhi3Planner(state, model);
-//            //            case QWEN_2, DEEPSEEK_R1_DISTILL_QWEN -> createQWEN2Planner(state, model);
-//            //            case QWEN_3 -> createQWEN3Planner(state, model);
-//            case QWEN_2 -> null;
-//            case QWEN_3 -> null;
-//            case DEEPSEEK_R1_DISTILL_QWEN -> null;
-//            case PHI_3 -> null;
-//            case UNKNOWN -> throw new UnsupportedOperationException("Unknown model type");
-//        };
-//    }
-
-//    private TornadoVMGenericLayerPlanner whatcreateLlama3Planner(State state, Model model) {
-//        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
-//            return new TornadoVMQ8_0LayerPlanner(state, model);
-//        } else {
-//            return new TornadoVMLayerPlanner(state, model);
-//        }
-//    }
-
-    //    private TornadoVMGenericLayerPlanner createQWEN2Planner(State state, Model model) {
-    //        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
-    //            return new Qwen2Q8_0TornadoVMLayerPlanner((Qwen2State) state, model);
-    //        } else {
-    //            return new Qwen2TornadoVMLayerPlanner((Qwen2State) state, model);
-    //        }
-    //    }
-    //
-    //    private TornadoVMGenericLayerPlanner createPhi3Planner(State state, Model model) {
-    //        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
-    //            return new Phi3TornadoVMLayerPlannerQ8_0((Phi3State) state, model);
-    //        } else {
-    //            return new Phi3TornadoVMLayerPlanner((Phi3State) state, model);
-    //        }
-    //    }
-    //
-    //    private TornadoVMGenericLayerPlanner createQWEN3Planner(State state, Model model) {
-    //        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
-    //            return new Qwen3Q8_0TornadoVMLayerPlanner((Qwen3State) state, model);
-    //        } else {
-    //            return new Qwen3TornadoVMLayerPlanner((Qwen3State) state, model);
-    //        }
-    //    }
-
-    private TornadoVMGenericLayerPlanner createPlannerWithStrategy(State state, Model model) {
+    private GenericLayerPlanner createPlannerWithStrategy(State state, Model model) {
 
         // ========== STEP 1: Detect Quantization Type ==========
         GGMLType weightType = model.weights().getWeightType();
 
         // ========== STEP 2: Route via Factory ==========
         // Factory handles all model × quantization combinations
-        TornadoVMGenericLayerPlanner basePlanner = QuantizationPlannerFactory.create(weightType, state, model);
+        GenericLayerPlanner basePlanner = QuantizationPlannerFactory.create(weightType, state, model);
 
-        return  basePlanner;
-    }
-
-
-    public static SchedulerType shouldUseNvidiaScheduler(Model model) {
-        TornadoRuntime runtime = TornadoRuntimeProvider.getTornadoRuntime();
-        String platformName = runtime.getBackend(0).getDefaultDevice().getPlatformName().toLowerCase(Locale.ROOT);
-
-        boolean isNvidia = platformName.contains("nvidia") || platformName.contains("cuda") || platformName.contains("ptx");
-        boolean isNotMistral = model.getModelType() != ModelType.MISTRAL;
-
-
-        if (isNvidia && isNotMistral) {
-            return SchedulerType.NVIDIA;
-        } else {
-            return  SchedulerType.NON_NVIDIA;
-        }
+        return basePlanner;
     }
 
     /**

@@ -7,7 +7,7 @@ import org.beehive.gpullama3.inference.state.Qwen2State;
 import org.beehive.gpullama3.inference.state.Qwen3State;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.tornadovm.TornadoVMGenericLayerPlanner;
+import org.beehive.gpullama3.tornadovm.GenericLayerPlanner;
 import org.beehive.gpullama3.tornadovm.layerplanner.model.fp16.LlamaFP16LayerPlanner;
 import org.beehive.gpullama3.tornadovm.layerplanner.model.fp16.Phi3FP16LayerPlanner;
 import org.beehive.gpullama3.tornadovm.layerplanner.model.fp16.Qwen2FP16LayerPlanner;
@@ -38,7 +38,7 @@ public class QuantizationPlannerFactory {
     /**
      * Main factory method: create planner for given model + quantization
      */
-    public static TornadoVMGenericLayerPlanner create(GGMLType quantization, State state, Model model) {
+    public static GenericLayerPlanner create(GGMLType quantization, State state, Model model) {
         return switch (quantization) {
             case F32 -> createFP32Planner(state, model);
             case F16 -> createFP16Planner(state, model);
@@ -48,7 +48,7 @@ public class QuantizationPlannerFactory {
     }
 
     // ============ FP16 Planners ============
-    private static TornadoVMGenericLayerPlanner createFP16Planner(State state, Model model) {
+    private static GenericLayerPlanner createFP16Planner(State state, Model model) {
         return switch (model.getModelType()) {
             case LLAMA_3, MISTRAL -> new LlamaFP16LayerPlanner((LlamaState) state, model);
             case QWEN_2 -> new Qwen2FP16LayerPlanner((Qwen2State) state, model);
@@ -60,7 +60,7 @@ public class QuantizationPlannerFactory {
     }
 
     // ============ Q8_0 Planners ============
-    private static TornadoVMGenericLayerPlanner createQ8_0Planner(State state, Model model) {
+    private static GenericLayerPlanner createQ8_0Planner(State state, Model model) {
         return switch (model.getModelType()) {
             case LLAMA_3, MISTRAL -> new LlamaQ8_0LayerPlanner((LlamaState) state, model);
             case QWEN_2 -> new Qwen2Q8_0LayerPlanner((Qwen2State) state, model);
@@ -72,7 +72,7 @@ public class QuantizationPlannerFactory {
     }
 
     // ============ FP32 Planners (FUTURE) ============
-    private static TornadoVMGenericLayerPlanner createFP32Planner(State state, Model model) {
+    private static GenericLayerPlanner createFP32Planner(State state, Model model) {
         throw new UnsupportedOperationException("FP32 planners not yet implemented");
     }
 }

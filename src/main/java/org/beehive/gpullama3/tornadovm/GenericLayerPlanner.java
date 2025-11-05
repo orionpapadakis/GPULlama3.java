@@ -6,7 +6,7 @@ import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 
 import java.util.List;
 
-public interface TornadoVMGenericLayerPlanner {
+public interface GenericLayerPlanner {
 
     Tuple2<List<ImmutableTaskGraph>, GridScheduler> setupTornadoForwardPlanLayered();
 

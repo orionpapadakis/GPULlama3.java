@@ -4,7 +4,7 @@ import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.tornadovm.TornadoVMGenericLayerPlanner;
+import org.beehive.gpullama3.tornadovm.GenericLayerPlanner;
 import uk.ac.manchester.tornado.api.KernelContext;
 
 /**
@@ -12,7 +12,7 @@ import uk.ac.manchester.tornado.api.KernelContext;
  *
  * Contains shared logic that works regardless of model type but depends on quantization. Subclasses: FP16LayerPlanner, Q8_0LayerPlanner, etc.
  */
-public abstract class QuantizedLayerPlanner<S extends State, C extends Configuration, W extends Weights> implements TornadoVMGenericLayerPlanner {
+public abstract class QuantizedLayerPlanner<S extends State, C extends Configuration, W extends Weights> implements GenericLayerPlanner {
 
     // Common state for all quantizations
     protected static final int LOCAL_WORK_GROUP_SIZE_ALLOC = 32;

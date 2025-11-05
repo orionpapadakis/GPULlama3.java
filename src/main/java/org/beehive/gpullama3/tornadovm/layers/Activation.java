@@ -4,6 +4,7 @@ import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernels;
+import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
@@ -25,9 +26,7 @@ public class Activation extends AbstractLayer {
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler scheduler) {
-        WorkerGrid singleWorker = new WorkerGrid1D(1);
-        singleWorker.setGlobalWork(1, 1, 1);
-        singleWorker.setLocalWork(1, 1, 1);
+        WorkerGrid singleWorker = WorkerGridFactory.createSingleWorker();
         scheduler.addWorkerGrid("activationUpdate.updateX", singleWorker);
         return scheduler;
     }

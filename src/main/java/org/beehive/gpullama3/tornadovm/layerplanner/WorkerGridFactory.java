@@ -17,6 +17,13 @@ public class WorkerGridFactory {
         return worker;
     }
 
+    public static WorkerGrid createSingleWorker() {
+        WorkerGrid worker = new WorkerGrid1D(1);
+        worker.setGlobalWork(1, 1, 1);
+        worker.setLocalWork(1, 1, 1);
+        return worker;
+    }
+
     /**
      * QKV matmul worker: combined projection output
      */
