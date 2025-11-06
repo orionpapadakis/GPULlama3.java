@@ -65,7 +65,6 @@ public class Phi3FP16FFNLayers extends AbstractLayer {
         this.opSize = config.dim() + 2 * (config.numberOfKeyValueHeads() * config.headSize());
 
         ffnLayerTaskGraphs = setupFFNLayered();
-        this.scheduler = setupGridSchedulersLayered(config);
     }
 
     @Override
@@ -364,84 +363,4 @@ public class Phi3FP16FFNLayers extends AbstractLayer {
         return unifiedLayer;
     }
 
-    /**
-     * Setup GridScheduler with Phi3-specific worker configurations
-     */
-    private GridScheduler setupGridSchedulersLayered(Phi3Configuration config) {
-        GridScheduler gridScheduler = new GridScheduler();
-
-        // Single worker for tasks that execute once
-        WorkerGrid singleWorker = new WorkerGrid1D(1);
-        singleWorker.setGlobalWork(1, 1, 1);
-        singleWorker.setLocalWork(1, 1, 1);
-
-        // RMS norm worker
-        WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
-        rmsNormWorker.setGlobalWork(config.dim(), 1, 1);
-        rmsNormWorker.setLocalWork(state.localSize, 1, 1);
-
-        // Combined QKV matmul worker
-        int matmulQkvGlobal = opSize * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmulQkvRowMajorWorker = new WorkerGrid1D(matmulQkvGlobal);
-        matmulQkvRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        // RoPE worker (2D: heads x embedding_head/2)
-        int ic = config.headSize() / 2;
-        WorkerGrid ropeWorker = new WorkerGrid2D(config.numberOfHeads(), ic);
-        ropeWorker.setGlobalWork(config.numberOfHeads(), ic, 1);
-        ropeWorker.setLocalWork(8, 1, 1);
-
-        // Copy to cache worker
-        WorkerGrid copyToCachesWorker = new WorkerGrid1D(config.kvDim());
-        copyToCachesWorker.setGlobalWork(config.kvDim(), 1, 1);
-        copyToCachesWorker.setLocalWork(32, 1, 1);
-
-        // Parallel attention worker
-        int optimalLocalSize = Math.min(config.headSize(), 64);
-        if (config.headSize() % optimalLocalSize != 0) {
-            for (int size = 64; size >= 1; size--) {
-                if (config.headSize() % size == 0) {
-                    optimalLocalSize = size;
-                    break;
-                }
-            }
-        }
-        WorkerGrid parallelAttentionWorker = new WorkerGrid1D(config.numberOfHeads());
-        parallelAttentionWorker.setGlobalWork(config.numberOfHeads() * optimalLocalSize, 1, 1);
-        parallelAttentionWorker.setLocalWork(optimalLocalSize, 1, 1);
-
-        // Matmul1 worker (output projection)
-        int matmul1Global = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmul1Worker = new WorkerGrid1D(matmul1Global);
-        matmul1Worker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        // FFN workers
-        int ffnUpGlobal = (2 * config.hiddenDim()) * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid ffnUpWorker = new WorkerGrid1D(ffnUpGlobal);
-        ffnUpWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        int ffnDownGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid ffnDownWorker = new WorkerGrid1D(ffnDownGlobal);
-        ffnDownWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        // Map workers to tasks for each layer
-        for (int i = 0; i < config.numberOfLayers(); i++) {
-            gridScheduler.addWorkerGrid("layer_" + i + ".reductionsOneBlock", rmsNormWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".mapContext", rmsNormWorker);
-
-            gridScheduler.addWorkerGrid("layer_" + i + ".qkvmatmul", matmulQkvRowMajorWorker);
-
-            gridScheduler.addWorkerGrid("layer_" + i + ".rope", ropeWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".copyToCaches", copyToCachesWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".parallel-attention", parallelAttentionWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".matmul1", matmul1Worker);
-
-            gridScheduler.addWorkerGrid("layer_" + i + ".reductionsOneBlockFFN", rmsNormWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".mapContextFFN", rmsNormWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".wGateUp", ffnUpWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".wDown", ffnDownWorker);
-        }
-
-        return gridScheduler;
-    }
 }

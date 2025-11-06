@@ -51,33 +51,6 @@ public class Qwen3FP16LayerPlanner extends FP16LayerPlanner<Qwen3State, Qwen3Con
                 ffnLayers.getLastTaskGraphID());
     }
 
-    @Override
-    public Tuple2<List<ImmutableTaskGraph>, GridScheduler> setupTornadoForwardPlanLayered() {
-        if (this.cachedTaskGraphs != null && this.cachedScheduler != null) {
-            return new Tuple2<>(this.cachedTaskGraphs, this.cachedScheduler);
-        }
-
-        List<ImmutableTaskGraph> allTaskGraphs = new ArrayList<>();
-        GridScheduler masterScheduler = new GridScheduler();
-
-        // 1. Activation layer
-        allTaskGraphs.add(activationLayer.getImmutableTaskGraph());
-        activationLayer.updateGridScheduler(masterScheduler);
-
-        // 2. FFN layers (N transformer layers with GQA support)
-        allTaskGraphs.addAll(ffnLayers.getFfnLayerTaskGraphs());
-        ffnLayers.updateGridScheduler(masterScheduler);
-
-        // 3. Logits layer
-        allTaskGraphs.add(logitsLayer.getTaskGraph().snapshot());
-        logitsLayer.updateGridScheduler(masterScheduler);
-
-        // Cache
-        this.cachedTaskGraphs = allTaskGraphs;
-        this.cachedScheduler = masterScheduler;
-
-        return new Tuple2<>(allTaskGraphs, masterScheduler);
-    }
 
     public void setupTornadoForwardPlan() {
         List<ImmutableTaskGraph> allTaskGraphs = new ArrayList<>();
@@ -98,13 +71,6 @@ public class Qwen3FP16LayerPlanner extends FP16LayerPlanner<Qwen3State, Qwen3Con
         // Cache
         this.cachedTaskGraphs = allTaskGraphs;
         this.cachedScheduler = masterScheduler;
-    }
-
-    @Override
-    public Tuple2<List<ImmutableTaskGraph>, GridScheduler> setupTornadoForwardPlanLayeredNonNvidia() {
-        // For now, same as NVIDIA version
-        // Hardware strategy will optimize scheduler
-        return setupTornadoForwardPlanLayered();
     }
 
     public List<ImmutableTaskGraph> getCachedTaskGraphs() {

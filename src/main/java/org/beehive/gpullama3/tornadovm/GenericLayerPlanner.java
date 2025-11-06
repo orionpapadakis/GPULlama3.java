@@ -8,10 +8,6 @@ import java.util.List;
 
 public interface GenericLayerPlanner {
 
-    Tuple2<List<ImmutableTaskGraph>, GridScheduler> setupTornadoForwardPlanLayered();
-
-    Tuple2<List<ImmutableTaskGraph>, GridScheduler> setupTornadoForwardPlanLayeredNonNvidia();
-
     List<ImmutableTaskGraph> getCachedTaskGraphs();
 
     GridScheduler getCachedGridScheduler();
