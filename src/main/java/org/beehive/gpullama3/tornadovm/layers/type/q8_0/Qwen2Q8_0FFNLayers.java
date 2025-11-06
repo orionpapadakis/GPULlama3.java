@@ -12,6 +12,8 @@ import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
 import uk.ac.manchester.tornado.api.WorkerGrid;
+import uk.ac.manchester.tornado.api.WorkerGrid1D;
+import uk.ac.manchester.tornado.api.WorkerGrid2D;
 import uk.ac.manchester.tornado.api.enums.DataTransferMode;
 
 import java.util.ArrayList;
@@ -48,27 +50,58 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-        WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
         int h = config.numberOfHeads();
         int ic = config.headSize() / 2;
-        WorkerGrid ropeWorker = WorkerGridFactory.createRoPEWorker(h, config.headSize());
+        WorkerGrid ropeWorker = new WorkerGrid2D(h, ic);
+        ropeWorker.setGlobalWork(h, ic, 1);
+        ropeWorker.setLocalWork(1, 1, 1);
+
 
         int configDimRowMajorGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid configDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(configDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
+        WorkerGrid configDimRowMajorGlobalWorker = new WorkerGrid1D(configDimRowMajorGlobal);
+        configDimRowMajorGlobalWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
 
         int configKvDimRowMajorGlobal = config.kvDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid configKvDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(configKvDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
+        WorkerGrid configKvDimRowMajorGlobalWorker = new WorkerGrid1D(configKvDimRowMajorGlobal);
+        configKvDimRowMajorGlobalWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
 
-        WorkerGrid qBiasWorker = WorkerGridFactory.genericWorker(config.dim(), config.dim() / 8);
-        WorkerGrid kvBiasWorker = WorkerGridFactory.genericWorker(config.kvDim(), 32);
+        WorkerGrid qBiasWorker = new WorkerGrid1D(config.dim());
+        qBiasWorker.setGlobalWork(config.dim(), 1, 1);
+        qBiasWorker.setLocalWork(config.dim() / 8, 1, 1);
+        WorkerGrid kvBiasWorker = new WorkerGrid1D(config.kvDim());
+        kvBiasWorker.setGlobalWork(config.kvDim(), 1, 1);
+        kvBiasWorker.setLocalWork(32, 1, 1);
 
         int configHiddenDimRowMajor = config.hiddenDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid configHiddenDimRowMajorWorker = WorkerGridFactory.genericWorker(configHiddenDimRowMajor, LOCAL_WORK_GROUP_SIZE_ALLOC);
+        WorkerGrid configHiddenDimRowMajorWorker = new WorkerGrid1D(configHiddenDimRowMajor);
+        configHiddenDimRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+
+        WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
+        rmsNormWorker.setGlobalWork(config.dim(), 1, 1);  // Set global work size to total dimension
+        rmsNormWorker.setLocalWork(32, 1, 1);         // Set local work size to 256 (standard efficient size)
 
         // Parallel attention worker configuration
-        WorkerGrid parallelAttentionWorker = WorkerGridFactory.createAttentionWorker(config.numberOfHeads(), config.headSize());
+        // Calculate optimal local work size based on head dimension
+        int optimalLocalSize = Math.min(config.headSize(), 64); // Start with 64 threads per head
+        if (config.headSize() % optimalLocalSize != 0) {
+            // Find largest divisor of headSize <= 64
+            for (int size = 64; size >= 1; size--) {
+                if (config.headSize() % size == 0) {
+                    optimalLocalSize = size;
+                    break;
+                }
+            }
+        }
 
-        WorkerGrid copyToCachesWorker = WorkerGridFactory.genericWorker(config.kvDim(), 32);
+        WorkerGrid parallelAttentionWorker = new WorkerGrid1D(config.numberOfHeads());
+        parallelAttentionWorker.setGlobalWork(config.numberOfHeads() * optimalLocalSize, 1, 1);
+        parallelAttentionWorker.setLocalWork(optimalLocalSize, 1, 1);
+
+        WorkerGrid copyToCachesWorker = new WorkerGrid1D(config.kvDim());
+        copyToCachesWorker.setGlobalWork(config.kvDim(), 1, 1);
+        copyToCachesWorker.setLocalWork(32, 1, 1); // Set local work size to 32 (for copying to caches)
+
+        // Map workers to tasks
         for (int i = 0; i < config.numberOfLayers(); i++) {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".qmatmul", configDimRowMajorGlobalWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".kmatmul", configKvDimRowMajorGlobalWorker);
