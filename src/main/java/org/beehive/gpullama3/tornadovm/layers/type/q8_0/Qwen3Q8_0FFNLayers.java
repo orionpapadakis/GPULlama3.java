@@ -161,29 +161,28 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
         unifiedLayer.consumeFromDevice(qwen3State.wrapX);
         // Transfer Q8_0 weights for this layer (quants and scales)
         unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
-                weights.rms_att_weightLayered[layerIndex],
-                weights.wqLayered[layerIndex].getQuants(),
-                weights.wqLayered[layerIndex].getScales(),
-                weights.wkLayered[layerIndex].getQuants(),
-                weights.wkLayered[layerIndex].getScales(),
-                weights.wvLayered[layerIndex].getQuants(),
-                weights.wvLayered[layerIndex].getScales(),
-                weights.woLayered[layerIndex].getQuants(),
-                weights.woLayered[layerIndex].getScales(),
-                weights.rms_att_KNormLayered[layerIndex],
-                weights.rms_att_QNormLayered[layerIndex],
-                weights.rms_ffn_weightLayered[layerIndex],
-                weights.w1Layered[layerIndex].getQuants(),
-                weights.w1Layered[layerIndex].getScales(),
-                weights.w2Layered[layerIndex].getQuants(),
-                weights.w2Layered[layerIndex].getScales(),
-                weights.w3Layered[layerIndex].getQuants(),
-                weights.w3Layered[layerIndex].getScales());
+                weights.rms_att_weightLayered[layerIndex], //
+                weights.wqLayered[layerIndex].getQuants(), //
+                weights.wqLayered[layerIndex].getScales(), //
+                weights.wkLayered[layerIndex].getQuants(), //
+                weights.wkLayered[layerIndex].getScales(), //
+                weights.wvLayered[layerIndex].getQuants(), //
+                weights.wvLayered[layerIndex].getScales(),//
+                weights.woLayered[layerIndex].getQuants(),//
+                weights.woLayered[layerIndex].getScales(),//
+                weights.rms_att_KNormLayered[layerIndex], //
+                weights.rms_att_QNormLayered[layerIndex],//
+                weights.rms_ffn_weightLayered[layerIndex], //
+                weights.w1Layered[layerIndex].getQuants(), //
+                weights.w1Layered[layerIndex].getScales(), //
+                weights.w2Layered[layerIndex].getQuants(), //
+                weights.w2Layered[layerIndex].getScales(), //
+                weights.w3Layered[layerIndex].getQuants(), //
+                weights.w3Layered[layerIndex].getScales()); //
 
         // Configure layer data transfers (EVERY_EXECUTION and device persistence)
         unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
 
-        // ========== ATTENTION BLOCK ==========
 
         // RMS norm for attention input
         unifiedLayer.task("reductionsOneBlock",
@@ -298,20 +297,20 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
                     qwen3State.tempQcur, qwen3State.tempKcur);
 
             // First execution: allocate workspace buffers
-            unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
-                    context, qwen3State.wrapXb, qwen3State.wrapXb2,
-                    qwen3State.wrapQ, qwen3State.wrapK, qwen3State.wrapV,
-                    qwen3State.wrapKeyCache, qwen3State.wrapValueCache,
-                    qwen3State.wrapAtt, qwen3State.wrapHb);
+            unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION, //
+                    context, qwen3State.wrapXb, qwen3State.wrapXb2,  //
+                    qwen3State.wrapQ, qwen3State.wrapK, qwen3State.wrapV, //
+                    qwen3State.wrapKeyCache, qwen3State.wrapValueCache, //
+                    qwen3State.wrapAtt, qwen3State.wrapHb); //
         } else {
             // Subsequent layers: Consume data from previous layer
-            unifiedLayer.consumeFromDevice(context, qwen3State.wrapXb, qwen3State.wrapXb2,
-                    qwen3State.wrapQ, qwen3State.wrapK, qwen3State.wrapV,
-                    qwen3State.wrapKeyCache, qwen3State.wrapValueCache,
-                    qwen3State.wrapAtt, qwen3State.wrapHb, qwen3State.positionHolder);
+            unifiedLayer.consumeFromDevice(context, qwen3State.wrapXb, qwen3State.wrapXb2, //
+                    qwen3State.wrapQ, qwen3State.wrapK, qwen3State.wrapV, //
+                    qwen3State.wrapKeyCache, qwen3State.wrapValueCache, //
+                    qwen3State.wrapAtt, qwen3State.wrapHb, qwen3State.positionHolder); //
 
             Qwen3State qwen3State = (Qwen3State) state;
-            unifiedLayer.consumeFromDevice(qwen3State.tempQcur, qwen3State.tempKcur);
+            unifiedLayer.consumeFromDevice(qwen3State.tempQcur, qwen3State.tempKcur); //
         }
         return unifiedLayer;
     }

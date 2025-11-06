@@ -76,12 +76,8 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
         WorkerGrid configHiddenDimRowMajorWorker = new WorkerGrid1D(configHiddenDimRowMajor);
         configHiddenDimRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
 
-        WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
-        rmsNormWorker.setGlobalWork(config.dim(), 1, 1);  // Set global work size to total dimension
-        rmsNormWorker.setLocalWork(32, 1, 1);         // Set local work size to 256 (standard efficient size)
+        WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), 32);
 
-        // Parallel attention worker configuration
-        // Calculate optimal local work size based on head dimension
         int optimalLocalSize = Math.min(config.headSize(), 64); // Start with 64 threads per head
         if (config.headSize() % optimalLocalSize != 0) {
             // Find largest divisor of headSize <= 64
