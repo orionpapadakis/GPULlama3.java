@@ -19,20 +19,23 @@ public class Tuple2<T, U> {
 
     @Override
     public String toString() {
-        return "Tuple2{" +
-                "first=" + first +
-                ", second=" + second +
-                '}';
+        return "Tuple2{" + "first=" + first + ", second=" + second + '}';
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Tuple2<?, ?> tuple2 = (Tuple2<?, ?>) o;
 
-        if (!first.equals(tuple2.first)) return false;
+        if (!first.equals(tuple2.first)) {
+            return false;
+        }
         return second.equals(tuple2.second);
     }
 

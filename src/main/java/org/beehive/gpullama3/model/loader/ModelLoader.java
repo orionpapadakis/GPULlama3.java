@@ -27,9 +27,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.function.IntFunction;
 
-import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsHalfFloatArray;
-import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsFloatArray;
-
 public abstract class ModelLoader {
 
     protected FileChannel fileChannel;
