@@ -25,13 +25,6 @@ public class LlamaFP16FFNLayers extends AbstractLayer {
    List<ImmutableTaskGraph> ffnLayerTaskGraphs;
     public LlamaFP16FFNLayers(String taskGraph, State state, Weights weights, Configuration config) {
         super(taskGraph, state, weights, config);
-
-        // Ensure we have the Tornado-specific weights layout
-        if (!(weights instanceof FP16Weights llamaWeights)) {
-            throw new IllegalArgumentException(
-                    "LlamaFFNLayer requires LlamaTornadoWeights with layered layout");
-        }
-
         ffnLayerTaskGraphs = setupFFNLayered();
     }
 

@@ -52,28 +52,13 @@ public class Phi3Q8_0FFNLayers extends AbstractLayer {
         this.phi3State = state;
         this.phi3Config = config;
 
-//        // Ensure we have Phi3-specific quantized weights
-//        if (!(weights instanceof Phi3TornadoWeightsQ8_0 phi3WeightsQ8_0)) {
-//            throw new IllegalArgumentException(
-//                    "Phi3Q8_0FFNLayers requires Phi3TornadoWeightsQ8_0 with Q8_0 layout");
-//        }
-
-//        var phi3Weights = requireWeightsType(weights, Phi3TornadoWeightsQ8_0.class, "Phi3Q8_0FFNLayers", "Q8_0");
-
-
-        // Calculate opSize for combined QKV buffer
         // opSize = num_heads * head_dim + 2 * (num_key_value_heads * head_dim) = dim + 2 * kvDim
         this.opSize = config.dim() + 2 * (config.numberOfKeyValueHeads() * config.headSize());
-
         ffnLayerTaskGraphs = setupFFNLayered();
     }
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-        // CUDA equivalent: kernel<<<dim3(1,1,1), dim3(1,1,1)>>>
-        WorkerGrid singleWorker = new WorkerGrid1D(1);
-        singleWorker.setGlobalWork(1, 1, 1);
-        singleWorker.setLocalWork(1, 1, 1);
 
         // config.dim / 2 Worker for RoPE
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim/2,1,1], localWorkSize=[128,1,1])
@@ -171,7 +156,6 @@ public class Phi3Q8_0FFNLayers extends AbstractLayer {
         splitQKVWorker.setLocalWork(128, 1, 1);
 
         // Map workers to tasks
-        tornadoForwardScheduler.addWorkerGrid("activationUpdate.updateX", singleWorker);
         for (int i = 0; i < config.numberOfLayers(); i++) {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".qkvmatmul", qkvDimRowMajorGlobalWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".splitQKV", splitQKVWorker);

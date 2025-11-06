@@ -51,23 +51,11 @@ public class Qwen2Q8_0FFNLayers extends AbstractLayer {
         this.qwen2State = state;
         this.qwen2Config = config;
 
-        // Ensure we have Qwen2-specific quantized weights
-        if (!(weights instanceof Qwen2TornadoWeightsQ8_0 qwen2WeightsQ8_0)) {
-            throw new IllegalArgumentException(
-                    "Qwen2Q8_0FFNLayers requires Qwen2TornadoWeightsQ8_0 with Q8_0 layout");
-        }
         ffnLayerTaskGraphs = setupFFNLayered();
     }
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-        // Single worker for tasks running with a single thread
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[1,1,1], localWorkSize=[1,1,1])
-        // CUDA equivalent: kernel<<<dim3(1,1,1), dim3(1,1,1)>>>
-        WorkerGrid singleWorker = new WorkerGrid1D(1);
-        singleWorker.setGlobalWork(1, 1, 1);
-        singleWorker.setLocalWork(1, 1, 1);
-
         // config.dim / 2 Worker for RoPE
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim/2,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((config.dim/2+127)/128,1,1), dim3(128,1,1)>>>
@@ -136,8 +124,6 @@ public class Qwen2Q8_0FFNLayers extends AbstractLayer {
         copyToCachesWorker.setGlobalWork(config.kvDim(), 1, 1);
         copyToCachesWorker.setLocalWork(32, 1, 1); // Set local work size to 32 (for copying to caches)
 
-        // Map workers to tasks
-        tornadoForwardScheduler.addWorkerGrid("activationUpdate.updateX", singleWorker);
         for (int i = 0; i < config.numberOfLayers(); i++) {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".qmatmul", configDimRowMajorGlobalWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".kmatmul", configKvDimRowMajorGlobalWorker);
@@ -293,104 +279,4 @@ public class Qwen2Q8_0FFNLayers extends AbstractLayer {
         return unifiedLayer;
     }
 
-    /**
-     * Setup GridScheduler with Qwen2-specific worker configurations
-     */
-    private GridScheduler setupGridSchedulersLayered(Qwen2Configuration config) {
-        GridScheduler gridScheduler = new GridScheduler();
-
-        // Single worker for tasks that execute once
-        WorkerGrid singleWorker = new WorkerGrid1D(1);
-        singleWorker.setGlobalWork(1, 1, 1);
-        singleWorker.setLocalWork(1, 1, 1);
-
-        // RMS norm worker
-        WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
-        rmsNormWorker.setGlobalWork(config.dim(), 1, 1);
-        rmsNormWorker.setLocalWork(state.localSize, 1, 1);
-
-        // Q matmul worker (standard dimensions)
-        int matmulQGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmulQRowMajorWorker = new WorkerGrid1D(matmulQGlobal);
-        matmulQRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        // KV matmul worker (reduced KV heads)
-        int matmulKVGlobal = config.kvDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmulKVRowMajorWorker = new WorkerGrid1D(matmulKVGlobal);
-        matmulKVRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        // Bias workers
-        WorkerGrid qBiasWorker = new WorkerGrid1D(config.dim());
-        qBiasWorker.setGlobalWork(config.dim(), 1, 1);
-        qBiasWorker.setLocalWork(config.dim() / 8, 1, 1);
-
-        WorkerGrid kvBiasWorker = new WorkerGrid1D(config.kvDim());
-        kvBiasWorker.setGlobalWork(config.kvDim(), 1, 1);
-        kvBiasWorker.setLocalWork(32, 1, 1);
-
-        // RoPE worker (2D: heads x embedding_head/2)
-        int ic = config.headSize() / 2;
-        WorkerGrid ropeWorker = new WorkerGrid2D(config.numberOfHeads(), ic);
-        ropeWorker.setGlobalWork(config.numberOfHeads(), ic, 1);
-        ropeWorker.setLocalWork(8, 1, 1);
-
-        // Copy to cache worker
-        WorkerGrid copyToCachesWorker = new WorkerGrid1D(config.kvDim());
-        copyToCachesWorker.setGlobalWork(config.kvDim(), 1, 1);
-        copyToCachesWorker.setLocalWork(32, 1, 1);
-
-        // Parallel attention worker
-        int optimalLocalSize = Math.min(config.headSize(), 64);
-        if (config.headSize() % optimalLocalSize != 0) {
-            for (int size = 64; size >= 1; size--) {
-                if (config.headSize() % size == 0) {
-                    optimalLocalSize = size;
-                    break;
-                }
-            }
-        }
-        WorkerGrid parallelAttentionWorker = new WorkerGrid1D(config.numberOfHeads());
-        parallelAttentionWorker.setGlobalWork(config.numberOfHeads() * optimalLocalSize, 1, 1);
-        parallelAttentionWorker.setLocalWork(optimalLocalSize, 1, 1);
-
-        // Matmul1 worker (output projection)
-        int matmul1Global = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmul1Worker = new WorkerGrid1D(matmul1Global);
-        matmul1Worker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        // FFN workers
-        int fusedFFNW1W3Global = config.hiddenDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid fusedFFNW1W3Worker = new WorkerGrid1D(fusedFFNW1W3Global);
-        fusedFFNW1W3Worker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        int projectionTwoGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid projectionTwoWorker = new WorkerGrid1D(projectionTwoGlobal);
-        projectionTwoWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-
-        // Map workers to tasks for each layer
-        for (int i = 0; i < config.numberOfLayers(); i++) {
-            gridScheduler.addWorkerGrid("layer_" + i + ".reductionsOneBlock", rmsNormWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".mapContext", rmsNormWorker);
-
-            gridScheduler.addWorkerGrid("layer_" + i + ".qmatmul", matmulQRowMajorWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".kmatmul", matmulKVRowMajorWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".vmatmul", matmulKVRowMajorWorker);
-
-            gridScheduler.addWorkerGrid("layer_" + i + ".qbias", qBiasWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".kbias", kvBiasWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".vbias", kvBiasWorker);
-
-            gridScheduler.addWorkerGrid("layer_" + i + ".rope", ropeWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".copyToCaches", copyToCachesWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".parallel-attention", parallelAttentionWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".matmul1", matmul1Worker);
-
-            gridScheduler.addWorkerGrid("layer_" + i + ".reductionsOneBlockFFN", rmsNormWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".mapContextFFN", rmsNormWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".fused_ffn_w1_w3", fusedFFNW1W3Worker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".projectionTwo", projectionTwoWorker);
-        }
-
-        return gridScheduler;
-    }
 }

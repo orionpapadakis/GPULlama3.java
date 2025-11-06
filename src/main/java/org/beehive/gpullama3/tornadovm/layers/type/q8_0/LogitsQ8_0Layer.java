@@ -29,12 +29,9 @@ public class LogitsQ8_0Layer extends AbstractLayer{
         super(taskGraphName, state, weights, config);
         this.lastTaskGraphID = lastTaskGraphID;
         state.tempLogits.init(0.0f);
-
-        if (!(weights instanceof Q8_0Weights llamaWeights)) {
-            throw new IllegalArgumentException("LogitsLayer requires LlamaTornadoWeights");
-        }
-
-        this.logitsTaskGraph = setupLogitsTaskGraph(llamaWeights, config);    }
+        var q8_0Weights = requireWeightsType(weights, Q8_0Weights.class, "LogitsQ8_0Layer", "Q8_0");
+        this.logitsTaskGraph = setupLogitsTaskGraph(q8_0Weights, config);
+    }
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
@@ -60,12 +57,8 @@ public class LogitsQ8_0Layer extends AbstractLayer{
 
     private TaskGraph setupLogitsTaskGraph(Q8_0Weights weights, Configuration config) {
         TaskGraph logits = new TaskGraph("logits")
-                .consumeFromDevice(lastTaskGraphID,
-                        state.wrapX
-                )
-                .transferToDevice(DataTransferMode.EVERY_EXECUTION,
-                        state.tempLogits
-                )
+                .consumeFromDevice(lastTaskGraphID, state.wrapX)
+                .transferToDevice(DataTransferMode.EVERY_EXECUTION, state.tempLogits)
                 .transferToDevice(DataTransferMode.FIRST_EXECUTION,
                         context,
                         state.wrapLogits,
@@ -76,13 +69,12 @@ public class LogitsQ8_0Layer extends AbstractLayer{
                 .task("reductionsOneBlockLogits", TransformerComputeKernels::reductionOneBlockWithLayer, context, state.tempLogits,
                         state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
                 .task("mapContextLogits", TransformerComputeKernels::reductionOneBlock2WithLogits, context, state.wrapX,
-                        weights.rms_final_weight_as_floatArray, state.tempLogits);
-                logits.task("projection", TransformerComputeKernelsLayered::matrixVectorGeneric,  //
+                        weights.rms_final_weight_as_floatArray, state.tempLogits)
+                .task("projection", TransformerComputeKernelsLayered::matrixVectorGeneric,  //
                         context, state.wrapX, state.wrapLogits, weights.wclsHalfFloat.getQuants(), weights.wclsHalfFloat.getScales(), //
-                        config.dim(), config.vocabularySize(), LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS); //
-        logits.transferToHost(DataTransferMode.EVERY_EXECUTION, state.wrapLogits);
+                        config.dim(), config.vocabularySize(), LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS) //
+                 .transferToHost(DataTransferMode.EVERY_EXECUTION, state.wrapLogits);
         taskGraphs.add(logits.snapshot());
-
         return logits;
     }
 
