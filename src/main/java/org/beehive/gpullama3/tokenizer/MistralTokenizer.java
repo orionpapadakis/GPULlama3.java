@@ -1,7 +1,12 @@
 package org.beehive.gpullama3.tokenizer;
 
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -9,18 +14,12 @@ import java.util.stream.IntStream;
 /**
  * TikToken-style BPE tokenizer with byte fallback.
  * <p>
- * TikToken-style:
- * A Byte Pair Encoding (BPE) strategy that converts text to UTF-8 bytes.
- * Frequent pairs of bytes (or tokens) are merged according to a learned vocabulary.
- * This reduces long words into common subwords or whole-word tokens.
- * If a word or character isn't found, it falls back to byte-level tokens.
+ * TikToken-style: A Byte Pair Encoding (BPE) strategy that converts text to UTF-8 bytes. Frequent pairs of bytes (or tokens) are merged according to a learned vocabulary. This reduces long words into
+ * common subwords or whole-word tokens. If a word or character isn't found, it falls back to byte-level tokens.
  * <p>
- * Byte fallback:
- * A fail-safe mechanism.
- * It ensures every byte has a token, so any input (even unknown words, misspellings, foreign languages, emojis, or binary) can be tokenized.
- * If a token is not found in the merges or vocabulary, it will fall back to the individual byte.
- * Each byte is wrapped as a special token like <0xF0> — these are part of the tokenizer’s extended vocabulary.
- * This guarantees reversibility: every string can be tokenized and decoded back exactly.
+ * Byte fallback: A fail-safe mechanism. It ensures every byte has a token, so any input (even unknown words, misspellings, foreign languages, emojis, or binary) can be tokenized. If a token is not
+ * found in the merges or vocabulary, it will fall back to the individual byte. Each byte is wrapped as a special token like <0xF0> — these are part of the tokenizer’s extended vocabulary. This
+ * guarantees reversibility: every string can be tokenized and decoded back exactly.
  */
 public class MistralTokenizer implements Tokenizer {
     private static final String MISTRAL_PATTERN = "\\S+|\\s+";
@@ -31,6 +30,26 @@ public class MistralTokenizer implements Tokenizer {
     private final Map<String, Integer> specialTokens;
     private final int[] tokenType;
     private final int byte0;
+
+    // @formatter:off
+    public MistralTokenizer(Map<String, Object> metadata, Vocabulary vocabulary) {
+        // load from metadata
+        int[] tokenTypes = (int[]) metadata.get("tokenizer.ggml.token_type");
+        List<Integer> specialTokensList = IntStream.range(0, vocabulary.size()).filter(t -> tokenTypes[t] != 1 && tokenTypes[t] != 6).boxed().toList();
+        Map<String, Integer> specialTokens =
+                IntStream.range(0, specialTokensList.size())
+                        .boxed()
+                        .collect(Collectors.toMap(
+                                t -> vocabulary.get(t),
+                                t -> t)
+                        );
+        // init tokenizer object fields
+        this.vocabulary = vocabulary;
+        this.compiledPattern = null;
+        this.specialTokens = new HashMap<>(specialTokens);
+        this.tokenType = tokenTypes;
+        this.byte0 = vocabulary.getIndex("<0x00>").orElseThrow();
+    }
 
     public String regexPattern() {
         if (compiledPattern == null) {
@@ -57,26 +76,6 @@ public class MistralTokenizer implements Tokenizer {
 
     public int getTokenType(int tokenIndex) {
         return tokenType[tokenIndex];
-    }
-
-    // @formatter:off
-    public MistralTokenizer(Map<String, Object> metadata, Vocabulary vocabulary) {
-        // load from metadata
-        int[] tokenTypes = (int[]) metadata.get("tokenizer.ggml.token_type");
-        List<Integer> specialTokensList = IntStream.range(0, vocabulary.size()).filter(t -> tokenTypes[t] != 1 && tokenTypes[t] != 6).boxed().toList();
-        Map<String, Integer> specialTokens =
-                IntStream.range(0, specialTokensList.size())
-                        .boxed()
-                        .collect(Collectors.toMap(
-                                t -> vocabulary.get(t),
-                                t -> t)
-                        );
-        // init tokenizer object fields
-        this.vocabulary = vocabulary;
-        this.compiledPattern = null;
-        this.specialTokens = new HashMap<>(specialTokens);
-        this.tokenType = tokenTypes;
-        this.byte0 = vocabulary.getIndex("<0x00>").orElseThrow();
     }
     // @formatter:on
 

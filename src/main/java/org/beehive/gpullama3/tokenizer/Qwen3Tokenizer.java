@@ -17,51 +17,20 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class Qwen3Tokenizer implements Tokenizer {
+    static final Map<Integer, Integer> BYTE_ENCODER = bytesToUnicode();
+    static final Map<Integer, Integer> BYTE_DECODER = BYTE_ENCODER.entrySet().stream().collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
     private final static String QWEN3_PATTERN = "(?:'[sS]|'[tT]|'[rR][eE]|'[vV][eE]|'[mM]|'[lL][lL]|'[dD])|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+";
     private final Pattern compiledPattern;
     private final Vocabulary vocabulary;
     private final Map<Pair<Integer, Integer>, Integer> merges;
     private final Map<String, Integer> specialTokens;
     private final int[] tokenTypes;
-
     /** buffer to store incomplete UTF-8 sequence */
     private final byte[] bufUtf8 = new byte[4];
     /** index in UTF-8 buffer */
     private int currUtf8Index = 0;
     /** current UTF-8 mask */
     private Utf8Mask currUtf8Mask;
-
-    @Override
-    public String regexPattern() {
-        if (compiledPattern == null) {
-            return null;
-        }
-        return compiledPattern.pattern();
-    }
-
-    @Override
-    public Map<String, Integer> getSpecialTokens() {
-        return specialTokens;
-    }
-
-    @Override
-    public boolean isSpecialToken(int tokenIndex) {
-        return specialTokens.containsValue(tokenIndex);
-    }
-
-    @Override
-    public boolean shouldDisplayToken(int token) {
-        int tokenType = getTokenType(token);
-        // tokenType 4 allows the display of reasoning ( <think> ... <\think> )
-        return tokenType == 1 || tokenType == 4 || tokenType == 6;
-    }
-
-    public int getTokenType(int tokenIndex) {
-        if (tokenTypes == null) {
-            throw new IllegalStateException("Qwen3Tokenizer hasn't been constructed using tokenTypes");
-        }
-        return tokenTypes[tokenIndex];
-    }
 
     // @formatter:off
     public Qwen3Tokenizer(Map<String, Object> metadata, Vocabulary vocabulary, boolean isDeepSeekR1DistillQwen) {
@@ -105,11 +74,6 @@ public class Qwen3Tokenizer implements Tokenizer {
             this.merges.put(pair, mergeIndex);
         }
     }
-    // @formatter:on
-
-    private int[] encodeImpl(String text) {
-        return encode(text, Set.of()).stream().mapToInt(i -> i).toArray();
-    }
 
     static List<String> findAll(Pattern pattern, String text) {
         List<String> allMatches = new ArrayList<>();
@@ -119,6 +83,92 @@ public class Qwen3Tokenizer implements Tokenizer {
         }
         return allMatches;
     }
+
+    static List<Integer> merge(List<Integer> ids, Pair<Integer, Integer> pair, int idx) {
+        List<Integer> newids = new ArrayList<>();
+        int i = 0;
+        while (i < ids.size()) {
+            // if not at the very last position AND the pair matches, replace it
+            if (ids.get(i).equals(pair.first()) && i < ids.size() - 1 && ids.get(i + 1).equals(pair.second())) {
+                newids.add(idx);
+                i += 2;
+            } else {
+                newids.add(ids.get(i));
+                i += 1;
+            }
+        }
+        return newids;
+    }
+
+    /**
+     * Returns list of utf-8 byte and a corresponding list of unicode strings.
+     * The reversible bpe codes work on unicode strings.
+     * This means you need a large # of unicode characters in your vocab if you want to avoid UNKs.
+     * When you're at something like a 10B token dataset you end up needing around 5K for decent coverage.
+     * This is a significant percentage of your normal, say, 32K bpe vocab.
+     * To avoid that, we want lookup tables between utf-8 bytes and unicode strings.
+     * And avoids mapping to whitespace/control characters the bpe code barfs on.
+     */
+    static Map<Integer, Integer> bytesToUnicode() {
+        List<Integer> bs = new ArrayList<>();
+        IntStream.rangeClosed('!', '~').forEach(bs::add);
+        IntStream.rangeClosed('¡', '¬').forEach(bs::add);
+        IntStream.rangeClosed('®', 'ÿ').forEach(bs::add);
+
+        List<Integer> cs = new ArrayList<>(bs);
+        int n = 0;
+        for (int b = 0; b < 256; ++b) {
+            if (!bs.contains(b)) {
+                bs.add(b);
+                cs.add(256 + n);
+                n += 1;
+            }
+        }
+
+        // return dict(zip(bs, cs))
+        return IntStream.range(0, bs.size())
+                .boxed()
+                .collect(Collectors.toMap(bs::get, cs::get));
+    }
+    // @formatter:on
+
+    @Override
+    public String regexPattern() {
+        if (compiledPattern == null) {
+            return null;
+        }
+        return compiledPattern.pattern();
+    }
+
+    @Override
+    public Map<String, Integer> getSpecialTokens() {
+        return specialTokens;
+    }
+
+    @Override
+    public boolean isSpecialToken(int tokenIndex) {
+        return specialTokens.containsValue(tokenIndex);
+    }
+
+    @Override
+    public boolean shouldDisplayToken(int token) {
+        int tokenType = getTokenType(token);
+        // tokenType 4 allows the display of reasoning ( <think> ... <\think> )
+        return tokenType == 1 || tokenType == 4 || tokenType == 6;
+    }
+
+    public int getTokenType(int tokenIndex) {
+        if (tokenTypes == null) {
+            throw new IllegalStateException("Qwen3Tokenizer hasn't been constructed using tokenTypes");
+        }
+        return tokenTypes[tokenIndex];
+    }
+
+    private int[] encodeImpl(String text) {
+        return encode(text, Set.of()).stream().mapToInt(i -> i).toArray();
+    }
+
+    // @formatter:off
 
     /**
      * Encoding that ignores any special tokens.
@@ -134,6 +184,7 @@ public class Qwen3Tokenizer implements Tokenizer {
         }
         return ids;
     }
+    // @formatter:on
 
     private Map<Pair<Integer, Integer>, Integer> getStats(List<Integer> ids) {
         Map<Pair<Integer, Integer>, Integer> map = new HashMap<>();
@@ -170,58 +221,6 @@ public class Qwen3Tokenizer implements Tokenizer {
         }
         return ids;
     }
-
-    static List<Integer> merge(List<Integer> ids, Pair<Integer, Integer> pair, int idx) {
-        List<Integer> newids = new ArrayList<>();
-        int i = 0;
-        while (i < ids.size()) {
-            // if not at the very last position AND the pair matches, replace it
-            if (ids.get(i).equals(pair.first()) && i < ids.size() - 1 && ids.get(i + 1).equals(pair.second())) {
-                newids.add(idx);
-                i += 2;
-            } else {
-                newids.add(ids.get(i));
-                i += 1;
-            }
-        }
-        return newids;
-    }
-
-    // @formatter:off
-    /**
-     * Returns list of utf-8 byte and a corresponding list of unicode strings.
-     * The reversible bpe codes work on unicode strings.
-     * This means you need a large # of unicode characters in your vocab if you want to avoid UNKs.
-     * When you're at something like a 10B token dataset you end up needing around 5K for decent coverage.
-     * This is a significant percentage of your normal, say, 32K bpe vocab.
-     * To avoid that, we want lookup tables between utf-8 bytes and unicode strings.
-     * And avoids mapping to whitespace/control characters the bpe code barfs on.
-     */
-    static Map<Integer, Integer> bytesToUnicode() {
-        List<Integer> bs = new ArrayList<>();
-        IntStream.rangeClosed('!', '~').forEach(bs::add);
-        IntStream.rangeClosed('¡', '¬').forEach(bs::add);
-        IntStream.rangeClosed('®', 'ÿ').forEach(bs::add);
-
-        List<Integer> cs = new ArrayList<>(bs);
-        int n = 0;
-        for (int b = 0; b < 256; ++b) {
-            if (!bs.contains(b)) {
-                bs.add(b);
-                cs.add(256 + n);
-                n += 1;
-            }
-        }
-
-        // return dict(zip(bs, cs))
-        return IntStream.range(0, bs.size())
-                .boxed()
-                .collect(Collectors.toMap(bs::get, cs::get));
-    }
-    // @formatter:on
-
-    static final Map<Integer, Integer> BYTE_ENCODER = bytesToUnicode();
-    static final Map<Integer, Integer> BYTE_DECODER = BYTE_ENCODER.entrySet().stream().collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
 
     public int[] encode(String text) {
         StringBuilder sb = new StringBuilder();
@@ -288,8 +287,6 @@ public class Qwen3Tokenizer implements Tokenizer {
     public List<Integer> encodeAsList(String text) {
         return Arrays.stream(encode(text)).boxed().toList();
     }
-
-
 
     public String decodeImpl(List<Integer> tokens) {
         StringBuilder sb = new StringBuilder();

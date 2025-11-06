@@ -3,7 +3,13 @@ package org.beehive.gpullama3.tokenizer;
 import org.beehive.gpullama3.core.types.Pair;
 
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -12,19 +18,18 @@ import java.util.stream.IntStream;
 /**
  * GPT-2-style BPE tokenizer (even though it's called "llama") with an explicit merges list.
  * <p>
- * BPE (Byte Pair Encoding):
- * A sub-word tokenization algorithm that iteratively merges the most frequent pairs of symbols in a corpus to build a vocabulary of common character sequences.
+ * BPE (Byte Pair Encoding): A sub-word tokenization algorithm that iteratively merges the most frequent pairs of symbols in a corpus to build a vocabulary of common character sequences.
  * <p>
- * GPT-2-style tokenization:
- * Applies BPE at the byte level, ensuring all UTF-8 inputs are representable and using tokens that preserve leading spaces (e.g., 'Ġthe').
+ * GPT-2-style tokenization: Applies BPE at the byte level, ensuring all UTF-8 inputs are representable and using tokens that preserve leading spaces (e.g., 'Ġthe').
  * <p>
- * Explicit merges list:
- * A fixed sequence of learned merge rules that deterministically reconstructs the tokenizer’s vocabulary during inference without retraining.
+ * Explicit merges list: A fixed sequence of learned merge rules that deterministically reconstructs the tokenizer’s vocabulary during inference without retraining.
  * <p>
  * Based on <a href="https://github.com/karpathy/minbpe">minbpe</a>, algorithmically follows along the
  * <a href="https://github.com/openai/gpt-2/blob/master/src/encoder.py">GPT 2 tokenizer</a>
  */
 public class LlamaTokenizer implements Tokenizer {
+    static final Map<Integer, Integer> BYTE_ENCODER = bytesToUnicode();
+    static final Map<Integer, Integer> BYTE_DECODER = BYTE_ENCODER.entrySet().stream().collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
     private static final String LLAMA_3_PATTERN = "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}{1,3}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+";
     // general fields
     private final Pattern compiledPattern;
@@ -32,28 +37,6 @@ public class LlamaTokenizer implements Tokenizer {
     // model-specific fields
     private final Map<Pair<Integer, Integer>, Integer> merges;
     private final Map<String, Integer> specialTokens;
-
-    public String regexPattern() {
-        if (compiledPattern == null) {
-            return null;
-        }
-        return compiledPattern.pattern();
-    }
-
-    @Override
-    public Map<String, Integer> getSpecialTokens() {
-        return specialTokens;
-    }
-
-    @Override
-    public boolean isSpecialToken(int tokenIndex) {
-        return specialTokens.containsValue(tokenIndex);
-    }
-
-    @Override
-    public boolean shouldDisplayToken(int token) {
-        return !isSpecialToken(token);
-    }
 
     public LlamaTokenizer(Map<String, Object> metadata, Vocabulary vocabulary) {
         // load from metadata
@@ -82,16 +65,85 @@ public class LlamaTokenizer implements Tokenizer {
         }
     }
 
+    private static List<String> findAll(Pattern pattern, String text) {
+        List<String> allMatches = new ArrayList<>();
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            allMatches.add(matcher.group());
+        }
+        return allMatches;
+    }
+
+    private static List<Integer> merge(List<Integer> ids, Pair<Integer, Integer> pair, int idx) {
+        List<Integer> newids = new ArrayList<>();
+        int i = 0;
+        while (i < ids.size()) {
+            // if not at the very last position AND the pair matches, replace it
+            if (ids.get(i).equals(pair.first()) && i < ids.size() - 1 && ids.get(i + 1).equals(pair.second())) {
+                newids.add(idx);
+                i += 2;
+            } else {
+                newids.add(ids.get(i));
+                i += 1;
+            }
+        }
+        return newids;
+    }
+
+    /**
+     * Returns list of utf-8 byte and a corresponding list of unicode strings. The reversible bpe codes work on unicode strings. This means you need a large # of unicode characters in your vocab if
+     * you want to avoid UNKs. When you're at something like a 10B token dataset you end up needing around 5K for decent coverage. This is a significant percentage of your normal, say, 32K bpe vocab.
+     * To avoid that, we want lookup tables between utf-8 bytes and unicode strings. And avoids mapping to whitespace/control characters the bpe code barfs on.
+     */
+    private static Map<Integer, Integer> bytesToUnicode() {
+        List<Integer> bs = new ArrayList<>();
+        IntStream.rangeClosed('!', '~').forEach(bs::add);
+        IntStream.rangeClosed('¡', '¬').forEach(bs::add);
+        IntStream.rangeClosed('®', 'ÿ').forEach(bs::add);
+
+        List<Integer> cs = new ArrayList<>(bs);
+        int n = 0;
+        for (int b = 0; b < 256; ++b) {
+            if (!bs.contains(b)) {
+                bs.add(b);
+                cs.add(256 + n);
+                n += 1;
+            }
+        }
+
+        // return dict(zip(bs, cs))
+        return IntStream.range(0, bs.size()).boxed().collect(Collectors.toMap(bs::get, cs::get));
+    }
+
+    public String regexPattern() {
+        if (compiledPattern == null) {
+            return null;
+        }
+        return compiledPattern.pattern();
+    }
+
+    @Override
+    public Map<String, Integer> getSpecialTokens() {
+        return specialTokens;
+    }
+
+    @Override
+    public boolean isSpecialToken(int tokenIndex) {
+        return specialTokens.containsValue(tokenIndex);
+    }
+
+    @Override
+    public boolean shouldDisplayToken(int token) {
+        return !isSpecialToken(token);
+    }
+
     private int[] encodeImpl(String text) {
         return encode(text, Set.of()).stream().mapToInt(i -> i).toArray();
     }
 
     /**
-     * Unlike {@link #encodeOrdinary(String)}, this function handles special tokens.
-     * allowed_special: can be "all"|"none"|"none_raise" or a custom set of special tokens
-     * if none_raise, then an error is raised if any special token is encountered in text
-     * this is the default tiktoken behavior right now as well
-     * any other behavior is either annoying, or a major footgun.
+     * Unlike {@link #encodeOrdinary(String)}, this function handles special tokens. allowed_special: can be "all"|"none"|"none_raise" or a custom set of special tokens if none_raise, then an error is
+     * raised if any special token is encountered in text this is the default tiktoken behavior right now as well any other behavior is either annoying, or a major footgun.
      */
     public List<Integer> encode(String text, Set<String> allowedSpecial) {
         // decode the user desire w.r.t. handling of special tokens
@@ -107,10 +159,7 @@ public class LlamaTokenizer implements Tokenizer {
         // based on the occurrence of any exact match with any of the special tokens
         // we can use re.split for this. note that surrounding the pattern with ()
         // makes it into a capturing group, so the special tokens will be included
-        String specialPattern = special
-                .stream()
-                .map(Pattern::quote)
-                .collect(Collectors.joining("|", "(", ")"));
+        String specialPattern = special.stream().map(Pattern::quote).collect(Collectors.joining("|", "(", ")"));
 
         String[] specialChunks = text.split(specialPattern);
         // now all the special characters are separated from the rest of the text
@@ -126,15 +175,6 @@ public class LlamaTokenizer implements Tokenizer {
             }
         }
         return ids;
-    }
-
-    private static List<String> findAll(Pattern pattern, String text) {
-        List<String> allMatches = new ArrayList<>();
-        Matcher matcher = pattern.matcher(text);
-        while (matcher.find()) {
-            allMatches.add(matcher.group());
-        }
-        return allMatches;
     }
 
     /**
@@ -188,22 +228,6 @@ public class LlamaTokenizer implements Tokenizer {
         return ids;
     }
 
-    private static List<Integer> merge(List<Integer> ids, Pair<Integer, Integer> pair, int idx) {
-        List<Integer> newids = new ArrayList<>();
-        int i = 0;
-        while (i < ids.size()) {
-            // if not at the very last position AND the pair matches, replace it
-            if (ids.get(i).equals(pair.first()) && i < ids.size() - 1 && ids.get(i + 1).equals(pair.second())) {
-                newids.add(idx);
-                i += 2;
-            } else {
-                newids.add(ids.get(i));
-                i += 1;
-            }
-        }
-        return newids;
-    }
-
     public String decodeImpl(List<Integer> tokens) {
         StringBuilder sb = new StringBuilder();
         for (int token : tokens) {
@@ -212,38 +236,6 @@ public class LlamaTokenizer implements Tokenizer {
         }
         return sb.toString();
     }
-
-    /**
-     * Returns list of utf-8 byte and a corresponding list of unicode strings.
-     * The reversible bpe codes work on unicode strings.
-     * This means you need a large # of unicode characters in your vocab if you want to avoid UNKs.
-     * When you're at something like a 10B token dataset you end up needing around 5K for decent coverage.
-     * This is a significant percentage of your normal, say, 32K bpe vocab.
-     * To avoid that, we want lookup tables between utf-8 bytes and unicode strings.
-     * And avoids mapping to whitespace/control characters the bpe code barfs on.
-     */
-    private static Map<Integer, Integer> bytesToUnicode() {
-        List<Integer> bs = new ArrayList<>();
-        IntStream.rangeClosed('!', '~').forEach(bs::add);
-        IntStream.rangeClosed('¡', '¬').forEach(bs::add);
-        IntStream.rangeClosed('®', 'ÿ').forEach(bs::add);
-
-        List<Integer> cs = new ArrayList<>(bs);
-        int n = 0;
-        for (int b = 0; b < 256; ++b) {
-            if (!bs.contains(b)) {
-                bs.add(b);
-                cs.add(256 + n);
-                n += 1;
-            }
-        }
-
-        // return dict(zip(bs, cs))
-        return IntStream.range(0, bs.size()).boxed().collect(Collectors.toMap(bs::get, cs::get));
-    }
-
-    static final Map<Integer, Integer> BYTE_ENCODER = bytesToUnicode();
-    static final Map<Integer, Integer> BYTE_DECODER = BYTE_ENCODER.entrySet().stream().collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
 
     public int[] encode(String text) {
         StringBuilder sb = new StringBuilder();
