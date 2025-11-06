@@ -60,23 +60,23 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
     @Override
     protected Phi3Configuration createConfiguration(Map<String, Object> metadata) {
         final String modelPrefix = "phi3.";
-        modelContextLength = (int) metadata.get(modelPrefix + "context_length");
-        int finalContextLength = (contextLength < 0 || modelContextLength < contextLength) ? modelContextLength : contextLength;
 
-        int vocabSize = metadata.containsKey(modelPrefix + "vocab_size") ? (int) metadata.get(modelPrefix + "vocab_size") : (int) metadata.get("tokenizer.ggml.tokens.length");
-
-        return new Phi3Configuration((int) metadata.get(modelPrefix + "embedding_length"),           // dim
+        var config = new Phi3Configuration(
+                (int) metadata.get(modelPrefix + "embedding_length"),           // dim
                 (int) metadata.get(modelPrefix + "feed_forward_length"),        // hidden_dim
                 (int) metadata.get(modelPrefix + "block_count"),                // n_layers
                 (int) metadata.get(modelPrefix + "attention.head_count"),       // n_heads
 
-                metadata.containsKey(modelPrefix + "attention.head_count_kv") ? (int) metadata.get(modelPrefix + "attention.head_count_kv") : (int) metadata.get(modelPrefix + "attention.head_count"), // n_kv_heads
+                metadata.containsKey(modelPrefix + "attention.head_count_kv")
+                        ? (int) metadata.get(modelPrefix + "attention.head_count_kv")
+                        : (int) metadata.get(modelPrefix + "attention.head_count"), // n_kv_heads
 
-                vocabSize,                                              // vocab_size
-                finalContextLength,                                                  // context_length (user-specified, not model)
+                vocabulary.size(),                                              // vocab_size
+                contextLength,                                                  // context_length (user-specified, not model)
                 (float) metadata.getOrDefault(modelPrefix + "attention.layer_norm_rms_epsilon", 1e-5f), // rms_norm_eps
                 (float) metadata.getOrDefault(modelPrefix + "rope.freq_base", 10000f)           // rope_theta
         );
+        return config;
     }
 
     @Override
