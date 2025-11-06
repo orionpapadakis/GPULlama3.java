@@ -18,8 +18,6 @@ import org.beehive.gpullama3.tornadovm.layers.type.fp16.Qwen3FP16FFNLayers;
  */
 public class Qwen3FP16LayerPlanner extends FP16LayerPlanner<Qwen3State, Qwen3Configuration, Qwen3TornadoWeights> {
 
-    private Qwen3FP16FFNLayers ffnLayers;
-
     public Qwen3FP16LayerPlanner(Qwen3State state, Model model) {
         super(state, model);
         validateQuantizationType();
