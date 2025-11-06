@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.tornadovm.layers;
+package org.beehive.gpullama3.tornadovm.layerplanner.strategy;
 
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;
