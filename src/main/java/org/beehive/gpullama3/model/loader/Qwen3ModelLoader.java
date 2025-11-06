@@ -1,7 +1,5 @@
 package org.beehive.gpullama3.model.loader;
 
-import org.beehive.gpullama3.Options;
-import org.beehive.gpullama3.auxiliary.Timer;
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.GGUF;
 import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
@@ -11,12 +9,11 @@ import org.beehive.gpullama3.core.types.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Qwen3StandardWeights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen3Q8_0TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen3TornadoWeightsQ8_0;
 import org.beehive.gpullama3.inference.weights.tornado.fp16.Qwen3TornadoWeights;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.format.ChatFormat.ChatTokens;
-import org.beehive.gpullama3.model.llama.LlamaConfiguration;
 import org.beehive.gpullama3.model.qwen3.Qwen3;
 import org.beehive.gpullama3.model.qwen3.Qwen3Configuration;
 import org.beehive.gpullama3.tokenizer.Qwen3Tokenizer;
@@ -159,9 +156,9 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
         );
     }
 
-    private Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Qwen3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+    private LlamaTornadoWeightsQ8_0 createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Qwen3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                                    GGMLTensorEntry outputWeight) {
-        return new Qwen3Q8_0TornadoWeights(
+        return new Qwen3TornadoWeightsQ8_0(
                 loadTensorAsFloatArray(tokenEmbeddings),
                 loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
                 loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),

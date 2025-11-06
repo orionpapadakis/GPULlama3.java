@@ -5,7 +5,7 @@ import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
 import org.beehive.gpullama3.inference.weights.tornado.TornadoWeights;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
-public class Q8_0Weights implements TornadoWeights {
+public class LlamaTornadoWeightsQ8_0 implements TornadoWeights {
     public FloatArray[] rms_att_weightLayered;          // (layer, dim) rmsnorm weights
     public Q8_0QuantizedTensor[] wqLayered;                  // (layer, n_heads * head_size)
     public Q8_0QuantizedTensor[] wkLayered;                  // (layer, n_kv_heads, head_size)
@@ -24,7 +24,7 @@ public class Q8_0Weights implements TornadoWeights {
     // (optional) classifier weights for the logits, on the last layer
     protected final GGMLType weightType;
 
-    public Q8_0Weights(
+    public LlamaTornadoWeightsQ8_0(
             FloatArray tokenEmbeddingTable,
             FloatArray[] rms_att_weightLayered,
             Q8_0QuantizedTensor[] wqLayered,

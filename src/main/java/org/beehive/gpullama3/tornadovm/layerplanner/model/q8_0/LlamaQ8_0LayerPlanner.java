@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm.layerplanner.model.q8_0;
 
 import org.beehive.gpullama3.inference.state.LlamaState;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.llama.LlamaConfiguration;
 import org.beehive.gpullama3.tornadovm.layerplanner.quantization.Q8_0LayerPlanner;
@@ -9,7 +9,7 @@ import org.beehive.gpullama3.tornadovm.layers.Activation;
 import org.beehive.gpullama3.tornadovm.layers.type.q8_0.LlamaQ8_0FFNLayers;
 import org.beehive.gpullama3.tornadovm.layers.type.q8_0.LogitsQ8_0Layer;
 
-public class LlamaQ8_0LayerPlanner extends Q8_0LayerPlanner<LlamaState, LlamaConfiguration, Q8_0Weights> {
+public class LlamaQ8_0LayerPlanner extends Q8_0LayerPlanner<LlamaState, LlamaConfiguration, LlamaTornadoWeightsQ8_0> {
 
     public LlamaQ8_0LayerPlanner(LlamaState state, Model model) {
         super(state, model);

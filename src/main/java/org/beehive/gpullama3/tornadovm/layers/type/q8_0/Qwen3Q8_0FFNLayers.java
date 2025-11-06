@@ -1,21 +1,16 @@
 package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 
 import org.beehive.gpullama3.inference.state.Qwen3State;
-import org.beehive.gpullama3.inference.state.State;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen3Q8_0TornadoWeights;
-import org.beehive.gpullama3.model.Configuration;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen3TornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.qwen3.Qwen3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.Qwen3Kernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
 import org.beehive.gpullama3.tornadovm.layers.AbstractFFNLayers;
-import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
 import uk.ac.manchester.tornado.api.WorkerGrid;
-import uk.ac.manchester.tornado.api.WorkerGrid1D;
-import uk.ac.manchester.tornado.api.WorkerGrid2D;
 import uk.ac.manchester.tornado.api.enums.DataTransferMode;
 
 import java.util.ArrayList;
@@ -53,7 +48,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
     private final int nEmbdGqa;
     private final int gqa;
 
-    public Qwen3Q8_0FFNLayers(String taskGraphName, Qwen3State state, Qwen3Q8_0TornadoWeights weights, Qwen3Configuration config) {
+    public Qwen3Q8_0FFNLayers(String taskGraphName, Qwen3State state, Qwen3TornadoWeightsQ8_0 weights, Qwen3Configuration config) {
         super(taskGraphName, state, weights, config);
         this.qwen3State = state;
         this.qwen3Config = config;
@@ -147,7 +142,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
         qwen3State.tempKcur.init(0.0f);
 
         for (int layerIndex = 0; layerIndex < qwen3Config.numberOfLayers(); layerIndex++) {
-            TaskGraph ffnLayer = setupSingleQwen3FFNLayer((Qwen3Q8_0TornadoWeights) weights, layerIndex);
+            TaskGraph ffnLayer = setupSingleQwen3FFNLayer((Qwen3TornadoWeightsQ8_0) weights, layerIndex);
             if (layerIndex == qwen3Config.numberOfLayers() - 1) {
                 setupLastID(ffnLayer.getTaskGraphName());
             }
@@ -159,7 +154,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
     /**
      * Setup a single transformer layer for Qwen3 with GQA (Q8_0 quantized)
      */
-    TaskGraph setupSingleQwen3FFNLayer(Qwen3Q8_0TornadoWeights weights, int layerIndex) {
+    TaskGraph setupSingleQwen3FFNLayer(Qwen3TornadoWeightsQ8_0 weights, int layerIndex) {
 
         var unifiedLayerName = "layer_" + layerIndex;
         TaskGraph unifiedLayer = new TaskGraph(unifiedLayerName);

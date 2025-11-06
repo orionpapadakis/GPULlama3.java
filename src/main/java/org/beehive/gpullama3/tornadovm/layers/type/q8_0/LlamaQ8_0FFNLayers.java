@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 
 import org.beehive.gpullama3.inference.state.LlamaState;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
@@ -20,7 +20,7 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
     GridScheduler scheduler;
     List<ImmutableTaskGraph> ffnLayerTaskGraphs;
 
-    public LlamaQ8_0FFNLayers(String taskGraphName, LlamaState state, Q8_0Weights weights, Configuration config) {
+    public LlamaQ8_0FFNLayers(String taskGraphName, LlamaState state, LlamaTornadoWeightsQ8_0 weights, Configuration config) {
         super(taskGraphName, state, weights, config);
         ffnLayerTaskGraphs = setupFFNLayered();
     }
@@ -46,7 +46,7 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
         var numLayers = config.numberOfLayers();
 
         return IntStream.range(0, numLayers).mapToObj(i -> {
-            var ffnLayer = setupSingleFFNLayer((Q8_0Weights) weights, config, i);
+            var ffnLayer = setupSingleFFNLayer((LlamaTornadoWeightsQ8_0) weights, config, i);
             if (i == numLayers - 1) {
                 setupLastID(ffnLayer.getTaskGraphName());
             }
@@ -54,7 +54,7 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
         }).toList();
     }
 
-    TaskGraph setupSingleFFNLayer(Q8_0Weights weights, Configuration config, int layerIndex) {
+    TaskGraph setupSingleFFNLayer(LlamaTornadoWeightsQ8_0 weights, Configuration config, int layerIndex) {
         var layerTaskGraphName = "layer_" + layerIndex;
         TaskGraph unifiedLayer = new TaskGraph(layerTaskGraphName);
         unifiedLayer.consumeFromDevice(state.wrapX);

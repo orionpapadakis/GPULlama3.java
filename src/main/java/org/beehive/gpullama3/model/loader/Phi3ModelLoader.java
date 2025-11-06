@@ -11,7 +11,7 @@ import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Phi3StandardWeights;
 import org.beehive.gpullama3.inference.weights.tornado.fp16.Phi3TornadoWeights;
 import org.beehive.gpullama3.inference.weights.tornado.q8_0.Phi3TornadoWeightsQ8_0;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.phi3.Phi3;
@@ -34,8 +34,6 @@ import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsQ8_0Quan
 import static org.beehive.gpullama3.model.loader.ModelLoader.loadQ8_0QuantizedTensor;
 import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsFloatArray;
 import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsHalfFloatArray;
-
-import static org.beehive.gpullama3.model.loader.ModelLoader.*;
 
 public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration> {
     private int modelContextLength;
@@ -156,7 +154,7 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
         );
     }
 
-    public Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
+    public LlamaTornadoWeightsQ8_0 createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
                                                   Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                                   GGMLTensorEntry outputWeight) {
         return new Phi3TornadoWeightsQ8_0(

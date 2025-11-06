@@ -2,8 +2,8 @@ package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.Weights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen3Q8_0TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen3TornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
@@ -27,14 +27,14 @@ public class LogitsQ8_0Layer extends AbstractLayer {
         super(taskGraphName, state, weights, config);
         this.lastTaskGraphID = lastTaskGraphID;
         state.tempLogits.init(0.0f);
-        var q8_0Weights = requireWeightsType(weights, Q8_0Weights.class, "LogitsQ8_0Layer", "Q8_0");
+        var q8_0Weights = requireWeightsType(weights, LlamaTornadoWeightsQ8_0.class, "LogitsQ8_0Layer", "Q8_0");
         this.logitsTaskGraph = setupLogitsTaskGraph(q8_0Weights, config);
     }
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
         WorkerGrid logitsRMS;
-        if (weights instanceof Qwen3Q8_0TornadoWeights) {
+        if (weights instanceof Qwen3TornadoWeightsQ8_0) {
             logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 32);
         } else {
             logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
@@ -50,7 +50,7 @@ public class LogitsQ8_0Layer extends AbstractLayer {
         return tornadoForwardScheduler;
     }
 
-    private TaskGraph setupLogitsTaskGraph(Q8_0Weights weights, Configuration config) {
+    private TaskGraph setupLogitsTaskGraph(LlamaTornadoWeightsQ8_0 weights, Configuration config) {
         TaskGraph logits = new TaskGraph("logits");
         logits.consumeFromDevice(lastTaskGraphID, state.wrapX).transferToDevice(DataTransferMode.EVERY_EXECUTION, state.tempLogits)
                 .transferToDevice(DataTransferMode.FIRST_EXECUTION, context, state.wrapLogits, weights.wclsHalfFloat.getQuants(), weights.wclsHalfFloat.getScales(),

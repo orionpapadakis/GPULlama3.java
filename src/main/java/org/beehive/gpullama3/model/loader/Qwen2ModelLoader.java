@@ -10,9 +10,8 @@ import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Qwen2StandardWeights;
 import org.beehive.gpullama3.inference.weights.tornado.fp16.Qwen2TornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
 import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen2TornadoWeightsQ8_0;
-import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.format.ChatFormat.ChatTokens;
 import org.beehive.gpullama3.model.qwen2.Qwen2;
@@ -156,7 +155,7 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
         );
     }
 
-    public Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+    public LlamaTornadoWeightsQ8_0 createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                                   GGMLTensorEntry outputWeight) {
         return new Qwen2TornadoWeightsQ8_0(
                 loadTensorAsFloatArray(tokenEmbeddings),

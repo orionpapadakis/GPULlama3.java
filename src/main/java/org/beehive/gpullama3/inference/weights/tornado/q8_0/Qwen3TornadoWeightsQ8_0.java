@@ -5,7 +5,7 @@ import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 
-public class Qwen3Q8_0TornadoWeights extends Q8_0Weights{
+public class Qwen3TornadoWeightsQ8_0 extends LlamaTornadoWeightsQ8_0 {
 
     //attnKNorm
     public FloatArray[] rms_att_KNormLayered;
@@ -13,7 +13,7 @@ public class Qwen3Q8_0TornadoWeights extends Q8_0Weights{
     public FloatArray[] rms_att_QNormLayered;
 
     // @formatter:off
-    public Qwen3Q8_0TornadoWeights(
+    public Qwen3TornadoWeightsQ8_0(
             FloatArray tokenEmbeddingTable,
             FloatArray[] rms_att_weightLayered,
             Q8_0QuantizedTensor[] wqLayered,
