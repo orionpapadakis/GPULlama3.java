@@ -56,9 +56,7 @@ public class Qwen2Q8_0FFNLayers extends AbstractLayer {
             throw new IllegalArgumentException(
                     "Qwen2Q8_0FFNLayers requires Qwen2TornadoWeightsQ8_0 with Q8_0 layout");
         }
-
         ffnLayerTaskGraphs = setupFFNLayered();
-        this.scheduler = setupGridSchedulersLayered(config);
     }
 
     @Override

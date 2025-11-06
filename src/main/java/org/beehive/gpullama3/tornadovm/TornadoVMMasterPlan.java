@@ -18,10 +18,16 @@ public class TornadoVMMasterPlan {
     GenericLayerPlanner tornadoVMLayerPlanner;
 
     public TornadoVMMasterPlan(State state, Model model) {
-        this.tornadoVMLayerPlanner = createPlannerWithStrategy(state, model);
-        this.executionPlan = new TornadoExecutionPlan(tornadoVMLayerPlanner.getCachedTaskGraphs().toArray(new ImmutableTaskGraph[tornadoVMLayerPlanner.getCachedTaskGraphs().size()]));
+        this.tornadoVMLayerPlanner = createPlanner(state, model);
+        this.executionPlan = createExecutionPlan();
         this.state = state;
         this.config = model.configuration();
+    }
+
+    private TornadoExecutionPlan createExecutionPlan() {
+        var taskGraphs = tornadoVMLayerPlanner.getCachedTaskGraphs();
+        var taskGraphArray = taskGraphs.toArray(new ImmutableTaskGraph[taskGraphs.size()]);
+        return new TornadoExecutionPlan(taskGraphArray);
     }
 
     /**
@@ -78,8 +84,7 @@ public class TornadoVMMasterPlan {
         return tornadoVMPlan;
     }
 
-    private GenericLayerPlanner createPlannerWithStrategy(State state, Model model) {
-
+    private GenericLayerPlanner createPlanner(State state, Model model) {
         // ========== STEP 1: Detect Quantization Type ==========
         GGMLType weightType = model.weights().getWeightType();
 

@@ -46,7 +46,7 @@ public class LogitsQ8_0Layer extends AbstractLayer{
              logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
         }
 
-        int vocabSizeRowMajor = config.vocabularySize() * LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS;
+        var vocabSizeRowMajor = config.vocabularySize() * LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS;
         WorkerGrid vocabWorker = new WorkerGrid1D(vocabSizeRowMajor);
         vocabWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS, 1, 1);
 
@@ -59,7 +59,6 @@ public class LogitsQ8_0Layer extends AbstractLayer{
 
 
     private TaskGraph setupLogitsTaskGraph(Q8_0Weights weights, Configuration config) {
-
         TaskGraph logits = new TaskGraph("logits")
                 .consumeFromDevice(lastTaskGraphID,
                         state.wrapX

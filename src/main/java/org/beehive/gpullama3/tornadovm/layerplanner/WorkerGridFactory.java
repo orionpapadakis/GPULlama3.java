@@ -9,6 +9,8 @@ public class WorkerGridFactory {
 
     /**
      * RMS Norm worker: parallel reduction across dimension
+     *         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim,1,1], localWorkSize=[256,1,1])
+     *         // CUDA equivalent: kernel<<<dim3((config.dim+255)/256,1,1), dim3(256,1,1)>>>
      */
     public static WorkerGrid createRmsNormWorker(int dim, int localSize) {
         WorkerGrid worker = new WorkerGrid1D(dim);
@@ -17,6 +19,9 @@ public class WorkerGridFactory {
         return worker;
     }
 
+    // Single worker for tasks running with a single thread
+    // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[1,1,1], localWorkSize=[1,1,1])
+    // CUDA equivalent: kernel<<<dim3(1,1,1), dim3(1,1,1)>>>
     public static WorkerGrid createSingleWorker() {
         WorkerGrid worker = new WorkerGrid1D(1);
         worker.setGlobalWork(1, 1, 1);
@@ -31,6 +36,12 @@ public class WorkerGridFactory {
         int global = opSize * DEFAULT_WORK_GROUP_SIZE;
         WorkerGrid worker = new WorkerGrid1D(global);
         worker.setLocalWork(DEFAULT_WORK_GROUP_SIZE, 1, 1);
+        return worker;
+    }
+
+    public static WorkerGrid genericWorker(int globalWorkSize, int localWorkSize) {
+        WorkerGrid worker = new WorkerGrid1D(globalWorkSize);
+        worker.setLocalWork(localWorkSize, 1, 1);
         return worker;
     }
 
