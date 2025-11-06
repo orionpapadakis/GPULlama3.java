@@ -24,12 +24,6 @@ public class TornadoVMMasterPlan {
         this.config = model.configuration();
     }
 
-    private TornadoExecutionPlan createExecutionPlan() {
-        var taskGraphs = tornadoVMLayerPlanner.getCachedTaskGraphs();
-        var taskGraphArray = taskGraphs.toArray(new ImmutableTaskGraph[taskGraphs.size()]);
-        return new TornadoExecutionPlan(taskGraphArray);
-    }
-
     /**
      * Initializes the TornadoVM plan for GPU acceleration with optional timing. This method handles: 1. Creation of the TornadoVM master plan 2. Warming up the JIT compiler for better performance 3.
      * Copying read-only model weights to the GPU
@@ -82,6 +76,12 @@ public class TornadoVMMasterPlan {
         model.setTornadoVMPlan(tornadoVMPlan);
 
         return tornadoVMPlan;
+    }
+
+    private TornadoExecutionPlan createExecutionPlan() {
+        var taskGraphs = tornadoVMLayerPlanner.getCachedTaskGraphs();
+        var taskGraphArray = taskGraphs.toArray(new ImmutableTaskGraph[taskGraphs.size()]);
+        return new TornadoExecutionPlan(taskGraphArray);
     }
 
     private GenericLayerPlanner createPlanner(State state, Model model) {

@@ -1,6 +1,5 @@
 package org.beehive.gpullama3.tornadovm;
 
-import org.beehive.gpullama3.auxiliary.Tuple2;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 
