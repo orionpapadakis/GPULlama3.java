@@ -2,7 +2,7 @@ package org.beehive.gpullama3.tornadovm;
 
 import org.beehive.gpullama3.auxiliary.Tuple2;
 import org.beehive.gpullama3.inference.state.Phi3State;
-import org.beehive.gpullama3.inference.weights.tornado.Phi3TornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.Phi3TornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
 import uk.ac.manchester.tornado.api.GridScheduler;

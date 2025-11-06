@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm;
 
 import org.beehive.gpullama3.auxiliary.Tuple2;
-import org.beehive.gpullama3.inference.weights.tornado.FP16Weights;
+import org.beehive.gpullama3.inference.weights.tornado.fp16.FP16Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.inference.state.State;

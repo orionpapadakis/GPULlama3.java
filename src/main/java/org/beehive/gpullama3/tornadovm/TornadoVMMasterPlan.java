@@ -6,7 +6,6 @@ import org.beehive.gpullama3.inference.state.Phi3State;
 import org.beehive.gpullama3.inference.state.Qwen2State;
 import org.beehive.gpullama3.inference.state.Qwen3State;
 import org.beehive.gpullama3.inference.state.State;
-import org.beehive.gpullama3.inference.weights.tornado.Qwen2Q8_0TornadoVMLayerPlanner;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;

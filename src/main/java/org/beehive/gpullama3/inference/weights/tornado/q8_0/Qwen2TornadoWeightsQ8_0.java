@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.inference.weights.tornado;
+package org.beehive.gpullama3.inference.weights.tornado.q8_0;
 
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
