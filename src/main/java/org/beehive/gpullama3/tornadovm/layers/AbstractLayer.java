@@ -32,6 +32,8 @@ public abstract class AbstractLayer {
     protected static final int LOCAL_WORK_GROUP_SIZE_ALLOC = 32;
     protected static final int THREAD_SCALE_FOR_LOGITS = 1;
 
+    protected static String lastTaskGraphID;
+
     /** Collected snapshots for scheduling / debugging. */
     protected final List<ImmutableTaskGraph> taskGraphs = new ArrayList<>();
 
@@ -53,5 +55,21 @@ public abstract class AbstractLayer {
     /** Allow subclasses to override if they need custom transfers. */
     protected TaskGraph configureLayerDataTransfers(TaskGraph tg, int layerIndex) {
         return tg;
+    }
+
+    public String getLastTaskGraphID() { return lastTaskGraphID;}
+
+    public void setupLastID(String taskGraphID) {
+        if (lastTaskGraphID == null) lastTaskGraphID = taskGraphID;
+        else if (!lastTaskGraphID.equals(taskGraphID))
+            throw new IllegalStateException("Task graph IDs do not match: " + lastTaskGraphID + " vs " + taskGraphID);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static <T> T requireWeightsType(Object weights, Class<T> expectedType, String layerName, String layout) {
+        if (expectedType.isInstance(weights)) {
+            return (T) weights;
+        }
+        throw new IllegalArgumentException(layerName + " requires " + expectedType.getSimpleName() + " with " + layout + " layout");
     }
 }

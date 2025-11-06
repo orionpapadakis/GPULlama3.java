@@ -20,7 +20,6 @@ import java.util.stream.IntStream;
 
 public class LlamaFP16FFNLayers extends AbstractLayer {
 
-    String lastTaskGraphID;
     TaskGraph ffnTaskGraphs;
     GridScheduler scheduler;
    List<ImmutableTaskGraph> ffnLayerTaskGraphs;
@@ -38,7 +37,6 @@ public class LlamaFP16FFNLayers extends AbstractLayer {
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-
         WorkerGrid ropeWorker = WorkerGridFactory.genericWorker(config.dim()/2, 128);
         WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
 
@@ -116,16 +114,6 @@ public class LlamaFP16FFNLayers extends AbstractLayer {
                 return ffnLayer.snapshot();
             })
             .toList();
-    }
-
-    public String getLastTaskGraphID() {
-            return lastTaskGraphID;
-    }
-
-    private void setupLastID(String taskGraphID) {
-        if (lastTaskGraphID == null) lastTaskGraphID = taskGraphID;
-        else if (!lastTaskGraphID.equals(taskGraphID))
-            throw new IllegalStateException("Task graph IDs do not match: " + lastTaskGraphID + " vs " + taskGraphID);
     }
 
     TaskGraph setupSingleFFNLayer(FP16Weights weights, Configuration config, int layerIndex) {

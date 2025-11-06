@@ -24,7 +24,6 @@ import java.util.stream.IntStream;
 
 public class LlamaQ8_0FFNLayers extends AbstractLayer {
 
-    String lastTaskGraphID;
     GridScheduler scheduler;
     List<ImmutableTaskGraph> ffnLayerTaskGraphs;
 
@@ -60,16 +59,6 @@ public class LlamaQ8_0FFNLayers extends AbstractLayer {
                     return ffnLayer.snapshot();
                 })
                 .toList();
-    }
-
-    public String getLastTaskGraphID() {
-        return lastTaskGraphID;
-    }
-
-    private void setupLastID(String taskGraphID) {
-        if (lastTaskGraphID == null) lastTaskGraphID = taskGraphID;
-        else if (!lastTaskGraphID.equals(taskGraphID))
-            throw new IllegalStateException("Task graph IDs do not match: " + lastTaskGraphID + " vs " + taskGraphID);
     }
 
     TaskGraph setupSingleFFNLayer(Q8_0Weights weights, Configuration config, int layerIndex) {

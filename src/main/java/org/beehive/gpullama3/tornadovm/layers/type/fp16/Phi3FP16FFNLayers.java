@@ -164,20 +164,6 @@ public class Phi3FP16FFNLayers extends AbstractLayer {
         return ffnLayerTaskGraphs;
     }
 
-    public String getLastTaskGraphID() {
-        return lastTaskGraphID;
-    }
-
-    private void setupLastID(String taskGraphID) {
-        if (lastTaskGraphID == null) {
-            lastTaskGraphID = taskGraphID;
-        } else {
-            if (!lastTaskGraphID.equals(taskGraphID)) {
-                throw new IllegalStateException("Task graph IDs do not match: " + lastTaskGraphID + " vs " + taskGraphID);
-            }
-        }
-    }
-
     /**
      * Setup all FFN layers for all transformer layers
      */

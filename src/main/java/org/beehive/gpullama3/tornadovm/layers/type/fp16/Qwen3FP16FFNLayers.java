@@ -8,6 +8,7 @@ import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.qwen3.Qwen3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.Qwen3Kernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
+import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
 import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
@@ -82,15 +83,7 @@ public class Qwen3FP16FFNLayers extends AbstractLayer {
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler gridScheduler) {
-        // Single worker for tasks that execute once
-        WorkerGrid singleWorker = new WorkerGrid1D(1);
-        singleWorker.setGlobalWork(1, 1, 1);
-        singleWorker.setLocalWork(1, 1, 1);
-
-        // RMS norm worker
-        WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
-        rmsNormWorker.setGlobalWork(config.dim(), 1, 1);
-        rmsNormWorker.setLocalWork(state.localSize, 1, 1);
+        WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), state.localSize);
 
         // Q matmul worker (GQA: full query heads)
         int matmulQGlobal = nEmbdHeadK * config.numberOfHeads() * LOCAL_WORK_GROUP_SIZE_ALLOC;
@@ -191,20 +184,6 @@ public class Qwen3FP16FFNLayers extends AbstractLayer {
 
     public List<ImmutableTaskGraph> getFfnLayerTaskGraphs() {
         return ffnLayerTaskGraphs;
-    }
-
-    public String getLastTaskGraphID() {
-        return lastTaskGraphID;
-    }
-
-    private void setupLastID(String taskGraphID) {
-        if (lastTaskGraphID == null) {
-            lastTaskGraphID = taskGraphID;
-        } else {
-            if (!lastTaskGraphID.equals(taskGraphID)) {
-                throw new IllegalStateException("Task graph IDs do not match: " + lastTaskGraphID + " vs " + taskGraphID);
-            }
-        }
     }
 
     /**

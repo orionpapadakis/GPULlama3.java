@@ -27,11 +27,7 @@ public class LogitsFP16Layer extends AbstractLayer {
         super(name, state, weights, config);
         this.lastTaskGraphID = lastTaskGraphID;
         state.tempLogits.init(0.0f);
-
-        if (!(weights instanceof FP16Weights fp16Weights)) {
-            throw new IllegalArgumentException("LogitsLayer requires LlamaTornadoWeights");
-        }
-
+        var fp16Weights = requireWeightsType(weights, FP16Weights.class, "LogitsFP16Layer", "FP16");
         this.logitsTaskGraph = setupLogitsTaskGraph(fp16Weights, config);
     }
 
