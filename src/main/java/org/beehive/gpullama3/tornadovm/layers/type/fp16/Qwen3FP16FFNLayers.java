@@ -34,7 +34,6 @@ import java.util.List;
  */
 public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
 
-    String lastTaskGraphID;
     TaskGraph ffnLayerTaskGraph;
     GridScheduler scheduler;
     List<ImmutableTaskGraph> ffnLayerTaskGraphs;

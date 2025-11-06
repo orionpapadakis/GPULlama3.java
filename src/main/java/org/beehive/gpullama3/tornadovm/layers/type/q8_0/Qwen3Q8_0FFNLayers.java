@@ -55,12 +55,8 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
 
     public Qwen3Q8_0FFNLayers(String taskGraphName, Qwen3State state, Qwen3Q8_0TornadoWeights weights, Qwen3Configuration config) {
         super(taskGraphName, state, weights, config);
-
-        // Store strongly-typed Qwen3 references for direct access and mutation
         this.qwen3State = state;
         this.qwen3Config = config;
-
-        // Initialize GQA parameters
         this.nHeadKv = config.numberOfKeyValueHeads();
         this.nEmbdHeadK = config.numberOfHeadsKey();
         this.nEmbdHeadV = config.numberOfHeadsValue();
@@ -68,7 +64,6 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
         this.nEmbdHead = nEmbdHeadV;
         this.nEmbdGqa = nEmbdVGqa;
         this.gqa = config.numberOfHeads() / config.numberOfKeyValueHeads();
-
         ffnLayerTaskGraphs = setupFFNLayered();
     }
 

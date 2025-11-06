@@ -35,7 +35,8 @@ public class LogitsFP16Layer extends AbstractLayer {
      * Builds the logits computation graph.
      */
     private TaskGraph setupLogitsTaskGraph(FP16Weights weights, Configuration config) {
-        TaskGraph logits = new TaskGraph("logits").consumeFromDevice(lastTaskGraphID, state.wrapX).transferToDevice(DataTransferMode.EVERY_EXECUTION, state.tempLogits)
+        TaskGraph logits = new TaskGraph("logits");
+        logits.consumeFromDevice(lastTaskGraphID, state.wrapX).transferToDevice(DataTransferMode.EVERY_EXECUTION, state.tempLogits)
                 .transferToDevice(DataTransferMode.FIRST_EXECUTION, context, state.wrapLogits, weights.wclsHalfFloat, weights.rms_final_weight_as_floatArray)
                 .task("reductionsOneBlockLogits", TransformerComputeKernels::reductionOneBlockWithLayer, context, state.tempLogits, state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
                 .task("mapContextLogits", TransformerComputeKernels::reductionOneBlock2WithLogits, context, state.wrapX, weights.rms_final_weight_as_floatArray, state.tempLogits)

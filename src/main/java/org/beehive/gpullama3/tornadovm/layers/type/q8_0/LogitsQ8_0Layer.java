@@ -33,7 +33,6 @@ public class LogitsQ8_0Layer extends AbstractLayer {
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-
         WorkerGrid logitsRMS;
         if (weights instanceof Qwen3Q8_0TornadoWeights) {
             logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 32);
@@ -48,12 +47,12 @@ public class LogitsQ8_0Layer extends AbstractLayer {
         tornadoForwardScheduler.addWorkerGrid("logits.projection", vocabWorker);
         tornadoForwardScheduler.addWorkerGrid("logits.reductionsOneBlockLogits", logitsRMS);
         tornadoForwardScheduler.addWorkerGrid("logits.mapContextLogits", logitsRMS);
-
         return tornadoForwardScheduler;
     }
 
     private TaskGraph setupLogitsTaskGraph(Q8_0Weights weights, Configuration config) {
-        TaskGraph logits = new TaskGraph("logits").consumeFromDevice(lastTaskGraphID, state.wrapX).transferToDevice(DataTransferMode.EVERY_EXECUTION, state.tempLogits)
+        TaskGraph logits = new TaskGraph("logits");
+        logits.consumeFromDevice(lastTaskGraphID, state.wrapX).transferToDevice(DataTransferMode.EVERY_EXECUTION, state.tempLogits)
                 .transferToDevice(DataTransferMode.FIRST_EXECUTION, context, state.wrapLogits, weights.wclsHalfFloat.getQuants(), weights.wclsHalfFloat.getScales(),
                         weights.rms_final_weight_as_floatArray)
                 .task("reductionsOneBlockLogits", TransformerComputeKernels::reductionOneBlockWithLayer, context, state.tempLogits, state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)

@@ -63,14 +63,8 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
         WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
 
-        // config.dim / 2 Worker for RoPE
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim/2,1,1], localWorkSize=[128,1,1])
-        // CUDA equivalent: kernel<<<dim3((config.dim/2+127)/128,1,1), dim3(128,1,1)>>>
         WorkerGrid ropeWorker = WorkerGridFactory.genericWorker(config.dim() / 2, 128);
 
-        // config.dim Worker for Row major access
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim*LOCAL_WORK_GROUP_SIZE_ALLOC,1,1], localWorkSize=[LOCAL_WORK_GROUP_SIZE_ALLOC,1,1])
-        // CUDA equivalent: kernel<<<dim3(config.dim,1,1), dim3(LOCAL_WORK_GROUP_SIZE_ALLOC,1,1)>>>
         int configDimRowMajorGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
         WorkerGrid configDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(configDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
@@ -79,15 +73,9 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
         int qkvmatmulDimRowMajorGlobal = opSize * LOCAL_WORK_GROUP_SIZE_ALLOC;
         WorkerGrid qkvDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(qkvmatmulDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
-        // config.kvDim Worker for Row major access
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.kvDim*LOCAL_WORK_GROUP_SIZE_ALLOC,1,1], localWorkSize=[LOCAL_WORK_GROUP_SIZE_ALLOC,1,1])
-        // CUDA equivalent: kernel<<<dim3(config.kvDim,1,1), dim3(LOCAL_WORK_GROUP_SIZE_ALLOC,1,1)>>>
         int configKvDimRowMajorGlobal = config.kvDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
         WorkerGrid configKvDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(configKvDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
-        // config.hiddenDim * 32 Worker for Row major access
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.hiddenDim*LOCAL_WORK_GROUP_SIZE_ALLOC,1,1], localWorkSize=[LOCAL_WORK_GROUP_SIZE_ALLOC,1,1])
-        // CUDA equivalent: kernel<<<dim3(config.hiddenDim,1,1), dim3(LOCAL_WORK_GROUP_SIZE_ALLOC,1,1)>>>
         int configHiddenDimRowMajor = config.hiddenDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
         WorkerGrid configHiddenDimRowMajorWorker = WorkerGridFactory.genericWorker(configHiddenDimRowMajor, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
@@ -97,24 +85,16 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
         // Parallel attention worker configuration
         WorkerGrid parallelAttentionWorker = WorkerGridFactory.createAttentionWorker(config.numberOfHeads(), config.headSize());
 
-        // Copy to caches worker configuration
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((config.dim+127)/128,1,1), dim3(128,1,1)>>>
         WorkerGrid copyToCachesWorker = WorkerGridFactory.genericWorker(config.dim(), 128);
 
-        // Q copy worker configuration
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((config.dim+127)/128,1,1), dim3(128,1,1)>>>
         WorkerGrid copyQWorker = WorkerGridFactory.genericWorker(config.dim(), 128);
 
-        // K copy worker configuration
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[kvSize,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((kvSize+127)/128,1,1), dim3(128,1,1)>>>
         int kvSize = config.headSize() * config.numberOfKeyValueHeads();
         WorkerGrid copyKWorker = WorkerGridFactory.genericWorker(kvSize, 128);
 
-        // V copy worker configuration
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[kvSize,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((kvSize+127)/128,1,1), dim3(128,1,1)>>>
         WorkerGrid copyVWorker = WorkerGridFactory.genericWorker(kvSize, 128);
 

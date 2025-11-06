@@ -35,7 +35,6 @@ import java.util.List;
  */
 public class Phi3FP16FFNLayers extends AbstractFFNLayers {
 
-    String lastTaskGraphID;
     TaskGraph ffnLayerTaskGraph;
     GridScheduler scheduler;
     List<ImmutableTaskGraph> ffnLayerTaskGraphs;
@@ -49,8 +48,6 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
 
     public Phi3FP16FFNLayers(String taskGraphName, Phi3State state, Phi3TornadoWeights weights, Phi3Configuration config) {
         super(taskGraphName, state, weights, config);
-
-        // Store strongly-typed Phi3 references for direct access and mutation
         this.phi3State = state;
         this.phi3Config = config;
 
