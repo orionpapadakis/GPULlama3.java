@@ -99,11 +99,4 @@ public class WorkerGridFactory {
         return optimal;
     }
 
-    //    private static WorkerGrid createLogitVocabWorker() {
-    //        // RMSNorm operations
-    //        int vocabSizeRowMajor = config.vocabularySize() * LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS;
-    //        WorkerGrid vocabWorker = new WorkerGrid1D(vocabSizeRowMajor);
-    //        vocabWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS, 1, 1);
-    //
-    //    }
 }
