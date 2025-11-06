@@ -3,13 +3,15 @@ package org.beehive.gpullama3.model.loader;
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.GGUF;
 import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
+import org.beehive.gpullama3.core.model.tensor.FloatTensor;
 import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
 import org.beehive.gpullama3.core.types.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Phi3StandardWeights;
-import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.Phi3TornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.Q8_0Weights.Phi3TornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.fp16.Phi3TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.Phi3TornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.phi3.Phi3;
@@ -19,147 +21,89 @@ import org.beehive.gpullama3.tokenizer.Tokenizer;
 import org.beehive.gpullama3.tokenizer.Vocabulary;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
+import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 
-import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.util.Map;
 
-public class Phi3ModelLoader extends ModelLoader {
+import static org.beehive.gpullama3.model.loader.ModelLoader.*;
+import static org.beehive.gpullama3.model.loader.ModelLoader.floatBufferToFloatArray;
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsFloatArrayFromBuffer;
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsHalfFloatArray;
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsQ8_0QuantizedTensor;
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadQ8_0QuantizedTensor;
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsFloatArray;
+import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsHalfFloatArray;
+
+import static org.beehive.gpullama3.model.loader.ModelLoader.*;
+
+public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration> {
+    private int modelContextLength;
+
     public Phi3ModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean loadWeights, boolean useTornadovm) {
         super(fileChannel, gguf, contextLength, loadWeights, useTornadovm);
     }
 
-    // @formatter:off
     @Override
-    public Phi3 loadModel() {
-        try  {
-            Map<String, Object> metadata = gguf.getMetadata();
-            final String modelPrefix = "phi3.";
-
-            Vocabulary vocabulary = Vocabulary.loadPhi3Vocabulary(metadata);
-            Tokenizer tokenizer = new Phi3Tokenizer(metadata, vocabulary);
-
-            if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
-              System.out.println("Tokenizer: " + tokenizer.getClass().getSimpleName());
-            }
-
-            int modelContextLength = (int) metadata.get(modelPrefix + "context_length");
-            if (contextLength < 0 || modelContextLength < contextLength) {
-                contextLength = modelContextLength;
-            }
-
-            Phi3Configuration config = new Phi3Configuration(
-                    (int) metadata.get(modelPrefix + "embedding_length"),           // dim
-                    (int) metadata.get(modelPrefix + "feed_forward_length"),        // hidden_dim
-                    (int) metadata.get(modelPrefix + "block_count"),                // n_layers
-                    (int) metadata.get(modelPrefix + "attention.head_count"),       // n_heads
-
-                    metadata.containsKey(modelPrefix + "attention.head_count_kv")
-                            ? (int) metadata.get(modelPrefix + "attention.head_count_kv")
-                            : (int) metadata.get(modelPrefix + "attention.head_count"), // n_kv_heads
-
-                    vocabulary.size(),                                              // vocab_size
-                    contextLength,                                                  // context_length (user-specified, not model)
-                    (float) metadata.getOrDefault(modelPrefix + "attention.layer_norm_rms_epsilon", 1e-5f), // rms_norm_eps
-                    (float) metadata.getOrDefault(modelPrefix + "rope.freq_base", 10000f)           // rope_theta
-            );
-
-            Weights weights = null;
-            if (loadWeights) {
-                Map<String, GGMLTensorEntry> tensorEntries = GGUF.loadTensors(fileChannel, gguf.getTensorDataOffset(), gguf.getTensorInfos());
-                weights = loadWeights(tensorEntries, config, modelContextLength);
-            }
-
-            // Phi3 chat tokens
-            ChatFormat.ChatTokens chatTokens = new ChatFormat.ChatTokens(
-                    "<|system|>", "<|end|>", "<|user|>", "<|end|>", "<|assistant|>"
-            );
-
-            return new Phi3(config, tokenizer, weights, ChatFormat.create(tokenizer, chatTokens));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    protected Vocabulary loadVocabulary(Map<String, Object> metadata) {
+        return Vocabulary.loadPhi3Vocabulary(metadata);
     }
-    // @formatter:on
 
-    // @formatter:off
-    private Weights loadWeights(Map<String, GGMLTensorEntry> tensorEntries, Configuration config, int modelContextLength) {
+    @Override
+    protected Tokenizer createTokenizer(Map<String, Object> metadata, Vocabulary vocabulary) {
+        if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
+            Tokenizer tokenizer = new Phi3Tokenizer(metadata, vocabulary);
+            System.out.println("Tokenizer: " + tokenizer.getClass().getSimpleName());
+            return tokenizer;
+        }
+        return new Phi3Tokenizer(metadata, vocabulary);
+    }
+
+    @Override
+    protected Phi3Configuration createConfiguration(Map<String, Object> metadata) {
+        final String modelPrefix = "phi3.";
+        modelContextLength = (int) metadata.get(modelPrefix + "context_length");
+        int finalContextLength = (contextLength < 0 || modelContextLength < contextLength) ? modelContextLength : contextLength;
+
+        int vocabSize = metadata.containsKey(modelPrefix + "vocab_size") ? (int) metadata.get(modelPrefix + "vocab_size") : (int) metadata.get("tokenizer.ggml.tokens.length");
+
+        return new Phi3Configuration((int) metadata.get(modelPrefix + "embedding_length"),           // dim
+                (int) metadata.get(modelPrefix + "feed_forward_length"),        // hidden_dim
+                (int) metadata.get(modelPrefix + "block_count"),                // n_layers
+                (int) metadata.get(modelPrefix + "attention.head_count"),       // n_heads
+
+                metadata.containsKey(modelPrefix + "attention.head_count_kv") ? (int) metadata.get(modelPrefix + "attention.head_count_kv") : (int) metadata.get(modelPrefix + "attention.head_count"), // n_kv_heads
+
+                vocabSize,                                              // vocab_size
+                finalContextLength,                                                  // context_length (user-specified, not model)
+                (float) metadata.getOrDefault(modelPrefix + "attention.layer_norm_rms_epsilon", 1e-5f), // rms_norm_eps
+                (float) metadata.getOrDefault(modelPrefix + "rope.freq_base", 10000f)           // rope_theta
+        );
+    }
+
+    @Override
+    protected Pair<float[], float[]> precomputeRopeFrequencies(Phi3Configuration config) {
         // Calculate head size from dim and numberOfHeads
         int headSize = config.dim() / config.numberOfHeads();
 
-        Pair<float[], float[]> ropeFreqs = RoPE.precomputeFreqsCis(
-                modelContextLength,    // Use model context length for RoPE precomputation
+        return RoPE.precomputeFreqsCis(modelContextLength,    // Use model context length for RoPE precomputation
                 headSize,              // Calculated head size
-                config.ropeTheta(),
-                false,                 // Phi3 uses standard RoPE, not neox-style based on reference
+                config.ropeTheta(), false,                 // Phi3 uses standard RoPE, not neox-style based on reference
                 8, 1, 3, 8192         // Additional RoPE parameters from reference
         );
-
-        GGMLTensorEntry tokenEmbeddings = tensorEntries.get("token_embd.weight");
-        GGMLTensorEntry outputWeight = tensorEntries.get("output.weight"); // Phi3 always has separate output weight
-
-        if (useTornadovm) {
-            if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
-                System.out.println("Loading model weights in TornadoVM format (loading " + outputWeight.ggmlType() + ")");
-            }
-            if (outputWeight.ggmlType() == GGMLType.Q8_0) {
-                return createTornadoVMWeightsQ8_0(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
-            } else {
-                return createTornadoVMWeights(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
-            }
-        } else {
-            return createStandardWeights(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
-        }
-    }
-    // @formatter:on
-
-    // @formatter:off
-    public Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
-            Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
-        return new Phi3TornadoWeightsQ8_0(
-                loadTensorAsFloatArray(tokenEmbeddings),
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),      // Combined QKV
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),   // wo
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),      // wDown
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),        // wUp (not combined in reference)
-                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
-                FloatArray.fromArray(ropeFreqs.first()),
-                FloatArray.fromArray(ropeFreqs.second()),
-                loadQ8_0QuantizedTensor(outputWeight),
-                outputWeight.ggmlType()
-        );
     }
 
-    public Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
-                                          Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-                                          GGMLTensorEntry outputWeight) {
-        return new Phi3TornadoWeights(
-                loadTensorAsFloatArray(tokenEmbeddings),
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),      // Combined QKV
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),   // wo
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),      // wDown
-                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),        // wUp (not combined in reference)
-                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
-                FloatArray.fromArray(ropeFreqs.first()),
-                FloatArray.fromArray(ropeFreqs.second()),
-                loadTensorAsHalfFloatArray(outputWeight),
-                outputWeight.ggmlType()
-        );
-    }
-    // @formatter:on
-
-    // @formatter:off
     @Override
-    public Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries,
-            Configuration config,
-            Pair<float[], float[]> ropeFreqs,
-            GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
+    protected Phi3 createModel(Phi3Configuration config, Tokenizer tokenizer, Weights weights) {
+        // Phi3 chat tokens
+        ChatFormat.ChatTokens chatTokens = new ChatFormat.ChatTokens("<|system|>", "<|end|>", "<|user|>", "<|end|>", "<|assistant|>");
+
+        return new Phi3(config, tokenizer, weights, ChatFormat.create(tokenizer, chatTokens));
+    }
+
+    @Override
+    protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+                                            GGMLTensorEntry outputWeight) {
         float[] ropeFreqsReal = ropeFreqs.first();
         float[] ropeFreqsImag = ropeFreqs.second();
 
@@ -178,5 +122,84 @@ public class Phi3ModelLoader extends ModelLoader {
                 outputWeight.ggmlType()                                                                                      // weightType
         );
     }
-    // @formatter:on
+
+    @Override
+    protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+            GGMLTensorEntry outputWeight) {
+        if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
+            System.out.println("Loading model weights in TornadoVM format (loading " + outputWeight.ggmlType() + " -> " + GGMLType.F16 + ")");
+        }
+
+        GGMLType ggmlType = outputWeight.ggmlType();
+        return switch(ggmlType) {
+            case F16 -> createTornadoVMWeightsF16(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
+            case Q8_0 -> createTornadoVMWeightsQ8_0(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
+            default -> throw new UnsupportedOperationException("Type: " + ggmlType + " currently not supported for TornadoVM weights.");
+        };
+    }
+
+    private Weights createTornadoVMWeightsF16(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+                                              GGMLTensorEntry outputWeight) {
+        return new Phi3TornadoWeights(
+                loadTensorAsFloatArray(tokenEmbeddings),
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),      // Combined QKV
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),   // wo
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),      // wDown
+                loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),        // wUp (not combined in reference)
+                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
+                FloatArray.fromArray(ropeFreqs.first()),
+                FloatArray.fromArray(ropeFreqs.second()),
+                loadTensorAsHalfFloatArray(outputWeight),
+                outputWeight.ggmlType()
+        );
+    }
+
+    public Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
+                                                  Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+                                                  GGMLTensorEntry outputWeight) {
+        return new Phi3TornadoWeightsQ8_0(
+                loadTensorAsFloatArray(tokenEmbeddings),
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),      // Combined QKV
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),   // wo
+                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),      // wDown
+                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),        // wUp (not combined in reference)
+                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
+                FloatArray.fromArray(ropeFreqs.first()),
+                FloatArray.fromArray(ropeFreqs.second()),
+                loadQ8_0QuantizedTensor(outputWeight),
+                outputWeight.ggmlType()
+        );
+    }
+
+    // Helper methods
+    private FloatTensor[] loadLayerWeights(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, String layerName, String suffix) {
+        FloatTensor[] weights = new FloatTensor[config.numberOfLayers()];
+        for (int i = 0; i < config.numberOfLayers(); i++) {
+            String key = String.format("blk.%d.%s.%s", i, layerName, suffix);
+            weights[i] = ModelLoader.loadQuantized(tensorEntries.get(key));
+        }
+        return weights;
+    }
+
+    private FloatArray[] loadLayerWeightsAsFloatArraysFromBuffer(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, String layerName, String suffix) {
+        FloatArray[] weights = new FloatArray[config.numberOfLayers()];
+        for (int i = 0; i < config.numberOfLayers(); i++) {
+            String key = String.format("blk.%d.%s.%s", i, layerName, suffix);
+            weights[i] = ModelLoader.floatBufferToFloatArray(tensorEntries.get(key));
+        }
+        return weights;
+    }
+
+    private HalfFloatArray[] loadLayerWeightsAsHalfFloatArrays(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, String layerName, String suffix) {
+        HalfFloatArray[] weights = new HalfFloatArray[config.numberOfLayers()];
+        for (int i = 0; i < config.numberOfLayers(); i++) {
+            String key = String.format("blk.%d.%s.%s", i, layerName, suffix);
+            weights[i] = ModelLoader.loadTensorAsHalfFloatArray(tensorEntries.get(key));
+        }
+        return weights;
+    }
 }
