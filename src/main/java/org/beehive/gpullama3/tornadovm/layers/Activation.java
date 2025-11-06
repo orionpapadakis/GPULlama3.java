@@ -9,7 +9,6 @@ import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
 import uk.ac.manchester.tornado.api.WorkerGrid;
-import uk.ac.manchester.tornado.api.WorkerGrid1D;
 import uk.ac.manchester.tornado.api.enums.DataTransferMode;
 
 public class Activation extends AbstractLayer {
@@ -19,8 +18,7 @@ public class Activation extends AbstractLayer {
         super(taskGraphHandle, state, weights, config);
 
         // formatter:off
-        this.activationUpdate = new TaskGraph(taskGraphHandle)
-                .transferToDevice(DataTransferMode.EVERY_EXECUTION, state.wrapX)
+        this.activationUpdate = new TaskGraph(taskGraphHandle).transferToDevice(DataTransferMode.EVERY_EXECUTION, state.wrapX)
                 .task("updateX", TransformerComputeKernels::emptyTaskToForceCopyIn, state.wrapX).persistOnDevice(state.wrapX);
         // formatter:on
     }
@@ -34,11 +32,11 @@ public class Activation extends AbstractLayer {
 
     @Override
     public GridScheduler getGridScheduler() {
-        return null ;
+        return null;
     }
 
     @Override
-    public  TaskGraph getTaskGraph() {
+    public TaskGraph getTaskGraph() {
         return activationUpdate;
     }
 

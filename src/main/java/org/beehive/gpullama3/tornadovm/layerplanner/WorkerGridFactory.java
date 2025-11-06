@@ -8,9 +8,8 @@ public class WorkerGridFactory {
     private static final int DEFAULT_WORK_GROUP_SIZE = 32;
 
     /**
-     * RMS Norm worker: parallel reduction across dimension
-     *         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim,1,1], localWorkSize=[256,1,1])
-     *         // CUDA equivalent: kernel<<<dim3((config.dim+255)/256,1,1), dim3(256,1,1)>>>
+     * RMS Norm worker: parallel reduction across dimension // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim,1,1], localWorkSize=[256,1,1]) // CUDA equivalent:
+     * kernel<<<dim3((config.dim+255)/256,1,1), dim3(256,1,1)>>>
      */
     public static WorkerGrid createRmsNormWorker(int dim, int localSize) {
         WorkerGrid worker = new WorkerGrid1D(dim);
@@ -100,11 +99,11 @@ public class WorkerGridFactory {
         return optimal;
     }
 
-//    private static WorkerGrid createLogitVocabWorker() {
-//        // RMSNorm operations
-//        int vocabSizeRowMajor = config.vocabularySize() * LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS;
-//        WorkerGrid vocabWorker = new WorkerGrid1D(vocabSizeRowMajor);
-//        vocabWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS, 1, 1);
-//
-//    }
+    //    private static WorkerGrid createLogitVocabWorker() {
+    //        // RMSNorm operations
+    //        int vocabSizeRowMajor = config.vocabularySize() * LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS;
+    //        WorkerGrid vocabWorker = new WorkerGrid1D(vocabSizeRowMajor);
+    //        vocabWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS, 1, 1);
+    //
+    //    }
 }
