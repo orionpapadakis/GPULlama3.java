@@ -28,7 +28,6 @@ public abstract class FP16LayerPlanner<S extends State, C extends Configuration,
     protected AbstractFFNLayers ffnLayers;
     protected LogitsFP16Layer logitsLayer;
 
-    // Cache for task graphs and scheduler (set once, reused)
     protected List<ImmutableTaskGraph> cachedTaskGraphs;
     protected GridScheduler cachedScheduler;
 
@@ -39,7 +38,6 @@ public abstract class FP16LayerPlanner<S extends State, C extends Configuration,
 
     @Override
     protected void validateQuantizationType() {
-        // Verify we have FP16 weights
         if (this.weights.getWeightType() != GGMLType.F16) {
             throw new IllegalArgumentException("FP16LayerPlanner requires GGMLType.F16, got: " + this.weights.getWeightType());
         }
@@ -47,7 +45,6 @@ public abstract class FP16LayerPlanner<S extends State, C extends Configuration,
 
     @Override
     protected void initializeLayerComponents() {
-        // Override in subclasses (LlamaFP16LayerPlanner, Qwen2FP16LayerPlanner)
     }
 
     protected final void setupTornadoForwardPlan() {
