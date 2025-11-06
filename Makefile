@@ -23,6 +23,14 @@ package:
 package-with-clean:
 	$(MVN) clean package -DskipTests
 
+lint:
+	$(MVN) -T12C -Pspotless spotless:check
+
+# Automatically format the code to conform to a style guide.
+# Modifies the code to ensure consistent formatting.
+format:
+	$(MVN) -T12C -Pspotless spotless:apply
+
 # Display help
 help:
 	@echo "Available targets:"
