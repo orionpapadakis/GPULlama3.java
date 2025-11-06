@@ -35,7 +35,6 @@ import java.util.List;
  */
 public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
 
-    String lastTaskGraphID;
     TaskGraph ffnLayerTaskGraph;
     GridScheduler scheduler;
     List<ImmutableTaskGraph> ffnLayerTaskGraphs;
@@ -49,12 +48,8 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
 
     public Phi3Q8_0FFNLayers(String taskGraphName, Phi3State state, Phi3TornadoWeightsQ8_0 weights, Phi3Configuration config) {
         super(taskGraphName, state, weights, config);
-
-        // Store strongly-typed Phi3 references for direct access and mutation
         this.phi3State = state;
         this.phi3Config = config;
-
-        // opSize = num_heads * head_dim + 2 * (num_key_value_heads * head_dim) = dim + 2 * kvDim
         this.opSize = config.dim() + 2 * (config.numberOfKeyValueHeads() * config.headSize());
         ffnLayerTaskGraphs = setupFFNLayered();
     }
@@ -62,7 +57,6 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
         WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
-
         WorkerGrid ropeWorker = WorkerGridFactory.genericWorker(config.dim() / 2, 128);
 
         int configDimRowMajorGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
@@ -73,39 +67,13 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
         int qkvmatmulDimRowMajorGlobal = opSize * LOCAL_WORK_GROUP_SIZE_ALLOC;
         WorkerGrid qkvDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(qkvmatmulDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
-        int configKvDimRowMajorGlobal = config.kvDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid configKvDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(configKvDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
-
-        int configHiddenDimRowMajor = config.hiddenDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid configHiddenDimRowMajorWorker = WorkerGridFactory.genericWorker(configHiddenDimRowMajor, LOCAL_WORK_GROUP_SIZE_ALLOC);
-
         int wgetUPDimRowMajor = 2 * config.hiddenDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
         WorkerGrid wgetHiddenDimRowMajorWorker = WorkerGridFactory.genericWorker(wgetUPDimRowMajor, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
-        // Parallel attention worker configuration
         WorkerGrid parallelAttentionWorker = WorkerGridFactory.createAttentionWorker(config.numberOfHeads(), config.headSize());
-
-        // CUDA equivalent: kernel<<<dim3((config.dim+127)/128,1,1), dim3(128,1,1)>>>
         WorkerGrid copyToCachesWorker = WorkerGridFactory.genericWorker(config.dim(), 128);
-
-        // CUDA equivalent: kernel<<<dim3((config.dim+127)/128,1,1), dim3(128,1,1)>>>
-        WorkerGrid copyQWorker = WorkerGridFactory.genericWorker(config.dim(), 128);
-
-        // CUDA equivalent: kernel<<<dim3((kvSize+127)/128,1,1), dim3(128,1,1)>>>
-        int kvSize = config.headSize() * config.numberOfKeyValueHeads();
-        WorkerGrid copyKWorker = WorkerGridFactory.genericWorker(kvSize, 128);
-
-        // CUDA equivalent: kernel<<<dim3((kvSize+127)/128,1,1), dim3(128,1,1)>>>
-        WorkerGrid copyVWorker = WorkerGridFactory.genericWorker(kvSize, 128);
-
-        WorkerGrid hiddenDimWorker = WorkerGridFactory.genericWorker(config.hiddenDim(), 128);
-
         WorkerGrid splitGateUpSiLUWorker = WorkerGridFactory.genericWorker(config.hiddenDim(), 128);
-
-        // Total work size is dimQ + 2*dimKV (same as opSize)
         WorkerGrid splitQKVWorker = WorkerGridFactory.genericWorker(opSize, 128);
-
-        // Map workers to tasks
         for (int i = 0; i < config.numberOfLayers(); i++) {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".qkvmatmul", qkvDimRowMajorGlobalWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".splitQKV", splitQKVWorker);

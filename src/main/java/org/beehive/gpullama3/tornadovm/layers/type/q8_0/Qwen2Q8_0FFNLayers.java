@@ -55,7 +55,6 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
         WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
-
         int h = config.numberOfHeads();
         int ic = config.headSize() / 2;
         WorkerGrid ropeWorker = WorkerGridFactory.createRoPEWorker(h, config.headSize());
@@ -75,9 +74,7 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
         // Parallel attention worker configuration
         WorkerGrid parallelAttentionWorker = WorkerGridFactory.createAttentionWorker(config.numberOfHeads(), config.headSize());
 
-        // CUDA equivalent: kernel<<<dim3((config.dim+127)/128,1,1), dim3(128,1,1)>>>
         WorkerGrid copyToCachesWorker = WorkerGridFactory.genericWorker(config.kvDim(), 32);
-
         for (int i = 0; i < config.numberOfLayers(); i++) {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".qmatmul", configDimRowMajorGlobalWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".kmatmul", configKvDimRowMajorGlobalWorker);
@@ -96,7 +93,6 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".parallel-attention", parallelAttentionWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".copyToCaches", copyToCachesWorker);
         }
-
         return tornadoForwardScheduler;
     }
 
@@ -124,8 +120,6 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
      */
     List<ImmutableTaskGraph> setupFFNLayered() {
         List<ImmutableTaskGraph> ffnGraphs = new ArrayList<>();
-
-        // Initialize buffers using Qwen2State directly
         qwen2State.temp.init(0.0f);
         qwen2State.tempFFN.init(0.0f);
 
@@ -136,7 +130,6 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
             }
             ffnGraphs.add(ffnLayer.snapshot());
         }
-
         return ffnGraphs;
     }
 

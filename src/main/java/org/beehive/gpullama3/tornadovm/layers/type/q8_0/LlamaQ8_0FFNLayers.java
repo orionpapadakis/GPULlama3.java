@@ -45,72 +45,49 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
         state.tempFFN.init(0.0f);
         var numLayers = config.numberOfLayers();
 
-        return IntStream.range(0, numLayers)
-                .mapToObj(i -> {
-                    var ffnLayer = setupSingleFFNLayer((Q8_0Weights) weights, config, i);
-                    if (i == numLayers - 1) setupLastID(ffnLayer.getTaskGraphName());
-                    return ffnLayer.snapshot();
-                })
-                .toList();
+        return IntStream.range(0, numLayers).mapToObj(i -> {
+            var ffnLayer = setupSingleFFNLayer((Q8_0Weights) weights, config, i);
+            if (i == numLayers - 1) {
+                setupLastID(ffnLayer.getTaskGraphName());
+            }
+            return ffnLayer.snapshot();
+        }).toList();
     }
 
     TaskGraph setupSingleFFNLayer(Q8_0Weights weights, Configuration config, int layerIndex) {
         var layerTaskGraphName = "layer_" + layerIndex;
         TaskGraph unifiedLayer = new TaskGraph(layerTaskGraphName);
-            unifiedLayer.consumeFromDevice(state.wrapX);
-            unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
-                    //Copy-in weights per layer for batched-layered layout
-                    weights.rms_att_weightLayered[layerIndex],
-                    weights.wqLayered[layerIndex].getQuants(),
-                    weights.wqLayered[layerIndex].getScales(),
-                    weights.wkLayered[layerIndex].getQuants(),
-                    weights.wkLayered[layerIndex].getScales(),
-                    weights.wvLayered[layerIndex].getQuants(),
-                    weights.wvLayered[layerIndex].getScales(),
-                    weights.woLayered[layerIndex].getQuants(),
-                    weights.woLayered[layerIndex].getScales(),
-                    weights.rms_ffn_weightLayered[layerIndex],
-                    weights.w1Layered[layerIndex].getQuants(),
-                    weights.w1Layered[layerIndex].getScales(),
-                    weights.w2Layered[layerIndex].getQuants(),
-                    weights.w2Layered[layerIndex].getScales(),
-                    weights.w3Layered[layerIndex].getQuants(),
-                    weights.w3Layered[layerIndex].getScales()
-            );
-            unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
-            unifiedLayer.task("reductionsOneBlock" , TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.temp,
-                            state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
-                    .task("mapContext", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb,
-                            state.wrapX, weights.rms_att_weightLayered[layerIndex], state.temp)
-                    .task("qmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context,
-                            state.wrapXb,  state.wrapQ, weights.wqLayered[layerIndex].getQuants(), weights.wqLayered[layerIndex].getScales(), config.dim(), config.dim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
-                    .task("kmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context,
-                            state.wrapXb,  state.wrapK, weights.wkLayered[layerIndex].getQuants(), weights.wkLayered[layerIndex].getScales(), config.dim(), config.kvDim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
-                    .task("vmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context,
-                            state.wrapXb,   state.wrapV, weights.wvLayered[layerIndex].getQuants(), weights.wvLayered[layerIndex].getScales(), config.dim(), config.kvDim(),  LOCAL_WORK_GROUP_SIZE_ALLOC)
-                    .task("rope", TransformerComputeKernelsLayered::ropeRotation,context,
-                            state.positionHolder, state.wrapQ, state.wrapK, config.kvDim(),
-                            config.headSize())
-                    .task("copyToCaches", TransformerComputeKernelsLayered::copyToCache,
-                            state.wrapKeyCache, state.wrapK,  state.wrapValueCache, state.wrapV, state.positionHolder, config.kvDim(), layerIndex, config.contextLength())
-                    .task("parallel-attention", TransformerComputeKernelsLayered::processHeadsFlashAttention, context,
-                            state.wrapQ, state.wrapKeyCache, state.wrapValueCache, state.wrapXb,
-                            config.numberOfHeads(), config.headSize(), config.kvDim(), config.kvMul(),
-                            state.positionHolder, layerIndex, config.contextLength())
-                    .task("matmul1", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context,
-                            state.wrapXb,  state.wrapX, weights.woLayered[layerIndex].getQuants(), weights.woLayered[layerIndex].getScales(), config.dim(), config.dim(),  LOCAL_WORK_GROUP_SIZE_ALLOC)
-                    .task("reductionsOneBlockFFN", TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.tempFFN,
-                            state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
-                    .task("mapContextFFN", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb,
-                            state.wrapX, weights.rms_ffn_weightLayered[layerIndex], state.tempFFN)
-                    .task("fused_ffn_w1_w3", TransformerComputeKernelsLayered::fusedFeedForwardWithSiLUAndGLUActivation, context,
-                            state.wrapXb,   state.wrapHb, weights.w1Layered[layerIndex].getQuants(), weights.w1Layered[layerIndex].getScales(), weights.w3Layered[layerIndex].getQuants(), weights.w3Layered[layerIndex].getScales(), config.dim(), config.hiddenDim(),  LOCAL_WORK_GROUP_SIZE_ALLOC)
-                    .task("projectionTwo", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context,
-                            state.wrapHb, state.wrapX, weights.w2Layered[layerIndex].getQuants(), weights.w2Layered[layerIndex].getScales(), config.hiddenDim(), config.dim(),  LOCAL_WORK_GROUP_SIZE_ALLOC)
-                    .persistOnDevice(
-                            state.wrapX
-                    );
-            return unifiedLayer;
+        unifiedLayer.consumeFromDevice(state.wrapX);
+        unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
+                //Copy-in weights per layer for batched-layered layout
+                weights.rms_att_weightLayered[layerIndex], weights.wqLayered[layerIndex].getQuants(), weights.wqLayered[layerIndex].getScales(), weights.wkLayered[layerIndex].getQuants(),
+                weights.wkLayered[layerIndex].getScales(), weights.wvLayered[layerIndex].getQuants(), weights.wvLayered[layerIndex].getScales(), weights.woLayered[layerIndex].getQuants(),
+                weights.woLayered[layerIndex].getScales(), weights.rms_ffn_weightLayered[layerIndex], weights.w1Layered[layerIndex].getQuants(), weights.w1Layered[layerIndex].getScales(),
+                weights.w2Layered[layerIndex].getQuants(), weights.w2Layered[layerIndex].getScales(), weights.w3Layered[layerIndex].getQuants(), weights.w3Layered[layerIndex].getScales());
+        unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
+        unifiedLayer.task("reductionsOneBlock", TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.temp, state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
+                .task("mapContext", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb, state.wrapX, weights.rms_att_weightLayered[layerIndex], state.temp)
+                .task("qmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context, state.wrapXb, state.wrapQ, weights.wqLayered[layerIndex].getQuants(),
+                        weights.wqLayered[layerIndex].getScales(), config.dim(), config.dim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
+                .task("kmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context, state.wrapXb, state.wrapK, weights.wkLayered[layerIndex].getQuants(),
+                        weights.wkLayered[layerIndex].getScales(), config.dim(), config.kvDim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
+                .task("vmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context, state.wrapXb, state.wrapV, weights.wvLayered[layerIndex].getQuants(),
+                        weights.wvLayered[layerIndex].getScales(), config.dim(), config.kvDim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
+                .task("rope", TransformerComputeKernelsLayered::ropeRotation, context, state.positionHolder, state.wrapQ, state.wrapK, config.kvDim(), config.headSize())
+                .task("copyToCaches", TransformerComputeKernelsLayered::copyToCache, state.wrapKeyCache, state.wrapK, state.wrapValueCache, state.wrapV, state.positionHolder, config.kvDim(),
+                        layerIndex, config.contextLength())
+                .task("parallel-attention", TransformerComputeKernelsLayered::processHeadsFlashAttention, context, state.wrapQ, state.wrapKeyCache, state.wrapValueCache, state.wrapXb,
+                        config.numberOfHeads(), config.headSize(), config.kvDim(), config.kvMul(), state.positionHolder, layerIndex, config.contextLength())
+                .task("matmul1", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context, state.wrapXb, state.wrapX, weights.woLayered[layerIndex].getQuants(),
+                        weights.woLayered[layerIndex].getScales(), config.dim(), config.dim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
+                .task("reductionsOneBlockFFN", TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.tempFFN, state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
+                .task("mapContextFFN", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb, state.wrapX, weights.rms_ffn_weightLayered[layerIndex], state.tempFFN)
+                .task("fused_ffn_w1_w3", TransformerComputeKernelsLayered::fusedFeedForwardWithSiLUAndGLUActivation, context, state.wrapXb, state.wrapHb, weights.w1Layered[layerIndex].getQuants(),
+                        weights.w1Layered[layerIndex].getScales(), weights.w3Layered[layerIndex].getQuants(), weights.w3Layered[layerIndex].getScales(), config.dim(), config.hiddenDim(),
+                        LOCAL_WORK_GROUP_SIZE_ALLOC)
+                .task("projectionTwo", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context, state.wrapHb, state.wrapX, weights.w2Layered[layerIndex].getQuants(),
+                        weights.w2Layered[layerIndex].getScales(), config.hiddenDim(), config.dim(), LOCAL_WORK_GROUP_SIZE_ALLOC).persistOnDevice(state.wrapX);
+        return unifiedLayer;
     }
 
     protected TaskGraph configureLayerDataTransfers(TaskGraph unifiedLayer, int layerIndex) {
@@ -137,7 +114,7 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-        WorkerGrid ropeWorker = WorkerGridFactory.genericWorker(config.dim()/2, 128);
+        WorkerGrid ropeWorker = WorkerGridFactory.genericWorker(config.dim() / 2, 128);
         WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
 
         int configDimRowMajorGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
@@ -166,7 +143,6 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".parallel-attention", parallelAttentionWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".copyToCaches", copyToCachesWorker);
         }
-
         return tornadoForwardScheduler;
     }
 

@@ -69,7 +69,6 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-
         WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), state.localSize);
 
         int matmulQGlobal = nEmbdHeadK * config.numberOfHeads() * LOCAL_WORK_GROUP_SIZE_ALLOC;
@@ -78,21 +77,13 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
         int matmulKVGlobal = nEmbdGqa * LOCAL_WORK_GROUP_SIZE_ALLOC;
         WorkerGrid matmulKVRowMajorWorker = WorkerGridFactory.genericWorker(matmulKVGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
-        WorkerGrid curWorker = WorkerGridFactory.createRmsNormWorker(nEmbdHead, 128);
-
-        // Qcur
         WorkerGrid qCurWorker = WorkerGridFactory.genericWorker(config.numberOfHeads() * nEmbdHead, nEmbdHead);
-
-        // Kcur
         WorkerGrid kCurWorker = WorkerGridFactory.genericWorker(config.numberOfKeyValueHeads() * nEmbdHead, nEmbdHead);
 
         int h = config.numberOfHeads();
         int ic = nEmbdHead / 2;
         WorkerGrid ropeWorker = WorkerGridFactory.createRoPEWorker(h, nEmbdHead);
-
         WorkerGrid copyToCachesWorker = WorkerGridFactory.genericWorker(nEmbdGqa, 128);
-
-        // Parallel attention worker configuration
         WorkerGrid parallelAttentionWorker = WorkerGridFactory.createAttentionWorker(config.numberOfHeads(), nEmbdHead);
 
         int matmul1Global = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
@@ -107,19 +98,13 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
         for (int i = 0; i < config.numberOfLayers(); i++) {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".reductionsOneBlock", rmsNormWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".mapContext", rmsNormWorker);
-
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".qmatmul", matmulQRowMajorWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".kmatmul", matmulKVRowMajorWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".vmatmul", matmulKVRowMajorWorker);
-
-            // Qcur
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".rmsnormReduction_Qcur", qCurWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".rmsnormMapIndexInPlace_Qcur", qCurWorker);
-
-            // Kcur
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".rmsnormReduction_Kcur", kCurWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".rmsnormMapIndexInPlace_Kcur", kCurWorker);
-
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".ropeRotation", ropeWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".copyToCaches", copyToCachesWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".parallel-attention", parallelAttentionWorker);
@@ -156,8 +141,6 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
      */
     List<ImmutableTaskGraph> setupFFNLayered() {
         List<ImmutableTaskGraph> ffnGraphs = new ArrayList<>();
-
-        // Initialize buffers using Qwen3State directly
         qwen3State.temp.init(0.0f);
         qwen3State.tempFFN.init(0.0f);
         qwen3State.tempQcur.init(0.0f);
@@ -170,7 +153,6 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
             }
             ffnGraphs.add(ffnLayer.snapshot());
         }
-
         return ffnGraphs;
     }
 
