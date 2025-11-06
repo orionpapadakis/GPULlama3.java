@@ -1,6 +1,5 @@
 package org.beehive.gpullama3.tornadovm.layerplanner.model.fp16;
 
-import org.beehive.gpullama3.auxiliary.Tuple2;
 import org.beehive.gpullama3.inference.state.LlamaState;
 import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.LlamaTornadoWeights;
 import org.beehive.gpullama3.model.Model;
@@ -9,21 +8,8 @@ import org.beehive.gpullama3.tornadovm.layerplanner.quantization.FP16LayerPlanne
 import org.beehive.gpullama3.tornadovm.layers.Activation;
 import org.beehive.gpullama3.tornadovm.layers.type.fp16.LlamaFP16FFNLayers;
 import org.beehive.gpullama3.tornadovm.layers.type.fp16.LogitsFP16Layer;
-import uk.ac.manchester.tornado.api.GridScheduler;
-import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class LlamaFP16LayerPlanner extends FP16LayerPlanner<LlamaState, LlamaConfiguration, LlamaTornadoWeights> {
-
-    private Activation activationLayer;
-    private LlamaFP16FFNLayers ffnLayers;
-    private LogitsFP16Layer logitsLayer;
-
-    // Cache
-    private List<ImmutableTaskGraph> cachedTaskGraphs;
-    private GridScheduler cachedScheduler;
 
     public LlamaFP16LayerPlanner(LlamaState state, Model model) {
         super(state, model);
@@ -38,40 +24,4 @@ public class LlamaFP16LayerPlanner extends FP16LayerPlanner<LlamaState, LlamaCon
         this.logitsLayer = new LogitsFP16Layer("llamaLogits", this.state, this.weights, this.config, ffnLayers.getLastTaskGraphID());
     }
 
-    public void setupTornadoForwardPlan() {
-
-        List<ImmutableTaskGraph> allTaskGraphs = new ArrayList<>();
-        GridScheduler masterScheduler = new GridScheduler();
-
-        // 1. Activation layer
-        allTaskGraphs.add(activationLayer.getImmutableTaskGraph());
-        activationLayer.updateGridScheduler(masterScheduler);
-
-        // 2. FFN layers (N transformer layers)
-        allTaskGraphs.addAll(ffnLayers.getFfnLayerTaskGraphs());
-        ffnLayers.updateGridScheduler(masterScheduler);
-
-        // 3. Logits layer
-        allTaskGraphs.add(logitsLayer.getTaskGraph().snapshot());
-        logitsLayer.updateGridScheduler(masterScheduler);
-
-        // Cache
-        this.cachedTaskGraphs = allTaskGraphs;
-        this.cachedScheduler = masterScheduler;
-
-    }
-
-    public List<ImmutableTaskGraph> getCachedTaskGraphs() {
-        return this.cachedTaskGraphs;
-    }
-
-    @Override
-    public GridScheduler getCachedGridScheduler() {
-        return this.cachedScheduler;
-    }
-
-    public void clearCache() {
-        this.cachedTaskGraphs = null;
-        this.cachedScheduler = null;
-    }
 }

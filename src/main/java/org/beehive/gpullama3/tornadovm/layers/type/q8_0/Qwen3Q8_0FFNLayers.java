@@ -8,6 +8,7 @@ import org.beehive.gpullama3.model.qwen3.Qwen3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.Qwen3Kernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
+import org.beehive.gpullama3.tornadovm.layers.AbstractFFNLayers;
 import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
@@ -32,7 +33,7 @@ import java.util.List;
  * Works directly with Qwen3State to access and mutate Qwen3-specific state fields
  * like tempQcur and tempKcur.
  */
-public class Qwen3Q8_0FFNLayers extends AbstractLayer {
+public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
 
     String lastTaskGraphID;
     TaskGraph ffnLayerTaskGraph;

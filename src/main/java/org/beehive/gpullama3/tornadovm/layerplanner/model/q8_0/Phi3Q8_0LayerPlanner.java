@@ -28,14 +28,6 @@ import java.util.List;
  */
 public class Phi3Q8_0LayerPlanner extends Q8_0LayerPlanner<Phi3State, Phi3Configuration, Phi3TornadoWeightsQ8_0> {
 
-    private Activation activationLayer;
-    private Phi3Q8_0FFNLayers ffnLayers;
-    private LogitsQ8_0Layer logitsLayer;
-
-    // Cache
-    private List<ImmutableTaskGraph> cachedTaskGraphs;
-    private GridScheduler cachedScheduler;
-
     public Phi3Q8_0LayerPlanner(Phi3State state, Model model) {
         super(state, model);
         validateQuantizationType();
@@ -45,45 +37,9 @@ public class Phi3Q8_0LayerPlanner extends Q8_0LayerPlanner<Phi3State, Phi3Config
     @Override
     protected void initializeLayerComponents() {
         this.activationLayer = new Activation("activationUpdate", this.state, this.weights, this.config);
-
         this.ffnLayers = new Phi3Q8_0FFNLayers("phi3FFN", this.state, this.weights, this.config);
-
         this.logitsLayer = new LogitsQ8_0Layer("phi3Logits", this.state, this.weights, this.config,
                 ffnLayers.getLastTaskGraphID());
     }
 
-    public void setupTornadoForwardPlan() {
-        List<ImmutableTaskGraph> allTaskGraphs = new ArrayList<>();
-        GridScheduler masterScheduler = new GridScheduler();
-
-        // 1. Activation layer
-        allTaskGraphs.add(activationLayer.getImmutableTaskGraph());
-        activationLayer.updateGridScheduler(masterScheduler);
-
-        // 2. FFN layers (N transformer layers with Q8_0 quantization)
-        allTaskGraphs.addAll(ffnLayers.getFfnLayerTaskGraphs());
-        ffnLayers.updateGridScheduler(masterScheduler);
-
-        // 3. Logits layer
-        allTaskGraphs.add(logitsLayer.getTaskGraph().snapshot());
-        logitsLayer.updateGridScheduler(masterScheduler);
-
-        // Cache
-        this.cachedTaskGraphs = allTaskGraphs;
-        this.cachedScheduler = masterScheduler;
-    }
-
-    public List<ImmutableTaskGraph> getCachedTaskGraphs() {
-        return this.cachedTaskGraphs;
-    }
-
-    @Override
-    public GridScheduler getCachedGridScheduler() {
-        return this.cachedScheduler;
-    }
-
-    public void clearCache() {
-        this.cachedTaskGraphs = null;
-        this.cachedScheduler = null;
-    }
 }

@@ -7,6 +7,7 @@ import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.LlamaTornadoW
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
+import org.beehive.gpullama3.tornadovm.layers.AbstractFFNLayers;
 import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
@@ -18,14 +19,14 @@ import uk.ac.manchester.tornado.api.enums.DataTransferMode;
 import java.util.List;
 import java.util.stream.IntStream;
 
-public class LlamaFP16FFNLayers extends AbstractLayer {
+public class LlamaFP16FFNLayers extends AbstractFFNLayers {
 
     TaskGraph ffnTaskGraphs;
     GridScheduler scheduler;
    List<ImmutableTaskGraph> ffnLayerTaskGraphs;
     public LlamaFP16FFNLayers(String taskGraph, State state, Weights weights, Configuration config) {
         super(taskGraph, state, weights, config);
-        ffnLayerTaskGraphs = setupFFNLayered();
+        this.ffnLayerTaskGraphs = setupFFNLayered();
     }
 
     @Override

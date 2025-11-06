@@ -7,6 +7,7 @@ import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.Phi3TornadoWe
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
+import org.beehive.gpullama3.tornadovm.layers.AbstractFFNLayers;
 import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
@@ -33,7 +34,7 @@ import java.util.List;
  *
  * Works directly with Phi3State to access and mutate Phi3-specific state fields.
  */
-public class Phi3FP16FFNLayers extends AbstractLayer {
+public class Phi3FP16FFNLayers extends AbstractFFNLayers {
 
     String lastTaskGraphID;
     TaskGraph ffnLayerTaskGraph;
