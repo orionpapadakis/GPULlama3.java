@@ -138,13 +138,6 @@ public class TransformerComputeKernelsLayered {
         }
     }
 
-    public static void copyTo(FloatArray src, int srcOffset, FloatArray dest, int destOffset, int size) {
-        // Generic copy: src[srcOffset:srcOffset+size] -> dest[destOffset:destOffset+size]
-        for (@Parallel int i = 0; i < size; i++) {
-            dest.set(destOffset + i, src.get(srcOffset + i));
-        }
-    }
-
     public static void splitQKV(FloatArray qkv, FloatArray q, FloatArray k, FloatArray v, int dimQ, int dimKV) {
         int totalSize = dimQ + 2 * dimKV;
 
@@ -251,51 +244,6 @@ public class TransformerComputeKernelsLayered {
                 sk.set(base + idx, k0 * fcr - k1 * fci);
                 sk.set(base + idx + dimHalf, k0 * fci + k1 * fcr);
             }
-        }
-    }
-
-    /**
-     * Orchestrates parallel multi-head attention computation across all heads. Each head processes attention independently in parallel.
-     *
-     * Attention computation: 1. Compute attention scores (Q·K) 2. Apply softmax for attention weights 3. Compute weighted sum of values (attention·V)
-     *
-     * @param q
-     *         Query vectors for all heads
-     * @param key_cache
-     *         Cached key vectors
-     * @param value_cache
-     *         Cached value vectors
-     * @param xb
-     *         Output buffer for attention results
-     * @param nHeads
-     *         Number of attention heads
-     * @param headSize
-     *         Dimension of each head
-     * @param kvDim
-     *         Total key/value dimension
-     * @param kvMul
-     *         Key/value head multiplier for grouped-query attention
-     * @param seqLen
-     *         Current sequence length
-     * @param positionHolder
-     *         Array containing position and layer info
-     * @param wrapAtt
-     *         Buffer for attention weights
-     * @param layer
-     *         Current transformer layer
-     * @param contextLength
-     *         Maximum context length
-     */
-    public static void processHeadsParallel(FloatArray q, FloatArray key_cache, FloatArray value_cache, FloatArray xb, int nHeads, int headSize, int kvDim, int kvMul, int seqLen,
-            IntArray positionHolder, FloatArray wrapAtt, int layer, int contextLength) {
-
-        int pos = positionHolder.get(0);
-        int loff = layer * contextLength * kvDim;
-
-        // Parallelize computation across attention heads
-        for (@Parallel int h = 0; h < nHeads; h++) {
-            // Process each head in parallel
-            processHeadTornado(q, key_cache, value_cache, xb, h, headSize, kvDim, kvMul, loff, pos, wrapAtt);
         }
     }
 
@@ -975,14 +923,22 @@ public class TransformerComputeKernelsLayered {
     /**
      * Matrix-vector multiplication for Q8_0 quantized weights.
      *
-     * @param context Kernel context
-     * @param x Input activations (FloatArray)
-     * @param output Output array (FloatArray)
-     * @param weightsQ Quantized weights (Int8Array) - from Q8_0QuantizedTensor.getQuants()
-     * @param weightScales Scale factors (HalfFloatArray) - from Q8_0QuantizedTensor.getScales()
-     * @param dim1 Input dimension (n - number of columns)
-     * @param dim0 Output dimension (d - number of rows)
-     * @param localWorkGroupSize Local workgroup size
+     * @param context
+     *         Kernel context
+     * @param x
+     *         Input activations (FloatArray)
+     * @param output
+     *         Output array (FloatArray)
+     * @param weightsQ
+     *         Quantized weights (Int8Array) - from Q8_0QuantizedTensor.getQuants()
+     * @param weightScales
+     *         Scale factors (HalfFloatArray) - from Q8_0QuantizedTensor.getScales()
+     * @param dim1
+     *         Input dimension (n - number of columns)
+     * @param dim0
+     *         Output dimension (d - number of rows)
+     * @param localWorkGroupSize
+     *         Local workgroup size
      */
     public static void matrixVectorGeneric(KernelContext context, FloatArray x, FloatArray output, Int8Array weightsQ, HalfFloatArray weightScales, int dim1, int dim0, int localWorkGroupSize) {
 
@@ -995,9 +951,7 @@ public class TransformerComputeKernelsLayered {
             return;
         }
 
-        float sum = matrixVectorRowMajorOptimizedQ8_0(
-                context, localWorkGroupSize, x, weightsQ, weightScales, dim1
-        );
+        float sum = matrixVectorRowMajorOptimizedQ8_0(context, localWorkGroupSize, x, weightsQ, weightScales, dim1);
 
         // Thread 0 writes the result
         if (localId == 0) {
@@ -1006,8 +960,7 @@ public class TransformerComputeKernelsLayered {
     }
 
     /**
-     * Helper method to compute dot product for a single row with Q8_0 quantized weights.
-     * Uses 4-way unrolling for better performance.
+     * Helper method to compute dot product for a single row with Q8_0 quantized weights. Uses 4-way unrolling for better performance.
      */
     public static float matrixVectorRowMajorOptimizedQ8_0(KernelContext context, int localSize, FloatArray x, Int8Array weightsQ, HalfFloatArray weightScales, int n) {
         int rowId = context.groupIdx;
@@ -1082,7 +1035,8 @@ public class TransformerComputeKernelsLayered {
         }
     }
 
-    public static void fusedFeedForwardWithSiLUAndGLUActivation(KernelContext context, FloatArray x, FloatArray hb, Int8Array w1_quants, HalfFloatArray w1_scales, Int8Array w3_quants, HalfFloatArray w3_scales, int n, int d, int localWorkGroupSize) {
+    public static void fusedFeedForwardWithSiLUAndGLUActivation(KernelContext context, FloatArray x, FloatArray hb, Int8Array w1_quants, HalfFloatArray w1_scales, Int8Array w3_quants,
+            HalfFloatArray w3_scales, int n, int d, int localWorkGroupSize) {
         // One row per workgroup (not per thread)
         int rowId = context.groupIdx;
         int localId = context.localIdx;
@@ -1101,5 +1055,4 @@ public class TransformerComputeKernelsLayered {
             hb.set(rowId, result);
         }
     }
-
 }

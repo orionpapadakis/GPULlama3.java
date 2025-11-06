@@ -43,6 +43,7 @@ public class QuantizationPlannerFactory {
             case F32 -> createFP32Planner(state, model);
             case F16 -> createFP16Planner(state, model);
             case Q8_0 -> createQ8_0Planner(state, model);
+            case Q4_0  -> createQ4_0Planner(state, model);
             default -> throw new UnsupportedOperationException("Quantization not supported: " + quantization);
         };
     }
@@ -75,4 +76,9 @@ public class QuantizationPlannerFactory {
     private static GenericLayerPlanner createFP32Planner(State state, Model model) {
         throw new UnsupportedOperationException("FP32 planners not yet implemented");
     }
+
+    private static GenericLayerPlanner createQ4_0Planner(State state, Model model) {
+        throw new UnsupportedOperationException("Q4 planners not yet implemented");
+    }
+
 }

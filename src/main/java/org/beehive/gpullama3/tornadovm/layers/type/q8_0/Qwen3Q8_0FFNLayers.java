@@ -199,9 +199,9 @@ public class Qwen3Q8_0FFNLayers extends AbstractLayer {
      */
     TaskGraph setupSingleQwen3FFNLayer(Qwen3Q8_0TornadoWeights weights, int layerIndex) {
 
-        TaskGraph unifiedLayer = new TaskGraph("layer_" + layerIndex);
+        var unifiedLayerName = "layer_" + layerIndex;
+        TaskGraph unifiedLayer = new TaskGraph(unifiedLayerName);
         unifiedLayer.consumeFromDevice(qwen3State.wrapX);
-
         // Transfer Q8_0 weights for this layer (quants and scales)
         unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
                 weights.rms_att_weightLayered[layerIndex],
