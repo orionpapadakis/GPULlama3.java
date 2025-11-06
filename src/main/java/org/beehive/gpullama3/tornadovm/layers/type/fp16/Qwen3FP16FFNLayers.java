@@ -15,8 +15,6 @@ import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
 import uk.ac.manchester.tornado.api.WorkerGrid;
-import uk.ac.manchester.tornado.api.WorkerGrid1D;
-import uk.ac.manchester.tornado.api.WorkerGrid2D;
 import uk.ac.manchester.tornado.api.enums.DataTransferMode;
 
 import java.util.ArrayList;
@@ -76,56 +74,41 @@ public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
 
         // Q matmul worker (GQA: full query heads)
         int matmulQGlobal = nEmbdHeadK * config.numberOfHeads() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmulQRowMajorWorker = new WorkerGrid1D(matmulQGlobal);
-        matmulQRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid matmulQRowMajorWorker = WorkerGridFactory.genericWorker(matmulQGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // KV matmul worker (GQA: reduced KV heads)
         int matmulKVGlobal = nEmbdGqa * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmulKVRowMajorWorker = new WorkerGrid1D(matmulKVGlobal);
-        matmulKVRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid matmulKVRowMajorWorker = WorkerGridFactory.genericWorker(matmulKVGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // Current embedding head worker
-        WorkerGrid curWorker = new WorkerGrid1D(nEmbdHead);
-        curWorker.setGlobalWork(nEmbdHead, 1, 1);
-        curWorker.setLocalWork(128, 1, 1);
+        WorkerGrid curWorker = WorkerGridFactory.createRmsNormWorker(nEmbdHead, 128);
 
         // Q current worker
-        WorkerGrid qCurWorker = new WorkerGrid1D(config.numberOfHeads() * nEmbdHead);
-        qCurWorker.setLocalWork(nEmbdHead, 1, 1);
+        WorkerGrid qCurWorker = WorkerGridFactory.genericWorker(config.numberOfHeads() * nEmbdHead, nEmbdHead);
 
         // K current worker
-        WorkerGrid kCurWorker = new WorkerGrid1D(config.numberOfKeyValueHeads() * nEmbdHead);
-        kCurWorker.setLocalWork(nEmbdHead, 1, 1);
+        WorkerGrid kCurWorker = WorkerGridFactory.genericWorker(config.numberOfKeyValueHeads() * nEmbdHead, nEmbdHead);
 
         // RoPE worker (2D: heads x embedding_head/2)
         int ic = nEmbdHead / 2;
-        WorkerGrid ropeWorker = new WorkerGrid2D(config.numberOfHeads(), ic);
-        ropeWorker.setGlobalWork(config.numberOfHeads(), ic, 1);
-        ropeWorker.setLocalWork(8, 1, 1);
+        WorkerGrid ropeWorker = WorkerGridFactory.createRoPEWorker(config.numberOfHeads(), nEmbdHead);
 
         // Copy to cache worker
-        WorkerGrid copyToCachesWorker = new WorkerGrid1D(nEmbdGqa);
-        copyToCachesWorker.setGlobalWork(nEmbdGqa, 1, 1);
-        copyToCachesWorker.setLocalWork(128, 1, 1);
+        WorkerGrid copyToCachesWorker = WorkerGridFactory.genericWorker(nEmbdGqa, 128);
 
         // Parallel attention worker
-        WorkerGrid parallelAttentionWorker = new WorkerGrid1D(config.numberOfHeads());
-        parallelAttentionWorker.setGlobalWork(config.numberOfHeads() * 32, 1, 1);
-        parallelAttentionWorker.setLocalWork(32, 1, 1);
+        WorkerGrid parallelAttentionWorker = WorkerGridFactory.createAttentionWorker(config.numberOfHeads(), nEmbdHead);
 
         // Matmul1 worker (output projection)
         int matmul1Global = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmul1Worker = new WorkerGrid1D(matmul1Global);
-        matmul1Worker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid matmul1Worker = WorkerGridFactory.genericWorker(matmul1Global, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // FFN workers
         int fusedFFNW1W3Global = config.hiddenDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid fusedFFNW1W3Worker = new WorkerGrid1D(fusedFFNW1W3Global);
-        fusedFFNW1W3Worker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid fusedFFNW1W3Worker = WorkerGridFactory.genericWorker(fusedFFNW1W3Global, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         int projectionTwoGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid projectionTwoWorker = new WorkerGrid1D(projectionTwoGlobal);
-        projectionTwoWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid projectionTwoWorker = WorkerGridFactory.genericWorker(projectionTwoGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // Map workers to tasks for each layer
         for (int i = 0; i < config.numberOfLayers(); i++) {

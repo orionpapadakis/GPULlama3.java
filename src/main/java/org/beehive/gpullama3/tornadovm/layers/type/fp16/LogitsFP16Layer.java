@@ -40,15 +40,14 @@ public class LogitsFP16Layer extends AbstractLayer {
                 .task("reductionsOneBlockLogits", TransformerComputeKernels::reductionOneBlockWithLayer, context, state.tempLogits, state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
                 .task("mapContextLogits", TransformerComputeKernels::reductionOneBlock2WithLogits, context, state.wrapX, weights.rms_final_weight_as_floatArray, state.tempLogits)
                 .task("projection", TransformerComputeKernelsLayered::matrixVectorGeneric, context, state.wrapX, state.wrapLogits, weights.wclsHalfFloat, config.dim(), config.vocabularySize(),
-                LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS);
+                        LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS);
         logits.transferToHost(DataTransferMode.EVERY_EXECUTION, state.wrapLogits);
         return logits;
     }
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
-
-        WorkerGrid logitsRMS = null;
+        WorkerGrid logitsRMS;
         if (weights instanceof Qwen2TornadoWeights) {
             logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 32);
         } else {

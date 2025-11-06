@@ -7,14 +7,13 @@ import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.Phi3TornadoWe
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
+import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
 import org.beehive.gpullama3.tornadovm.layers.AbstractFFNLayers;
 import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
 import uk.ac.manchester.tornado.api.WorkerGrid;
-import uk.ac.manchester.tornado.api.WorkerGrid1D;
-import uk.ac.manchester.tornado.api.WorkerGrid2D;
 import uk.ac.manchester.tornado.api.enums.DataTransferMode;
 
 import java.util.ArrayList;
@@ -57,8 +56,7 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
 
         // Ensure we have Phi3-specific weights
         if (!(weights instanceof Phi3TornadoWeights phi3Weights)) {
-            throw new IllegalArgumentException(
-                    "Phi3FP16FFNLayers requires Phi3TornadoWeights with FP16 layout");
+            throw new IllegalArgumentException("Phi3FP16FFNLayers requires Phi3TornadoWeights with FP16 layout");
         }
 
         // Calculate opSize for combined QKV buffer
@@ -70,72 +68,43 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler gridScheduler) {
-        // Single worker for tasks that execute once
-        WorkerGrid singleWorker = new WorkerGrid1D(1);
-        singleWorker.setGlobalWork(1, 1, 1);
-        singleWorker.setLocalWork(1, 1, 1);
-
         // RMS norm worker
-        WorkerGrid rmsNormWorker = new WorkerGrid1D(config.dim());
-        rmsNormWorker.setGlobalWork(config.dim(), 1, 1);
-        rmsNormWorker.setLocalWork(state.localSize, 1, 1);
+        WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), state.localSize);
 
         // Combined QKV matmul worker
         int matmulQkvGlobal = opSize * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmulQkvRowMajorWorker = new WorkerGrid1D(matmulQkvGlobal);
-        matmulQkvRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid matmulQkvRowMajorWorker = WorkerGridFactory.genericWorker(matmulQkvGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // RoPE worker (2D: heads x embedding_head/2)
         int ic = config.headSize() / 2;
-        WorkerGrid ropeWorker = new WorkerGrid2D(config.numberOfHeads(), ic);
-        ropeWorker.setGlobalWork(config.numberOfHeads(), ic, 1);
-        ropeWorker.setLocalWork(8, 1, 1);
+        WorkerGrid ropeWorker = WorkerGridFactory.createRoPEWorker(config.numberOfHeads(), config.headSize());
 
         // Copy to cache worker
-        WorkerGrid copyToCachesWorker = new WorkerGrid1D(config.kvDim());
-        copyToCachesWorker.setGlobalWork(config.kvDim(), 1, 1);
-        copyToCachesWorker.setLocalWork(32, 1, 1);
+        WorkerGrid copyToCachesWorker = WorkerGridFactory.genericWorker(config.kvDim(), 32);
 
         // Parallel attention worker
-        int optimalLocalSize = Math.min(config.headSize(), 64);
-        if (config.headSize() % optimalLocalSize != 0) {
-            for (int size = 64; size >= 1; size--) {
-                if (config.headSize() % size == 0) {
-                    optimalLocalSize = size;
-                    break;
-                }
-            }
-        }
-        WorkerGrid parallelAttentionWorker = new WorkerGrid1D(config.numberOfHeads());
-        parallelAttentionWorker.setGlobalWork(config.numberOfHeads() * optimalLocalSize, 1, 1);
-        parallelAttentionWorker.setLocalWork(optimalLocalSize, 1, 1);
+        WorkerGrid parallelAttentionWorker = WorkerGridFactory.createAttentionWorker(config.numberOfHeads(), config.headSize());
 
         // Matmul1 worker (output projection)
         int matmul1Global = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid matmul1Worker = new WorkerGrid1D(matmul1Global);
-        matmul1Worker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid matmul1Worker = WorkerGridFactory.genericWorker(matmul1Global, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // FFN workers
         int ffnUpGlobal = (2 * config.hiddenDim()) * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid ffnUpWorker = new WorkerGrid1D(ffnUpGlobal);
-        ffnUpWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid ffnUpWorker = WorkerGridFactory.genericWorker(ffnUpGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         int ffnDownGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid ffnDownWorker = new WorkerGrid1D(ffnDownGlobal);
-        ffnDownWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid ffnDownWorker = WorkerGridFactory.genericWorker(ffnDownGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // Map workers to tasks for each layer
         for (int i = 0; i < config.numberOfLayers(); i++) {
             gridScheduler.addWorkerGrid("layer_" + i + ".reductionsOneBlock", rmsNormWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".mapContext", rmsNormWorker);
-
             gridScheduler.addWorkerGrid("layer_" + i + ".qkvmatmul", matmulQkvRowMajorWorker);
-
             gridScheduler.addWorkerGrid("layer_" + i + ".rope", ropeWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".copyToCaches", copyToCachesWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".parallel-attention", parallelAttentionWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".matmul1", matmul1Worker);
-
             gridScheduler.addWorkerGrid("layer_" + i + ".reductionsOneBlockFFN", rmsNormWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".mapContextFFN", rmsNormWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".wGateUp", ffnUpWorker);

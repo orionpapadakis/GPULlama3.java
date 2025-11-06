@@ -66,90 +66,64 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
         // config.dim / 2 Worker for RoPE
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim/2,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((config.dim/2+127)/128,1,1), dim3(128,1,1)>>>
-        WorkerGrid ropeWorker = new WorkerGrid1D(config.dim() / 2);
-        ropeWorker.setGlobalWork(config.dim() / 2, 1, 1);
-        ropeWorker.setLocalWork(128, 1, 1);
+        WorkerGrid ropeWorker = WorkerGridFactory.genericWorker(config.dim() / 2, 128);
 
         // config.dim Worker for Row major access
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim*LOCAL_WORK_GROUP_SIZE_ALLOC,1,1], localWorkSize=[LOCAL_WORK_GROUP_SIZE_ALLOC,1,1])
         // CUDA equivalent: kernel<<<dim3(config.dim,1,1), dim3(LOCAL_WORK_GROUP_SIZE_ALLOC,1,1)>>>
         int configDimRowMajorGlobal = config.dim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid configDimRowMajorGlobalWorker = new WorkerGrid1D(configDimRowMajorGlobal);
-        configDimRowMajorGlobalWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid configDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(configDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         final int opSize = config.dim() + 2 * (config.numberOfKeyValueHeads() * config.headSize());
 
         int qkvmatmulDimRowMajorGlobal = opSize * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid qkvDimRowMajorGlobalWorker = new WorkerGrid1D(qkvmatmulDimRowMajorGlobal);
-        qkvDimRowMajorGlobalWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid qkvDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(qkvmatmulDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // config.kvDim Worker for Row major access
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.kvDim*LOCAL_WORK_GROUP_SIZE_ALLOC,1,1], localWorkSize=[LOCAL_WORK_GROUP_SIZE_ALLOC,1,1])
         // CUDA equivalent: kernel<<<dim3(config.kvDim,1,1), dim3(LOCAL_WORK_GROUP_SIZE_ALLOC,1,1)>>>
         int configKvDimRowMajorGlobal = config.kvDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid configKvDimRowMajorGlobalWorker = new WorkerGrid1D(configKvDimRowMajorGlobal);
-        configKvDimRowMajorGlobalWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid configKvDimRowMajorGlobalWorker = WorkerGridFactory.genericWorker(configKvDimRowMajorGlobal, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // config.hiddenDim * 32 Worker for Row major access
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.hiddenDim*LOCAL_WORK_GROUP_SIZE_ALLOC,1,1], localWorkSize=[LOCAL_WORK_GROUP_SIZE_ALLOC,1,1])
         // CUDA equivalent: kernel<<<dim3(config.hiddenDim,1,1), dim3(LOCAL_WORK_GROUP_SIZE_ALLOC,1,1)>>>
         int configHiddenDimRowMajor = config.hiddenDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid configHiddenDimRowMajorWorker = new WorkerGrid1D(configHiddenDimRowMajor);
-        configHiddenDimRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid configHiddenDimRowMajorWorker = WorkerGridFactory.genericWorker(configHiddenDimRowMajor, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         int wgetUPDimRowMajor = 2 * config.hiddenDim() * LOCAL_WORK_GROUP_SIZE_ALLOC;
-        WorkerGrid wgetHiddenDimRowMajorWorker = new WorkerGrid1D(wgetUPDimRowMajor);
-        wgetHiddenDimRowMajorWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
+        WorkerGrid wgetHiddenDimRowMajorWorker = WorkerGridFactory.genericWorker(wgetUPDimRowMajor, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // Parallel attention worker configuration
-        // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.numberOfHeads,1,1], localWorkSize=[4,1,1])
-        // CUDA equivalent: kernel<<<dim3((config.numberOfHeads+3)/4,1,1), dim3(4,1,1)>>>
-        WorkerGrid parallelAttentionWorker = new WorkerGrid1D(config.numberOfHeads());
-        // the global group work size is numberOfHeads * localWorkGroupSize, where the localWorkGroupSize is currently 4
-        parallelAttentionWorker.setGlobalWork(config.numberOfHeads() * 8, 1, 1);
-        parallelAttentionWorker.setLocalWork(8, 1, 1); // Set local work size to 4 (for parallel attention)
+        WorkerGrid parallelAttentionWorker = WorkerGridFactory.createAttentionWorker(config.numberOfHeads(), config.headSize());
 
         // Copy to caches worker configuration
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((config.dim+127)/128,1,1), dim3(128,1,1)>>>
-        WorkerGrid copyToCachesWorker = new WorkerGrid1D(config.kvDim());
-        copyToCachesWorker.setGlobalWork(config.dim(), 1, 1);
-        copyToCachesWorker.setLocalWork(128, 1, 1); // Set local work size to 32 (for copying to caches)
+        WorkerGrid copyToCachesWorker = WorkerGridFactory.genericWorker(config.dim(), 128);
 
         // Q copy worker configuration
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[config.dim,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((config.dim+127)/128,1,1), dim3(128,1,1)>>>
-        WorkerGrid copyQWorker = new WorkerGrid1D(config.dim());
-        copyQWorker.setGlobalWork(config.dim(), 1, 1);
-        copyQWorker.setLocalWork(128, 1, 1);
+        WorkerGrid copyQWorker = WorkerGridFactory.genericWorker(config.dim(), 128);
 
         // K copy worker configuration
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[kvSize,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((kvSize+127)/128,1,1), dim3(128,1,1)>>>
         int kvSize = config.headSize() * config.numberOfKeyValueHeads();
-        WorkerGrid copyKWorker = new WorkerGrid1D(kvSize);
-        copyKWorker.setGlobalWork(kvSize, 1, 1);
-        copyKWorker.setLocalWork(128, 1, 1);
+        WorkerGrid copyKWorker = WorkerGridFactory.genericWorker(kvSize, 128);
 
         // V copy worker configuration
         // OpenCL equivalent: clEnqueueNDRangeKernel(globalWorkSize=[kvSize,1,1], localWorkSize=[128,1,1])
         // CUDA equivalent: kernel<<<dim3((kvSize+127)/128,1,1), dim3(128,1,1)>>>
-        WorkerGrid copyVWorker = new WorkerGrid1D(kvSize);
-        copyVWorker.setGlobalWork(kvSize, 1, 1);
-        copyVWorker.setLocalWork(128, 1, 1);
+        WorkerGrid copyVWorker = WorkerGridFactory.genericWorker(kvSize, 128);
 
-        WorkerGrid hiddenDimWorker = new WorkerGrid1D(config.hiddenDim());
-        hiddenDimWorker.setGlobalWork(config.hiddenDim(), 1, 1);
-        hiddenDimWorker.setLocalWork(128, 1, 1);
+        WorkerGrid hiddenDimWorker = WorkerGridFactory.genericWorker(config.hiddenDim(), 128);
 
-        WorkerGrid splitGateUpSiLUWorker = new WorkerGrid1D(config.hiddenDim());
-        splitGateUpSiLUWorker.setGlobalWork(config.hiddenDim(), 1, 1);
-        splitGateUpSiLUWorker.setLocalWork(128, 1, 1);
+        WorkerGrid splitGateUpSiLUWorker = WorkerGridFactory.genericWorker(config.hiddenDim(), 128);
 
         // Total work size is dimQ + 2*dimKV (same as opSize)
-        WorkerGrid splitQKVWorker = new WorkerGrid1D(opSize);
-        splitQKVWorker.setGlobalWork(opSize, 1, 1);
-        splitQKVWorker.setLocalWork(128, 1, 1);
+        WorkerGrid splitQKVWorker = WorkerGridFactory.genericWorker(opSize, 128);
 
         // Map workers to tasks
         for (int i = 0; i < config.numberOfLayers(); i++) {
@@ -165,7 +139,6 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".mapContextFFN", rmsNormWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".parallel-attention", parallelAttentionWorker);
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".copyToCaches", copyToCachesWorker);
-            // New FFN tasks
             tornadoForwardScheduler.addWorkerGrid("layer_" + i + ".gateUpSiLU", splitGateUpSiLUWorker);
         }
         return tornadoForwardScheduler;
