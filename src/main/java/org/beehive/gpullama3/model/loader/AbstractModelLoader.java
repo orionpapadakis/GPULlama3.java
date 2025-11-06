@@ -6,8 +6,8 @@ import org.beehive.gpullama3.core.types.Pair;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.tokenizer.impl.Tokenizer;
-import org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary;
+import org.beehive.gpullama3.tokenizer.Tokenizer;
+import org.beehive.gpullama3.tokenizer.Vocabulary;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;

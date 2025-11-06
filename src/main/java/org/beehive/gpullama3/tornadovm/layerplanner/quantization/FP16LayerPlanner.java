@@ -2,7 +2,7 @@ package org.beehive.gpullama3.tornadovm.layerplanner.quantization;
 
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.inference.state.State;
-import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.FP16Weights;
+import org.beehive.gpullama3.inference.weights.tornado.fp16.FP16Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.tornadovm.layerplanner.base.QuantizedLayerPlanner;

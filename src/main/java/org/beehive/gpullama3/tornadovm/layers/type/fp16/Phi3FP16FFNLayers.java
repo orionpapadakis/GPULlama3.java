@@ -3,7 +3,7 @@ package org.beehive.gpullama3.tornadovm.layers.type.fp16;
 import org.beehive.gpullama3.inference.state.Phi3State;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.Weights;
-import org.beehive.gpullama3.inference.weights.tornado.FP16Weights.Phi3TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.fp16.Phi3TornadoWeights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
