@@ -77,7 +77,7 @@ public abstract class Q8_0LayerPlanner<S extends State, C extends Configuration,
      *
      * Removed from all model-specific planners - centralized here.
      */
-    public final List<ImmutableTaskGraph> getCachedTaskGraphs() {
+    public final List<ImmutableTaskGraph> getImmutableTaskGraphs() {
         return this.cachedTaskGraphs;
     }
 
@@ -87,17 +87,8 @@ public abstract class Q8_0LayerPlanner<S extends State, C extends Configuration,
      * Removed from all model-specific planners - centralized here.
      */
     @Override
-    public final GridScheduler getCachedGridScheduler() {
+    public final GridScheduler getGridScheduler() {
         return this.cachedScheduler;
     }
 
-    /**
-     * Clears cache (for strategy optimization or re-initialization).
-     *
-     * Removed from all model-specific planners - centralized here.
-     */
-    public final void clearCache() {
-        this.cachedTaskGraphs = null;
-        this.cachedScheduler = null;
-    }
 }

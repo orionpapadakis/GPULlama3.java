@@ -7,8 +7,8 @@ import java.util.List;
 
 public interface GenericLayerPlanner {
 
-    List<ImmutableTaskGraph> getCachedTaskGraphs();
+    List<ImmutableTaskGraph> getImmutableTaskGraphs();
 
-    GridScheduler getCachedGridScheduler();
+    GridScheduler getGridScheduler();
 
 }

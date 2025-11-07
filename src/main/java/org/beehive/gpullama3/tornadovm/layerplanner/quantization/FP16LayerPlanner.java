@@ -28,8 +28,8 @@ public abstract class FP16LayerPlanner<S extends State, C extends Configuration,
     protected AbstractFFNLayers ffnLayers;
     protected LogitsFP16Layer logitsLayer;
 
-    protected List<ImmutableTaskGraph> cachedTaskGraphs;
-    protected GridScheduler cachedScheduler;
+    protected List<ImmutableTaskGraph> immutableTaskGraphs;
+    protected GridScheduler gridScheduler ;
 
     protected FP16LayerPlanner(S state, Model model) {
         super(state, model);
@@ -64,8 +64,8 @@ public abstract class FP16LayerPlanner<S extends State, C extends Configuration,
         logitsLayer.updateGridScheduler(masterScheduler);
 
         // Cache for future retrievals
-        this.cachedTaskGraphs = allTaskGraphs;
-        this.cachedScheduler = masterScheduler;
+        this.immutableTaskGraphs = allTaskGraphs;
+        this.gridScheduler = masterScheduler;
     }
 
     /**
@@ -73,8 +73,8 @@ public abstract class FP16LayerPlanner<S extends State, C extends Configuration,
      *
      * Removed from all model-specific planners - centralized here.
      */
-    public final List<ImmutableTaskGraph> getCachedTaskGraphs() {
-        return this.cachedTaskGraphs;
+    public final List<ImmutableTaskGraph> getImmutableTaskGraphs() {
+        return this.immutableTaskGraphs;
     }
 
     /**
@@ -83,18 +83,8 @@ public abstract class FP16LayerPlanner<S extends State, C extends Configuration,
      * Removed from all model-specific planners - centralized here.
      */
     @Override
-    public final GridScheduler getCachedGridScheduler() {
-        return this.cachedScheduler;
-    }
-
-    /**
-     * Clears cache (for strategy optimization or re-initialization).
-     *
-     * Removed from all model-specific planners - centralized here.
-     */
-    public final void clearCache() {
-        this.cachedTaskGraphs = null;
-        this.cachedScheduler = null;
+    public final GridScheduler getGridScheduler() {
+        return this.gridScheduler;
     }
 
 }

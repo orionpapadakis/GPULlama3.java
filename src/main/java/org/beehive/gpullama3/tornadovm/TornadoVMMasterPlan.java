@@ -79,7 +79,7 @@ public class TornadoVMMasterPlan {
     }
 
     private TornadoExecutionPlan createExecutionPlan() {
-        var taskGraphs = tornadoVMLayerPlanner.getCachedTaskGraphs();
+        var taskGraphs = tornadoVMLayerPlanner.getImmutableTaskGraphs();
         var taskGraphArray = taskGraphs.toArray(new ImmutableTaskGraph[taskGraphs.size()]);
         return new TornadoExecutionPlan(taskGraphArray);
     }
@@ -128,7 +128,7 @@ public class TornadoVMMasterPlan {
         // @formatter:off
         // 1. Execute the preprocessing graph (e.g., input preparation, memory initialization)
         executionPlan.withGraph(getPreprocessingGraphIndex())
-                .withGridScheduler(tornadoVMLayerPlanner.getCachedGridScheduler())
+                .withGridScheduler(tornadoVMLayerPlanner.getGridScheduler())
                 .execute();
 
         // Set the position in the state object (used by attention layers)
@@ -138,13 +138,13 @@ public class TornadoVMMasterPlan {
         // Each graph computes attention and feed-forward transformations for one layer
         for (int layer = 0; layer < config.numberOfLayers(); layer++) {
             executionPlan.withGraph(getLayerGraphIndex(layer))
-                    .withGridScheduler(tornadoVMLayerPlanner.getCachedGridScheduler())
+                    .withGridScheduler(tornadoVMLayerPlanner.getGridScheduler())
                     .execute();
         }
 
         // 3. Execute the final graph that projects the last hidden state to output logits
         executionPlan.withGraph(getFinalLogitsGraphIndex())
-                .withGridScheduler(tornadoVMLayerPlanner.getCachedGridScheduler())
+                .withGridScheduler(tornadoVMLayerPlanner.getGridScheduler())
                 .execute();
 
         // @formatter:on
@@ -173,7 +173,7 @@ public class TornadoVMMasterPlan {
      * Returns the graph index for the final projection to logits.
      */
     private int getFinalLogitsGraphIndex() {
-        return tornadoVMLayerPlanner.getCachedTaskGraphs().size() - 1;
+        return tornadoVMLayerPlanner.getImmutableTaskGraphs().size() - 1;
     }
 
     /// Execute the forward pass of the LLaMA transformer model using TornadoVM acceleration just once to copy the data into the read-only data layer.
@@ -183,15 +183,15 @@ public class TornadoVMMasterPlan {
         state.positionHolder.init(0);
 
         // Execute activation update graph
-        executionPlan.withGraph(0).withGridScheduler(tornadoVMLayerPlanner.getCachedGridScheduler()).execute();
+        executionPlan.withGraph(0).withGridScheduler(tornadoVMLayerPlanner.getGridScheduler()).execute();
 
         // Execute layer processing graphs
         for (int layer = 0; layer < config.numberOfLayers(); layer++) {
-            executionPlan.withGraph(layer + 1).withGridScheduler(tornadoVMLayerPlanner.getCachedGridScheduler()).execute();
+            executionPlan.withGraph(layer + 1).withGridScheduler(tornadoVMLayerPlanner.getGridScheduler()).execute();
         }
 
         // Execute logits graph
-        executionPlan.withGraph(config.numberOfLayers() + 1).withGridScheduler(tornadoVMLayerPlanner.getCachedGridScheduler()).execute();
+        executionPlan.withGraph(config.numberOfLayers() + 1).withGridScheduler(tornadoVMLayerPlanner.getGridScheduler()).execute();
     }
 
     /**
