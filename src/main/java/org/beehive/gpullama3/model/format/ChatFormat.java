@@ -1,9 +1,9 @@
 package org.beehive.gpullama3.model.format;
 
-import org.beehive.gpullama3.tokenizer.impl.LlamaTokenizer;
-import org.beehive.gpullama3.tokenizer.impl.MistralTokenizer;
-import org.beehive.gpullama3.tokenizer.impl.Phi3Tokenizer;
-import org.beehive.gpullama3.tokenizer.impl.Qwen3Tokenizer;
+import org.beehive.gpullama3.tokenizer.LlamaTokenizer;
+import org.beehive.gpullama3.tokenizer.MistralTokenizer;
+import org.beehive.gpullama3.tokenizer.Phi3Tokenizer;
+import org.beehive.gpullama3.tokenizer.Qwen3Tokenizer;
 
 import java.util.List;
 import java.util.Set;

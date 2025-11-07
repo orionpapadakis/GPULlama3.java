@@ -9,14 +9,13 @@ import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.LlamaStandardWeights;
 import org.beehive.gpullama3.inference.weights.tornado.fp16.LlamaTornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.format.ChatFormat;
-import org.beehive.gpullama3.model.llama.LlamaConfiguration;
 import org.beehive.gpullama3.model.mistral.Mistral;
 import org.beehive.gpullama3.model.mistral.MistralConfiguration;
-import org.beehive.gpullama3.tokenizer.impl.MistralTokenizer;
-import org.beehive.gpullama3.tokenizer.impl.Tokenizer;
-import org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary;
+import org.beehive.gpullama3.tokenizer.MistralTokenizer;
+import org.beehive.gpullama3.tokenizer.Tokenizer;
+import org.beehive.gpullama3.tokenizer.Vocabulary;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
@@ -130,8 +129,8 @@ public class MistralModelLoader extends AbstractModelLoader<Mistral, MistralConf
                 outputWeight.ggmlType());
     }
 
-    private Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, MistralConfiguration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings, GGMLTensorEntry outputWeight) {
-        return new Q8_0Weights(
+    private LlamaTornadoWeightsQ8_0 createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, MistralConfiguration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings, GGMLTensorEntry outputWeight) {
+        return new LlamaTornadoWeightsQ8_0(
                 loadTensorAsFloatArray(tokenEmbeddings),
                 loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
                 loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),

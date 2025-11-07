@@ -5,7 +5,7 @@ import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 
-public class Phi3TornadoWeightsQ8_0 extends Q8_0Weights {
+public class Phi3TornadoWeightsQ8_0 extends LlamaTornadoWeightsQ8_0 {
 
     // Phi3-specific weight arrays
     public Q8_0QuantizedTensor[] wqkvLayered;    // Combined QKV weights: (layer, op_size, dim) where op_size = dim + 2 * (n_kv_heads * head_dim)

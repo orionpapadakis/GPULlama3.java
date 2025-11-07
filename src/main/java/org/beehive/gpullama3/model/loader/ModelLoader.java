@@ -4,6 +4,13 @@ import org.beehive.gpullama3.Options;
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.core.model.GGUF;
 import org.beehive.gpullama3.core.model.tensor.*;
+import org.beehive.gpullama3.core.model.tensor.F16FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.F32FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
+import org.beehive.gpullama3.core.model.tensor.Q4_0FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.Q8_0FloatTensor;
+import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;
 import uk.ac.manchester.tornado.api.types.HalfFloat;
@@ -19,9 +26,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.function.IntFunction;
-
-import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsHalfFloatArray;
-import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsFloatArray;
 
 public abstract class ModelLoader {
 
@@ -57,7 +61,7 @@ public abstract class ModelLoader {
                 return ModelType.QWEN_3;
             } else if (lowerName.contains("deepseek r1 distill")) {
                 return ModelType.DEEPSEEK_R1_DISTILL_QWEN;
-            } else if (lowerName.contains("phi3")) {
+            } else if (lowerName.contains("phi3") || lowerName.contains("phi-3")) {
                 return ModelType.PHI_3;
             }
 

@@ -1,43 +1,27 @@
 package org.beehive.gpullama3.tornadovm;
 
-import org.beehive.gpullama3.auxiliary.Tuple2;
 import org.beehive.gpullama3.core.model.GGMLType;
-import org.beehive.gpullama3.inference.state.Phi3State;
-import org.beehive.gpullama3.inference.state.Qwen2State;
-import org.beehive.gpullama3.inference.state.Qwen3State;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.model.ModelType;
-import uk.ac.manchester.tornado.api.GridScheduler;
+import org.beehive.gpullama3.tornadovm.layerplanner.base.QuantizationPlannerFactory;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TornadoExecutionPlan;
-import uk.ac.manchester.tornado.api.TornadoRuntime;
-import uk.ac.manchester.tornado.api.runtime.TornadoRuntimeProvider;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
-
-import java.util.List;
-import java.util.Locale;
 
 public class TornadoVMMasterPlan {
     public static final boolean ENABLE_TORNADOVM_INIT_TIME = Boolean.parseBoolean(System.getProperty("llama.EnableTimingForTornadoVMInit", "False"));
 
     private final State state;
     private final Configuration config;
-    public GridScheduler scheduler;
     public TornadoExecutionPlan executionPlan;
-    List<ImmutableTaskGraph> taskGraphs;
+    GenericLayerPlanner tornadoVMLayerPlanner;
 
     public TornadoVMMasterPlan(State state, Model model) {
-        TornadoVMGenericLayerPlanner tornadoVMLayerPlanner = createPlanner(state, model);
-        Tuple2<List<ImmutableTaskGraph>, GridScheduler> tornadoVMPlan = shouldUseNvidiaScheduler(model)
-                ? tornadoVMLayerPlanner.setupTornadoForwardPlanLayered()
-                : tornadoVMLayerPlanner.setupTornadoForwardPlanLayeredNonNvidia();
-        this.taskGraphs = tornadoVMPlan.getFirst();
-        this.scheduler = tornadoVMPlan.getSecond();
+        this.tornadoVMLayerPlanner = createPlanner(state, model);
+        this.executionPlan = createExecutionPlan();
         this.state = state;
         this.config = model.configuration();
-        this.executionPlan = new TornadoExecutionPlan(taskGraphs.toArray(new ImmutableTaskGraph[taskGraphs.size()]));
     }
 
     /**
@@ -94,49 +78,21 @@ public class TornadoVMMasterPlan {
         return tornadoVMPlan;
     }
 
-    /**
-     * Dispatcher method to select the TornadoVMLayerPlanner for the model.
-     */
-    TornadoVMGenericLayerPlanner createPlanner(State state, Model model) {
-        return switch (model.getModelType()) {
-            case LLAMA_3, MISTRAL -> createLlama3Planner(state, model);
-            case PHI_3 -> createPhi3Planner(state, model);
-            case QWEN_2, DEEPSEEK_R1_DISTILL_QWEN -> createQWEN2Planner(state, model);
-            case QWEN_3 -> createQWEN3Planner(state, model);
-            case UNKNOWN -> throw new UnsupportedOperationException("Unknown model type");
-        };
+    private TornadoExecutionPlan createExecutionPlan() {
+        var taskGraphs = tornadoVMLayerPlanner.getImmutableTaskGraphs();
+        var taskGraphArray = taskGraphs.toArray(new ImmutableTaskGraph[taskGraphs.size()]);
+        return new TornadoExecutionPlan(taskGraphArray);
     }
 
-    private TornadoVMGenericLayerPlanner createLlama3Planner(State state, Model model) {
-        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
-            return new TornadoVMQ8_0LayerPlanner(state, model);
-        } else {
-            return new TornadoVMLayerPlanner(state, model);
-        }
-    }
+    private GenericLayerPlanner createPlanner(State state, Model model) {
+        // ========== STEP 1: Detect Quantization Type ==========
+        GGMLType weightType = model.weights().getWeightType();
 
-    private TornadoVMGenericLayerPlanner createQWEN2Planner(State state, Model model) {
-        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
-            return new Qwen2Q8_0TornadoVMLayerPlanner((Qwen2State) state, model);
-        } else {
-            return new Qwen2TornadoVMLayerPlanner((Qwen2State) state, model);
-        }
-    }
+        // ========== STEP 2: Route via Factory ==========
+        // Factory handles all model × quantization combinations
+        GenericLayerPlanner basePlanner = QuantizationPlannerFactory.create(weightType, state, model);
 
-    private TornadoVMGenericLayerPlanner createPhi3Planner(State state, Model model) {
-        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
-            return new Phi3TornadoVMLayerPlannerQ8_0((Phi3State) state, model);
-        } else {
-            return new Phi3TornadoVMLayerPlanner((Phi3State) state, model);
-        }
-    }
-
-    private TornadoVMGenericLayerPlanner createQWEN3Planner(State state, Model model) {
-        if (model.weights().getWeightType().equals(GGMLType.Q8_0)) {
-            return new Qwen3Q8_0TornadoVMLayerPlanner((Qwen3State) state, model);
-        } else {
-            return new Qwen3TornadoVMLayerPlanner((Qwen3State) state, model);
-        }
+        return basePlanner;
     }
 
     /**
@@ -150,21 +106,9 @@ public class TornadoVMMasterPlan {
      *         the model whose type may affect the scheduler decision
      * @return {@code true} if the NVIDIA-specific scheduler should be used; {@code false} otherwise
      */
-    public static boolean shouldUseNvidiaScheduler(Model model) {
-        TornadoRuntime runtime = TornadoRuntimeProvider.getTornadoRuntime();
-        String platformName = runtime.getBackend(0).getDefaultDevice().getPlatformName().toLowerCase(Locale.ROOT);
-
-        // TODO: FIX THIS
-        boolean isNvidia = platformName.contains("nvidia") || platformName.contains("cuda")  || platformName.contains("ptx");
-        boolean isNotMistral = model.getModelType() != ModelType.MISTRAL;
-
-        boolean result = isNvidia && isNotMistral;
-        return result;
-    }
 
     /**
-     * Executes the forward pass of a LLaMA transformer model using TornadoVM acceleration.
-     *This method processes the transformer layers in sequence for a particular token position in the context
+     * Executes the forward pass of a LLaMA transformer model using TornadoVM acceleration. This method processes the transformer layers in sequence for a particular token position in the context
      * window.
      *
      * <p>The execution happens in three phases:
@@ -179,11 +123,12 @@ public class TornadoVMMasterPlan {
      * @return FloatTensor containing the output logits for token prediction
      */
 
+    // int pos, ModelPlanner
     public FloatArray tornadoVMForwardExecuteLayered(int position) {
         // @formatter:off
         // 1. Execute the preprocessing graph (e.g., input preparation, memory initialization)
         executionPlan.withGraph(getPreprocessingGraphIndex())
-                .withGridScheduler(scheduler)
+                .withGridScheduler(tornadoVMLayerPlanner.getGridScheduler())
                 .execute();
 
         // Set the position in the state object (used by attention layers)
@@ -193,13 +138,13 @@ public class TornadoVMMasterPlan {
         // Each graph computes attention and feed-forward transformations for one layer
         for (int layer = 0; layer < config.numberOfLayers(); layer++) {
             executionPlan.withGraph(getLayerGraphIndex(layer))
-                    .withGridScheduler(scheduler)
+                    .withGridScheduler(tornadoVMLayerPlanner.getGridScheduler())
                     .execute();
         }
 
         // 3. Execute the final graph that projects the last hidden state to output logits
         executionPlan.withGraph(getFinalLogitsGraphIndex())
-                .withGridScheduler(scheduler)
+                .withGridScheduler(tornadoVMLayerPlanner.getGridScheduler())
                 .execute();
 
         // @formatter:on
@@ -228,7 +173,7 @@ public class TornadoVMMasterPlan {
      * Returns the graph index for the final projection to logits.
      */
     private int getFinalLogitsGraphIndex() {
-        return taskGraphs.size() - 1;
+        return tornadoVMLayerPlanner.getImmutableTaskGraphs().size() - 1;
     }
 
     /// Execute the forward pass of the LLaMA transformer model using TornadoVM acceleration just once to copy the data into the read-only data layer.
@@ -238,15 +183,15 @@ public class TornadoVMMasterPlan {
         state.positionHolder.init(0);
 
         // Execute activation update graph
-        executionPlan.withGraph(0).withGridScheduler(scheduler).execute();
+        executionPlan.withGraph(0).withGridScheduler(tornadoVMLayerPlanner.getGridScheduler()).execute();
 
         // Execute layer processing graphs
         for (int layer = 0; layer < config.numberOfLayers(); layer++) {
-            executionPlan.withGraph(layer + 1).withGridScheduler(scheduler).execute();
+            executionPlan.withGraph(layer + 1).withGridScheduler(tornadoVMLayerPlanner.getGridScheduler()).execute();
         }
 
         // Execute logits graph
-        executionPlan.withGraph(config.numberOfLayers() + 1).withGridScheduler(scheduler).execute();
+        executionPlan.withGraph(config.numberOfLayers() + 1).withGridScheduler(tornadoVMLayerPlanner.getGridScheduler()).execute();
     }
 
     /**

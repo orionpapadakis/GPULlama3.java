@@ -5,7 +5,7 @@ import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 
-public class Qwen2TornadoWeightsQ8_0 extends Q8_0Weights {
+public class Qwen2TornadoWeightsQ8_0 extends LlamaTornadoWeightsQ8_0 {
 
     // Qwen2-specific tornado weights
     public FloatArray[] q_biasLayered;

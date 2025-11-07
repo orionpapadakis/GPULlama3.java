@@ -157,6 +157,85 @@
                          <autoPublish>true</autoPublish>
                     </configuration>
                 </plugin>
+
             </plugins>
         </build>
+
+        <!-- Profiles for optional/conditional builds -->
+        <profiles>
+            <!-- Spotless: Code formatting and style checking (Optional)
+                 Usage: mvn -Pspotless spotless:check     (to check violations)
+                        mvn -Pspotless spotless:apply     (to apply fixes)
+            -->
+            <profile>
+                <id>spotless</id>
+                <build>
+                    <plugins>
+                        <plugin>
+                            <groupId>com.diffplug.spotless</groupId>
+                            <artifactId>spotless-maven-plugin</artifactId>
+                            <version>2.44.4</version>
+                            <configuration>
+                                <!-- Only check files changed since main branch (smart incremental checking) -->
+                                <ratchetFrom>origin/main</ratchetFrom>
+
+                                <!-- Java files formatting -->
+                                <java>
+                                    <includes>
+                                        <include>src/main/java/**/*.java</include>
+                                        <include>src/test/java/**/*.java</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>**/target/**</exclude>
+                                    </excludes>
+                                    <!-- Google Java Format (AOSP style) -->
+                                    <googleJavaFormat>
+                                        <version>1.19.2</version>
+                                        <style>AOSP</style>
+                                    </googleJavaFormat>
+                                    <!-- Ensure newline at end of file -->
+                                    <endWithNewline/>
+                                    <!-- Remove trailing whitespace -->
+                                    <trimTrailingWhitespace/>
+                                </java>
+
+                                <!-- XML files formatting -->
+                                <pom>
+                                    <includes>
+                                        <include>pom.xml</include>
+                                    </includes>
+                                    <sortPom>
+                                        <nrOfIndentSpace>4</nrOfIndentSpace>
+                                        <expandEmptyElements>false</expandEmptyElements>
+                                    </sortPom>
+                                </pom>
+
+                                <!-- Markdown files -->
+                                <markdown>
+                                    <includes>
+                                        <include>**/*.md</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>**/target/**</exclude>
+                                    </excludes>
+                                </markdown>
+
+                                <!-- Properties files -->
+                                <format>
+                                    <name>props</name>
+                                    <includes>
+                                        <include>src/**/*.properties</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>**/target/**</exclude>
+                                    </excludes>
+                                    <trimTrailingWhitespace/>
+                                    <endWithNewline/>
+                                </format>
+                            </configuration>
+                        </plugin>
+                    </plugins>
+                </build>
+            </profile>
+        </profiles>
     </project>

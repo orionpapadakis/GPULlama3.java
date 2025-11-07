@@ -11,14 +11,14 @@ import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Phi3StandardWeights;
 import org.beehive.gpullama3.inference.weights.tornado.fp16.Phi3TornadoWeights;
 import org.beehive.gpullama3.inference.weights.tornado.q8_0.Phi3TornadoWeightsQ8_0;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.phi3.Phi3;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
-import org.beehive.gpullama3.tokenizer.impl.Phi3Tokenizer;
-import org.beehive.gpullama3.tokenizer.impl.Tokenizer;
-import org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary;
+import org.beehive.gpullama3.tokenizer.Phi3Tokenizer;
+import org.beehive.gpullama3.tokenizer.Tokenizer;
+import org.beehive.gpullama3.tokenizer.Vocabulary;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
@@ -34,8 +34,6 @@ import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsQ8_0Quan
 import static org.beehive.gpullama3.model.loader.ModelLoader.loadQ8_0QuantizedTensor;
 import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsFloatArray;
 import static org.beehive.gpullama3.model.loader.ModelLoader.loadTensorAsHalfFloatArray;
-
-import static org.beehive.gpullama3.model.loader.ModelLoader.*;
 
 public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration> {
     private int modelContextLength;
@@ -62,23 +60,23 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
     @Override
     protected Phi3Configuration createConfiguration(Map<String, Object> metadata) {
         final String modelPrefix = "phi3.";
-        modelContextLength = (int) metadata.get(modelPrefix + "context_length");
-        int finalContextLength = (contextLength < 0 || modelContextLength < contextLength) ? modelContextLength : contextLength;
 
-        int vocabSize = metadata.containsKey(modelPrefix + "vocab_size") ? (int) metadata.get(modelPrefix + "vocab_size") : (int) metadata.get("tokenizer.ggml.tokens.length");
-
-        return new Phi3Configuration((int) metadata.get(modelPrefix + "embedding_length"),           // dim
+        var config = new Phi3Configuration(
+                (int) metadata.get(modelPrefix + "embedding_length"),           // dim
                 (int) metadata.get(modelPrefix + "feed_forward_length"),        // hidden_dim
                 (int) metadata.get(modelPrefix + "block_count"),                // n_layers
                 (int) metadata.get(modelPrefix + "attention.head_count"),       // n_heads
 
-                metadata.containsKey(modelPrefix + "attention.head_count_kv") ? (int) metadata.get(modelPrefix + "attention.head_count_kv") : (int) metadata.get(modelPrefix + "attention.head_count"), // n_kv_heads
+                metadata.containsKey(modelPrefix + "attention.head_count_kv")
+                        ? (int) metadata.get(modelPrefix + "attention.head_count_kv")
+                        : (int) metadata.get(modelPrefix + "attention.head_count"), // n_kv_heads
 
-                vocabSize,                                              // vocab_size
-                finalContextLength,                                                  // context_length (user-specified, not model)
+                vocabulary.size(),                                              // vocab_size
+                contextLength,                                                  // context_length (user-specified, not model)
                 (float) metadata.getOrDefault(modelPrefix + "attention.layer_norm_rms_epsilon", 1e-5f), // rms_norm_eps
                 (float) metadata.getOrDefault(modelPrefix + "rope.freq_base", 10000f)           // rope_theta
         );
+        return config;
     }
 
     @Override
@@ -156,7 +154,7 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
         );
     }
 
-    public Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
+    public LlamaTornadoWeightsQ8_0 createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Configuration config,
                                                   Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                                   GGMLTensorEntry outputWeight) {
         return new Phi3TornadoWeightsQ8_0(

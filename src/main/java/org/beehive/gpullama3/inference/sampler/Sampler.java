@@ -3,18 +3,36 @@ package org.beehive.gpullama3.inference.sampler;
 import org.beehive.gpullama3.Options;
 import org.beehive.gpullama3.core.model.tensor.FloatTensor;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.tornadovm.FloatArrayUtils;
+import org.beehive.gpullama3.tornadovm.utils.FloatArrayUtils;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 import java.util.random.RandomGenerator;
 import java.util.random.RandomGeneratorFactory;
 
 /**
- * Generic interface for sampling tokens from probability distributions.
- * Supports both FloatTensor and FloatArray tensor implementations.
+ * Generic interface for sampling tokens from probability distributions. Supports both FloatTensor and FloatArray tensor implementations.
  */
 @FunctionalInterface
 public interface Sampler {
+
+    /**
+     * Argmax implementation for FloatTensor.
+     */
+    Sampler TENSOR_ARGMAX = tensor -> {
+        if (tensor instanceof FloatTensor) {
+            return ((FloatTensor) tensor).argmax();
+        } else if (tensor instanceof FloatArray) {
+            return argmaxFloatArray((FloatArray) tensor);
+        }
+        throw new IllegalArgumentException("Unsupported tensor type: " + (tensor != null ? tensor.getClass().getName() : "null"));
+    };
+    /**
+     * Legacy ARGMAX for backward compatibility.
+     *
+     * @deprecated Use TENSOR_ARGMAX instead
+     */
+    @Deprecated
+    Sampler ARGMAX = TENSOR_ARGMAX;
 
     /**
      * Creates and configures a sampler for token generation based on specified parameters.
@@ -103,42 +121,15 @@ public interface Sampler {
         return sampler;
     }
 
-    public static Sampler createSampler(Model model, Options options) {
+    static Sampler createSampler(Model model, Options options) {
         return selectSampler(model.configuration().vocabularySize(), options.temperature(), options.topp(), options.seed());
     }
 
     /**
-     * Sample a token from the provided tensor.
-     *
-     * @param tensor The tensor containing probabilities/logits
-     * @return The selected token index
-     */
-    int sampleToken(Object tensor);
-
-    /**
-     * Argmax implementation for FloatTensor.
-     */
-    Sampler TENSOR_ARGMAX = tensor -> {
-        if (tensor instanceof FloatTensor) {
-            return ((FloatTensor) tensor).argmax();
-        } else if (tensor instanceof FloatArray) {
-            return argmaxFloatArray((FloatArray) tensor);
-        }
-        throw new IllegalArgumentException("Unsupported tensor type: " +
-                (tensor != null ? tensor.getClass().getName() : "null"));
-    };
-
-    /**
-     * Legacy ARGMAX for backward compatibility.
-     * @deprecated Use TENSOR_ARGMAX instead
-     */
-    @Deprecated
-    Sampler ARGMAX = TENSOR_ARGMAX;
-
-    /**
      * Find the index of the maximum value in a FloatArray.
      *
-     * @param array The FloatArray to find the maximum value in
+     * @param array
+     *         The FloatArray to find the maximum value in
      * @return The index of the maximum value
      */
     static int argmaxFloatArray(FloatArray array) {
@@ -155,4 +146,13 @@ public interface Sampler {
 
         return maxIndex;
     }
+
+    /**
+     * Sample a token from the provided tensor.
+     *
+     * @param tensor
+     *         The tensor containing probabilities/logits
+     * @return The selected token index
+     */
+    int sampleToken(Object tensor);
 }

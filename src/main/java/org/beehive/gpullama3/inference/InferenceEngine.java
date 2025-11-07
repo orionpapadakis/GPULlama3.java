@@ -5,7 +5,7 @@ import org.beehive.gpullama3.inference.sampler.Sampler;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.tokenizer.impl.Tokenizer;
+import org.beehive.gpullama3.tokenizer.Tokenizer;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 

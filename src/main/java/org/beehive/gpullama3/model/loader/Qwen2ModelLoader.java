@@ -10,16 +10,15 @@ import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.Qwen2StandardWeights;
 import org.beehive.gpullama3.inference.weights.tornado.fp16.Qwen2TornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Q8_0Weights;
+import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
 import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen2TornadoWeightsQ8_0;
-import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.format.ChatFormat.ChatTokens;
 import org.beehive.gpullama3.model.qwen2.Qwen2;
 import org.beehive.gpullama3.model.qwen2.Qwen2Configuration;
-import org.beehive.gpullama3.tokenizer.impl.Qwen3Tokenizer;
-import org.beehive.gpullama3.tokenizer.impl.Tokenizer;
-import org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary;
+import org.beehive.gpullama3.tokenizer.Qwen3Tokenizer;
+import org.beehive.gpullama3.tokenizer.Tokenizer;
+import org.beehive.gpullama3.tokenizer.Vocabulary;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
@@ -29,7 +28,7 @@ import java.util.Map;
 
 import static org.beehive.gpullama3.core.model.GGMLType.F16;
 import static org.beehive.gpullama3.model.loader.ModelLoader.*;
-import static org.beehive.gpullama3.tokenizer.vocabulary.Vocabulary.loadQwen3Vocabulary;
+import static org.beehive.gpullama3.tokenizer.Vocabulary.loadQwen3Vocabulary;
 
 public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configuration> {
 
@@ -156,7 +155,7 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
         );
     }
 
-    public Q8_0Weights createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
+    public LlamaTornadoWeightsQ8_0 createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                                   GGMLTensorEntry outputWeight) {
         return new Qwen2TornadoWeightsQ8_0(
                 loadTensorAsFloatArray(tokenEmbeddings),

@@ -6,7 +6,7 @@ import org.beehive.gpullama3.inference.sampler.Sampler;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.model.format.ChatFormat;
-import org.beehive.gpullama3.tokenizer.impl.Tokenizer;
+import org.beehive.gpullama3.tokenizer.Tokenizer;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 
 import java.util.ArrayList;
