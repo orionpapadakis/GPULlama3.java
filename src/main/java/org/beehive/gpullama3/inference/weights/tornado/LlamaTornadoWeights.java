@@ -4,6 +4,7 @@ import org.beehive.gpullama3.tensor.GGMLType;
 import org.beehive.gpullama3.tensor.tornado.TornadoTensor;
 
 public class LlamaTornadoWeights extends TornadoWeights {
+    // @formatter:off
     public LlamaTornadoWeights(
             TornadoTensor tokenEmbeddingTable,
             TornadoTensor[] rms_att_weightLayered,
@@ -29,4 +30,5 @@ public class LlamaTornadoWeights extends TornadoWeights {
                 wclsByteArray,
                 weightType);
     }
+    // @formatter:on
 }

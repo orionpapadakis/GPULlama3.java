@@ -10,6 +10,7 @@ public class Qwen2TornadoWeights extends TornadoWeights {
     public TornadoTensor[] k_biasLayered;
     public TornadoTensor[] v_biasLayered;
 
+    // @formatter:off
     public Qwen2TornadoWeights(TornadoTensor tokenEmbeddingTable,
                                TornadoTensor[] rms_att_weightLayered,
                                TornadoTensor[] wqLayered,
@@ -48,4 +49,5 @@ public class Qwen2TornadoWeights extends TornadoWeights {
         this.k_biasLayered = k_biasLayered;
         this.v_biasLayered = v_biasLayered;
     }
+    // @formatter:on
 }

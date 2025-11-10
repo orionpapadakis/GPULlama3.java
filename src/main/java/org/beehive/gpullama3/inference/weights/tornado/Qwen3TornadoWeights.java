@@ -8,6 +8,7 @@ public class Qwen3TornadoWeights extends TornadoWeights {
     public final TornadoTensor[] rms_att_KNormLayered;
     public final TornadoTensor[] rms_att_QNormLayered;
 
+    // @formatter:off
     public Qwen3TornadoWeights(
             TornadoTensor tokenEmbeddingTable,
             TornadoTensor[] rmsAttWeight,
@@ -32,5 +33,6 @@ public class Qwen3TornadoWeights extends TornadoWeights {
         this.rms_att_KNormLayered = rms_att_KNormLayered;
         this.rms_att_QNormLayered = rms_att_QNormLayered;
     }
+    // @formatter:on
 
 }

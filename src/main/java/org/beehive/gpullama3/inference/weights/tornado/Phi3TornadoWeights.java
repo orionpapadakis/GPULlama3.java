@@ -10,6 +10,7 @@ public class Phi3TornadoWeights extends TornadoWeights {
     public TornadoTensor[] wDownLayered;   // hf - FFN down projection: (layer, dim, hidden_dim)
     public TornadoTensor[] wUpLayered;     // hf - FFN up projection: (layer, hidden_dim, dim)
 
+    // @formatter:off
     public Phi3TornadoWeights(
             TornadoTensor tokenEmbeddingTable,
             TornadoTensor[] rms_att_weightLayered,
@@ -46,4 +47,5 @@ public class Phi3TornadoWeights extends TornadoWeights {
         this.wDownLayered = wDownLayered;
         this.wUpLayered = wUpLayered;
     }
+    // @formatter:on
 }
