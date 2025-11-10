@@ -1,10 +1,9 @@
 package org.beehive.gpullama3.core.model;
 
-import org.beehive.gpullama3.auxiliary.Timer;
 import org.beehive.gpullama3.core.model.tensor.FloatTensor;
 import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
 import org.beehive.gpullama3.core.types.MetadataValueType;
-import org.beehive.gpullama3.core.types.Pair;
+import org.beehive.gpullama3.auxiliary.Pair;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

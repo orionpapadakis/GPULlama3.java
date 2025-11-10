@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tokenizer;
 
 import org.beehive.gpullama3.auxiliary.Utf8Mask;
-import org.beehive.gpullama3.core.types.Pair;
+import org.beehive.gpullama3.auxiliary.Pair;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

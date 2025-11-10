@@ -2,7 +2,7 @@ package org.beehive.gpullama3.model.loader;
 
 import org.beehive.gpullama3.core.model.GGUF;
 import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
-import org.beehive.gpullama3.core.types.Pair;
+import org.beehive.gpullama3.auxiliary.Pair;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
