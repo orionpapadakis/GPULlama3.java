@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm.layers.type.fp16;
 
 import org.beehive.gpullama3.inference.state.Qwen3State;
-import org.beehive.gpullama3.inference.weights.tornado.fp16.Qwen3TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.Qwen3TornadoWeights;
 import org.beehive.gpullama3.model.qwen3.Qwen3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.Qwen3Kernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
@@ -177,34 +177,34 @@ public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
         unifiedLayer.consumeFromDevice(state.wrapX);
         unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION, //
                 //Copy-in weights per layer for batched-layered layout
-                weights.rms_att_weightLayered[layerIndex], //
-                weights.wqLayered[layerIndex], //
-                weights.wkLayered[layerIndex], //
-                weights.wvLayered[layerIndex], //
-                weights.woLayered[layerIndex], //
+                weights.rms_att_weightLayered[layerIndex].asFloatArray(), //
+                weights.wqLayered[layerIndex].asHalfFloatArray(), //
+                weights.wkLayered[layerIndex].asHalfFloatArray(), //
+                weights.wvLayered[layerIndex].asHalfFloatArray(), //
+                weights.woLayered[layerIndex].asHalfFloatArray(), //
                 //rms_att_KNormLayered
-                weights.rms_att_KNormLayered[layerIndex], //
+                weights.rms_att_KNormLayered[layerIndex].asFloatArray(), //
                 //rms_att_QNormLayered
-                weights.rms_att_QNormLayered[layerIndex], //
-                weights.rms_ffn_weightLayered[layerIndex], //
-                weights.w1Layered[layerIndex], //
-                weights.w2Layered[layerIndex], //
-                weights.w3Layered[layerIndex] //
+                weights.rms_att_QNormLayered[layerIndex].asFloatArray(), //
+                weights.rms_ffn_weightLayered[layerIndex].asFloatArray(), //
+                weights.w1Layered[layerIndex].asHalfFloatArray(), //
+                weights.w2Layered[layerIndex].asHalfFloatArray(), //
+                weights.w3Layered[layerIndex].asHalfFloatArray() //
         );
         unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
         unifiedLayer.task("reductionsOneBlock", TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, qwen3State.temp, qwen3State.wrapX, // in
                 qwen3Config.dim(), qwen3Config.rmsNormEps(), qwen3State.localSize).task("mapContext", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, qwen3State.wrapXb, // out
-                qwen3State.wrapX, weights.rms_att_weightLayered[layerIndex], qwen3State.temp);
+                qwen3State.wrapX, weights.rms_att_weightLayered[layerIndex].asFloatArray(), qwen3State.temp);
 
         int qDim0 = nEmbdHeadK * qwen3Config.numberOfHeads();
         int kvDim0 = nEmbdGqa;
         int qkvDim1 = qwen3Config.dim();
         unifiedLayer.task("qmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context, qwen3State.wrapXb, qwen3State.wrapQ,                    // output
-                        weights.wqLayered[layerIndex], qkvDim1, qDim0, LOCAL_WORK_GROUP_SIZE_ALLOC)
+                        weights.wqLayered[layerIndex].asHalfFloatArray(), qkvDim1, qDim0, LOCAL_WORK_GROUP_SIZE_ALLOC)
                 .task("kmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context, qwen3State.wrapXb, qwen3State.wrapK,        // output
-                        weights.wkLayered[layerIndex], qkvDim1, kvDim0, LOCAL_WORK_GROUP_SIZE_ALLOC)
+                        weights.wkLayered[layerIndex].asHalfFloatArray(), qkvDim1, kvDim0, LOCAL_WORK_GROUP_SIZE_ALLOC)
                 .task("vmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context, qwen3State.wrapXb, qwen3State.wrapV,        // output
-                        weights.wvLayered[layerIndex], qkvDim1, kvDim0, LOCAL_WORK_GROUP_SIZE_ALLOC);
+                        weights.wvLayered[layerIndex].asHalfFloatArray(), qkvDim1, kvDim0, LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // Qcur rmsnorm
         unifiedLayer.task("rmsnormReduction_Qcur", Qwen3Kernels::rmsnormWithParallelOffset, context, qwen3State.tempQcur,         // output
@@ -213,7 +213,7 @@ public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
                         nEmbdHead,                   // for normalization
                         qwen3Config.rmsNormEps())    // for normalization
                 .task("rmsnormMapIndexInPlace_Qcur", Qwen3Kernels::rmsnormMapIndexInPlaceWithParallelOffset, context, qwen3State.wrapQ,        // output
-                        weights.rms_att_QNormLayered[layerIndex], nEmbdHead, qwen3State.tempQcur);
+                        weights.rms_att_QNormLayered[layerIndex].asFloatArray(), nEmbdHead, qwen3State.tempQcur);
 
         // Kcur rmsnorm
         unifiedLayer.task("rmsnormReduction_Kcur", Qwen3Kernels::rmsnormWithParallelOffset, context, qwen3State.tempKcur,         // output
@@ -222,7 +222,7 @@ public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
                         nEmbdHead,                   // for normalization
                         qwen3Config.rmsNormEps())    // for normalization
                 .task("rmsnormMapIndexInPlace_Kcur", Qwen3Kernels::rmsnormMapIndexInPlaceWithParallelOffset, context, qwen3State.wrapK,        // output
-                        weights.rms_att_KNormLayered[layerIndex], nEmbdHead, qwen3State.tempKcur);
+                        weights.rms_att_KNormLayered[layerIndex].asFloatArray(), nEmbdHead, qwen3State.tempKcur);
 
         // rope rotation task graph
         unifiedLayer.task("ropeRotation", Qwen3Kernels::ropeRotation, context, qwen3State.positionHolder, qwen3State.wrapQ,            // out
@@ -241,7 +241,7 @@ public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
 
         unifiedLayer.task("matmul1", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context, qwen3State.wrapXb,                           // vector
                 qwen3State.wrapX,                            // out, should be [1024]
-                weights.woLayered[layerIndex],               // matrix
+                weights.woLayered[layerIndex].asHalfFloatArray(),               // matrix
                 nEmbdHeadK * qwen3Config.numberOfHeads(),    // dim1 = 2048
                 qwen3Config.dim(),                           // dim0 = 1024
                 LOCAL_WORK_GROUP_SIZE_ALLOC);
@@ -249,12 +249,12 @@ public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
         unifiedLayer.task("reductionsOneBlockFFN", TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, qwen3State.tempFFN, qwen3State.wrapX, qwen3Config.dim(),
                         qwen3Config.rmsNormEps(), qwen3State.localSize)
                 .task("reductionFinalNormalizationFFN", TransformerComputeKernelsLayered::reductionFinalNormalization, context, qwen3State.tempFFN, qwen3Config.dim(), qwen3Config.rmsNormEps())
-                .task("mapContextFFN", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, qwen3State.wrapXb, qwen3State.wrapX, weights.rms_ffn_weightLayered[layerIndex],
+                .task("mapContextFFN", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, qwen3State.wrapXb, qwen3State.wrapX, weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
                         qwen3State.tempFFN);
 
-        unifiedLayer.task("fused_ffn_w1_w3", TransformerComputeKernelsLayered::fusedFeedForwardWithSiLUAndGLUActivation, context, qwen3State.wrapXb, qwen3State.wrapHb, weights.w1Layered[layerIndex],
-                        weights.w3Layered[layerIndex], qwen3Config.dim(), qwen3Config.hiddenDim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
-                .task("projectionTwo", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context, qwen3State.wrapHb, qwen3State.wrapX, weights.w2Layered[layerIndex],
+        unifiedLayer.task("fused_ffn_w1_w3", TransformerComputeKernelsLayered::fusedFeedForwardWithSiLUAndGLUActivation, context, qwen3State.wrapXb, qwen3State.wrapHb, weights.w1Layered[layerIndex].asHalfFloatArray(),
+                        weights.w3Layered[layerIndex].asHalfFloatArray(), qwen3Config.dim(), qwen3Config.hiddenDim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
+                .task("projectionTwo", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context, qwen3State.wrapHb, qwen3State.wrapX, weights.w2Layered[layerIndex].asHalfFloatArray(),
                         qwen3Config.hiddenDim(), qwen3Config.dim(), LOCAL_WORK_GROUP_SIZE_ALLOC).persistOnDevice(qwen3State.wrapX);
         return unifiedLayer;
     }

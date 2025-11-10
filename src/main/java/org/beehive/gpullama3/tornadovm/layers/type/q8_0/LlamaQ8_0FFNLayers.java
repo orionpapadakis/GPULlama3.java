@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 
 import org.beehive.gpullama3.inference.state.LlamaState;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.LlamaTornadoWeights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
@@ -20,7 +20,7 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
     GridScheduler scheduler;
     List<ImmutableTaskGraph> ffnLayerTaskGraphs;
 
-    public LlamaQ8_0FFNLayers(String taskGraphName, LlamaState state, LlamaTornadoWeightsQ8_0 weights, Configuration config) {
+    public LlamaQ8_0FFNLayers(String taskGraphName, LlamaState state, LlamaTornadoWeights weights, Configuration config) {
         super(taskGraphName, state, weights, config);
         ffnLayerTaskGraphs = setupFFNLayered();
     }
@@ -46,7 +46,7 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
         var numLayers = config.numberOfLayers();
 
         return IntStream.range(0, numLayers).mapToObj(i -> {
-            var ffnLayer = setupSingleFFNLayer((LlamaTornadoWeightsQ8_0) weights, config, i);
+            var ffnLayer = setupSingleFFNLayer((LlamaTornadoWeights) weights, config, i);
             if (i == numLayers - 1) {
                 setupLastID(ffnLayer.getTaskGraphName());
             }
@@ -54,19 +54,19 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
         }).toList();
     }
 
-    TaskGraph setupSingleFFNLayer(LlamaTornadoWeightsQ8_0 weights, Configuration config, int layerIndex) {
+    TaskGraph setupSingleFFNLayer(LlamaTornadoWeights weights, Configuration config, int layerIndex) {
         var layerTaskGraphName = "layer_" + layerIndex;
         TaskGraph unifiedLayer = new TaskGraph(layerTaskGraphName);
         unifiedLayer.consumeFromDevice(state.wrapX);
         unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
                 //Copy-in weights per layer for batched-layered layout
-                weights.rms_att_weightLayered[layerIndex], weights.wqLayered[layerIndex].getQuants(), weights.wqLayered[layerIndex].getScales(), weights.wkLayered[layerIndex].getQuants(),
+                weights.rms_att_weightLayered[layerIndex].asFloatArray(), weights.wqLayered[layerIndex].getQuants(), weights.wqLayered[layerIndex].getScales(), weights.wkLayered[layerIndex].getQuants(),
                 weights.wkLayered[layerIndex].getScales(), weights.wvLayered[layerIndex].getQuants(), weights.wvLayered[layerIndex].getScales(), weights.woLayered[layerIndex].getQuants(),
-                weights.woLayered[layerIndex].getScales(), weights.rms_ffn_weightLayered[layerIndex], weights.w1Layered[layerIndex].getQuants(), weights.w1Layered[layerIndex].getScales(),
+                weights.woLayered[layerIndex].getScales(), weights.rms_ffn_weightLayered[layerIndex].asFloatArray(), weights.w1Layered[layerIndex].getQuants(), weights.w1Layered[layerIndex].getScales(),
                 weights.w2Layered[layerIndex].getQuants(), weights.w2Layered[layerIndex].getScales(), weights.w3Layered[layerIndex].getQuants(), weights.w3Layered[layerIndex].getScales());
         unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
         unifiedLayer.task("reductionsOneBlock", TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.temp, state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
-                .task("mapContext", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb, state.wrapX, weights.rms_att_weightLayered[layerIndex], state.temp)
+                .task("mapContext", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb, state.wrapX, weights.rms_att_weightLayered[layerIndex].asFloatArray(), state.temp)
                 .task("qmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context, state.wrapXb, state.wrapQ, weights.wqLayered[layerIndex].getQuants(),
                         weights.wqLayered[layerIndex].getScales(), config.dim(), config.dim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
                 .task("kmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context, state.wrapXb, state.wrapK, weights.wkLayered[layerIndex].getQuants(),
@@ -81,7 +81,7 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
                 .task("matmul1", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context, state.wrapXb, state.wrapX, weights.woLayered[layerIndex].getQuants(),
                         weights.woLayered[layerIndex].getScales(), config.dim(), config.dim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
                 .task("reductionsOneBlockFFN", TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.tempFFN, state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
-                .task("mapContextFFN", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb, state.wrapX, weights.rms_ffn_weightLayered[layerIndex], state.tempFFN)
+                .task("mapContextFFN", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb, state.wrapX, weights.rms_ffn_weightLayered[layerIndex].asFloatArray(), state.tempFFN)
                 .task("fused_ffn_w1_w3", TransformerComputeKernelsLayered::fusedFeedForwardWithSiLUAndGLUActivation, context, state.wrapXb, state.wrapHb, weights.w1Layered[layerIndex].getQuants(),
                         weights.w1Layered[layerIndex].getScales(), weights.w3Layered[layerIndex].getQuants(), weights.w3Layered[layerIndex].getScales(), config.dim(), config.hiddenDim(),
                         LOCAL_WORK_GROUP_SIZE_ALLOC)

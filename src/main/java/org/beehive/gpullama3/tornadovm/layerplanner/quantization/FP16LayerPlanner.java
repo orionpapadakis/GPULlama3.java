@@ -1,8 +1,8 @@
 package org.beehive.gpullama3.tornadovm.layerplanner.quantization;
 
-import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.tensor.GGMLType;
 import org.beehive.gpullama3.inference.state.State;
-import org.beehive.gpullama3.inference.weights.tornado.fp16.FP16Weights;
+import org.beehive.gpullama3.inference.weights.tornado.TornadoWeights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.tornadovm.layerplanner.base.QuantizedLayerPlanner;
@@ -22,7 +22,7 @@ import java.util.List;
  *
  * FP16 Specific: - Uses half-precision floating point kernels - Weights: weights.xxxHalfFloat arrays - Compute: 2x faster than FP32 on modern GPUs
  */
-public abstract class FP16LayerPlanner<S extends State, C extends Configuration, W extends FP16Weights> extends QuantizedLayerPlanner<S, C, W> {
+public abstract class FP16LayerPlanner<S extends State, C extends Configuration, W extends TornadoWeights> extends QuantizedLayerPlanner<S, C, W> {
 
     protected Activation activationLayer;
     protected AbstractFFNLayers ffnLayers;

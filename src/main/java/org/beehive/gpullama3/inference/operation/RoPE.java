@@ -1,6 +1,6 @@
 package org.beehive.gpullama3.inference.operation;
 
-import org.beehive.gpullama3.core.types.Pair;
+import org.beehive.gpullama3.auxiliary.Pair;
 
 public final class RoPE {
     public static Pair<float[], float[]> precomputeFreqsCis(int contextLength, int headSize, double theta,

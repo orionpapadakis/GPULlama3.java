@@ -1,15 +1,11 @@
 package org.beehive.gpullama3.tornadovm.layers.type.fp16;
 
 import org.beehive.gpullama3.inference.state.Phi3State;
-import org.beehive.gpullama3.inference.state.State;
-import org.beehive.gpullama3.inference.weights.Weights;
-import org.beehive.gpullama3.inference.weights.tornado.fp16.Phi3TornadoWeights;
-import org.beehive.gpullama3.model.Configuration;
+import org.beehive.gpullama3.inference.weights.tornado.Phi3TornadoWeights;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
 import org.beehive.gpullama3.tornadovm.layers.AbstractFFNLayers;
-import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
@@ -53,7 +49,7 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
 
         // Ensure we have Phi3-specific weights
         if (!(weights instanceof Phi3TornadoWeights phi3Weights)) {
-            throw new IllegalArgumentException("Phi3FP16FFNLayers requires Phi3TornadoWeights with FP16 layout");
+            throw new IllegalArgumentException("Phi3FP16FFNLayers requires Phi3TornadoWeights with TornadoTensor layout");
         }
 
         // Calculate opSize for combined QKV buffer
@@ -183,7 +179,7 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
                         context,
                         phi3State.wrapXb,
                         phi3State.wrapX,
-                        weights.rms_att_weightLayered[layerIndex],
+                        weights.rms_att_weightLayered[layerIndex].asFloatArray(),
                         phi3State.temp);
 
         // Combined QKV projection
@@ -192,7 +188,7 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
                         context,
                         phi3State.wrapXb,
                         phi3State.wrapQkv,
-                        weights.wqkvLayered[layerIndex],
+                        weights.wqkvLayered[layerIndex].asHalfFloatArray(),
                         phi3Config.dim(),
                         opSize,
                         LOCAL_WORK_GROUP_SIZE_ALLOC)
@@ -249,7 +245,7 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
                 context,
                 phi3State.wrapXb,
                 phi3State.wrapX,
-                weights.woLayered[layerIndex],
+                weights.woLayered[layerIndex].asHalfFloatArray(),
                 phi3Config.dim(),
                 phi3Config.dim(),
                 LOCAL_WORK_GROUP_SIZE_ALLOC);
@@ -268,7 +264,7 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
                         context,
                         phi3State.wrapXb,
                         phi3State.wrapX,
-                        weights.rms_ffn_weightLayered[layerIndex],
+                        weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
                         phi3State.tempFFN);
 
         // FFN: combined Up and Gate projection (outputs 2 * hiddenDim)
@@ -277,7 +273,7 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
                         context,
                         phi3State.wrapXb,
                         phi3State.wrapHb,
-                        weights.wUpLayered[layerIndex],
+                        weights.wUpLayered[layerIndex].asHalfFloatArray(),
                         phi3Config.dim(),
                         2 * phi3Config.hiddenDim(),
                         LOCAL_WORK_GROUP_SIZE_ALLOC)
@@ -294,7 +290,7 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
                         context,
                         phi3State.wrapHbU,
                         phi3State.wrapX,
-                        weights.wDownLayered[layerIndex],
+                        weights.wDownLayered[layerIndex].asHalfFloatArray(),
                         phi3Config.hiddenDim(),
                         phi3Config.dim(),
                         LOCAL_WORK_GROUP_SIZE_ALLOC)

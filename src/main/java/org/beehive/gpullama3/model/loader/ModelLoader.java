@@ -1,24 +1,20 @@
 package org.beehive.gpullama3.model.loader;
 
 import org.beehive.gpullama3.Options;
-import org.beehive.gpullama3.core.model.GGMLType;
-import org.beehive.gpullama3.core.model.GGUF;
-import org.beehive.gpullama3.core.model.tensor.*;
-import org.beehive.gpullama3.core.model.tensor.F16FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.F32FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
-import org.beehive.gpullama3.core.model.tensor.Q4_0FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.Q8_0FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
+import org.beehive.gpullama3.tensor.GGMLType;
+import org.beehive.gpullama3.tensor.GGUF;
+import org.beehive.gpullama3.tensor.*;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;
+import org.beehive.gpullama3.tensor.standard.*;
+import org.beehive.gpullama3.tensor.tornado.FP16TornadoTensor;
+import org.beehive.gpullama3.tensor.tornado.FP32TornadoTensor;
+import org.beehive.gpullama3.tensor.tornado.Q8_0TornadoTensor;
+import org.beehive.gpullama3.tensor.tornado.TornadoTensor;
 import uk.ac.manchester.tornado.api.types.HalfFloat;
 import uk.ac.manchester.tornado.api.types.arrays.*;
 
 import java.io.IOException;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
@@ -45,8 +41,6 @@ public abstract class ModelLoader {
 
     private static ModelType detectModelType(Map<String, Object> metadata) {
         String name = (String) metadata.get("general.name");
-        String tokenizerModel = (String) metadata.get("tokenizer.ggml.model");
-        Integer vocabSize = (Integer) metadata.get("llama.vocab_size");
 
         // Check by name first
         if (name != null) {
@@ -99,16 +93,16 @@ public abstract class ModelLoader {
     }
 
     /**
-     * Dispatcher method for loading a standard (non-tornado) tensor based on type.
+     * Dispatcher method for loading a standard (non-tornado) tensor based on GGML type.
      * Used in CPU-path.
      */
-    public static FloatTensor loadQuantized(GGMLTensorEntry entry) {
+    public static FloatTensor loadTensor(GGMLTensorEntry entry) {
         GGMLType ggmlType = entry.ggmlType();
         return switch (ggmlType) {
-            case F32 -> new F32FloatTensor(FloatTensor.numberOfElements(entry.shape()), entry.memorySegment());
+            case F32 -> new FP32FloatTensor(FloatTensor.numberOfElements(entry.shape()), entry.memorySegment());
             case Q8_0 -> new Q8_0FloatTensor(FloatTensor.numberOfElements(entry.shape()), entry.memorySegment());
             case Q4_0 -> new Q4_0FloatTensor(FloatTensor.numberOfElements(entry.shape()), entry.memorySegment());
-            case F16 -> new F16FloatTensor(FloatTensor.numberOfElements(entry.shape()), entry.memorySegment());
+            case F16 -> new FP16FloatTensor(FloatTensor.numberOfElements(entry.shape()), entry.memorySegment());
             default -> throw new UnsupportedOperationException("Quantization format " + ggmlType);
         };
     }
@@ -117,35 +111,26 @@ public abstract class ModelLoader {
      * Dispatcher method for loading a standard tensor array based on type.
      * Used in CPU-path.
      */
-    public static FloatTensor[] loadArrayOfQuantized(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+    public static FloatTensor[] loadArrayOfTensors(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         FloatTensor[] array = new FloatTensor[size];
         for (int i = 0; i < size; i++) {
-            array[i] = loadQuantized(getTensorEntry.apply(i));
+            array[i] = loadTensor(getTensorEntry.apply(i));
         }
         return array;
     }
 
     /**
-     * [WIP]
-     * Dispatcher method for loading a TornadoVM tensor based on type.
+     * Dispatcher method for loading a TornadoVM-compatible tensor based on GGML type.
      * Used in GPU-path.
-     *
-     * TODO: fix this to follow loadQuantized logic
      */
-    public static FloatTensor loadTornadoTensor(GGMLTensorEntry entry) {
+    public static TornadoTensor loadTornadoTensor(GGMLTensorEntry entry) {
         GGMLType ggmlType = entry.ggmlType();
         int size = FloatTensor.numberOfElements(entry.shape());
         return switch (ggmlType) {
-//            case F32 -> new F32QuantizedTensor(size, entry.memorySegment());
-            case Q8_0 -> loadQ8_0QuantizedTensor(entry);
-//            case Q4_0 -> throw new UnsupportedOperationException("Not yet implemented");
-//            //FloatTensor.numberOfElements(entry.shape()), entry.memorySegment()
-//            case F16 -> new F16QuantizedTensor(size, entry.memorySegment());
-//            /*{
-//                HalfFloatArray array = new HalfFloatArray();
-//                array.getSegment().copyFrom(entry.memorySegment());
-//                // or array.getSegmentWithHeader() ?
-//            }*/
+            case F32 -> new FP32TornadoTensor(size, entry.memorySegment());
+            case F16 -> new FP16TornadoTensor(size, entry.memorySegment());
+            case Q8_0 -> Q8_0TornadoTensor.create(entry);
+            case Q4_0 -> throw new UnsupportedOperationException("Q4 format not supported yet");
             default -> throw new UnsupportedOperationException("Quantization format " + ggmlType);
         };
     }
@@ -154,13 +139,45 @@ public abstract class ModelLoader {
      * Dispatcher method for loading a TornadoVM tensor array based on type.
      * Used in GPU-path.
      */
-    public static FloatTensor[] loadTornadoTensorArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
-        FloatTensor[] array = new FloatTensor[size];
+    public static TornadoTensor[] loadArrayOfTornadoTensors(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+        TornadoTensor[] array = new TornadoTensor[size];
         for (int i = 0; i < size; i++) {
             array[i] = loadTornadoTensor(getTensorEntry.apply(i));
         }
         return array;
     }
+
+    /**
+     * Load a tensor and ensure it's FP32 (FloatArray).
+     * Used for embeddings and normalization weights that must always be FP32.
+     */
+    public static TornadoTensor loadTornadoTensorAsFP32(GGMLTensorEntry entry) {
+        // If already F32, load directly
+        if (entry.ggmlType() == GGMLType.F32) {
+            return new FP32TornadoTensor(
+                    FloatTensor.numberOfElements(entry.shape()),
+                    entry.memorySegment()
+            );
+        }
+
+        // Otherwise, dequantize to F32
+        FloatArray floatArray = loadTensorAsFloatArray(entry);
+        return new FP32TornadoTensor(floatArray);
+    }
+
+    /**
+     * Load array of tensors as FP32.
+     * Used for normalization weight arrays.
+     */
+    public static TornadoTensor[] loadArrayOfTornadoTensorsAsFP32(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+        TornadoTensor[] array = new TornadoTensor[size];
+        for (int i = 0; i < size; i++) {
+            array[i] = loadTornadoTensorAsFP32(getTensorEntry.apply(i));
+        }
+        return array;
+    }
+
+    // Helper methods
 
     public static FloatArray[] loadArrayAsFloatArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         FloatArray[] array = new FloatArray[size];
@@ -169,7 +186,6 @@ public abstract class ModelLoader {
         }
         return array;
     }
-    //@formatter:on
 
     public static HalfFloatArray[] loadArrayAsHalfFloatArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         HalfFloatArray[] array = new HalfFloatArray[size];
@@ -179,15 +195,13 @@ public abstract class ModelLoader {
         return array;
     }
 
-    public static Q8_0QuantizedTensor[] loadArrayAsQ8_0QuantizedTensor(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
-        Q8_0QuantizedTensor[] array = new Q8_0QuantizedTensor[size];
+    public static Q8_0TornadoTensor[] loadArrayAsQ8_0TornadoTensor(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+        Q8_0TornadoTensor[] array = new Q8_0TornadoTensor[size];
         for (int i = 0; i < size; i++) {
-            array[i] = loadQ8_0QuantizedTensor(getTensorEntry.apply(i));
+            array[i] = Q8_0TornadoTensor.create(getTensorEntry.apply(i));
         }
         return array;
     }
-
-    //@formatter:off
 
     public static FloatArray floatBufferToFloatArray(GGMLTensorEntry tensorEntry) {
         if (tensorEntry.ggmlType() == GGMLType.F32) {
@@ -197,7 +211,6 @@ public abstract class ModelLoader {
             throw new UnsupportedOperationException("Conversion to FloatArray from " + tensorEntry.ggmlType());
         }
     }
-    //@formatter:on
 
     public static FloatArray[] loadArrayAsFloatArrayFromBuffer(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         FloatArray[] array = new FloatArray[size];
@@ -208,7 +221,7 @@ public abstract class ModelLoader {
     }
 
     public static ByteArray createByteArrayFromTensor(GGMLTensorEntry entry) {
-        FloatTensor tensor = loadQuantized(entry);
+        FloatTensor tensor = loadTensor(entry);
         return ByteArray.fromSegment(tensor.asMemorySegment());
     }
 
@@ -223,7 +236,7 @@ public abstract class ModelLoader {
             return array;
         } else {
             // For quantized formats, we need to load through FloatTensor
-            FloatTensor tensor = loadQuantized(entry);
+            FloatTensor tensor = loadTensor(entry);
             FloatArray array = new FloatArray(tensor.size());
             for (int i = 0; i < tensor.size(); i++) {
                 array.set(i, tensor.getFloat(i));
@@ -238,7 +251,7 @@ public abstract class ModelLoader {
             return null;
         } else {
             // For quantized formats, we need to load through FloatTensor
-            FloatTensor tensor = loadQuantized(entry);
+            FloatTensor tensor = loadTensor(entry);
             HalfFloatArray array = new HalfFloatArray(tensor.size());
             for (int i = 0; i < tensor.size(); i++) {
                 HalfFloat x = new HalfFloat(tensor.getFloat(i));
@@ -246,50 +259,6 @@ public abstract class ModelLoader {
             }
             return array;
         }
-    }
-
-    // TODO: rename to loadQ8_0Tensor
-    // move to a utils class
-    public static Q8_0QuantizedTensor loadQ8_0QuantizedTensor(GGMLTensorEntry entry) {
-        if (entry.ggmlType() != GGMLType.Q8_0) {
-            throw new IllegalArgumentException("Expected Q8_0 tensor, got: " + entry.ggmlType() + " for tensor: " + entry.name());
-        }
-
-        int[] shape = entry.shape();
-        int size = FloatTensor.numberOfElements(shape);
-        int numBlocks = size / GGMLType.Q8_0.getBlockSize();
-
-        if (size % GGMLType.Q8_0.getBlockSize() != 0) {
-            throw new IllegalArgumentException("Q8_0 tensor size must be multiple of " + GGMLType.Q8_0.getBlockSize() + ", got: " + size + " for tensor: " + entry.name());
-        }
-
-        MemorySegment q8Segment = entry.memorySegment();
-
-        // allocate the arrays for quantized data (int8) and scales (fp16)
-        HalfFloatArray scales = new HalfFloatArray(numBlocks);
-        Int8Array quants = new Int8Array(size);
-
-        // unpack Q8_0 blocks: [2 bytes fp16 scale][32 bytes int8 quants]
-        ValueLayout.OfShort shortLayout = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
-        ValueLayout.OfByte byteLayout = ValueLayout.JAVA_BYTE;
-
-        for (int block = 0; block < numBlocks; block++) {
-            // TODO: use GGML type method for the 34L size
-            long blockOffset = block * 34L;  // 34 bytes per block
-
-            // read fp16 scale (first 2 bytes of block)
-            short scaleRaw = q8Segment.get(shortLayout, blockOffset);
-            scales.set(block, new HalfFloat(scaleRaw));
-
-            // read 32 int8 quantized values (remaining bytes of block)
-            // TODO: use GGML type method for the 32 size
-            for (int i = 0; i < 32; i++) {
-                byte quantValue = q8Segment.get(byteLayout, blockOffset + 2 + i);
-                quants.set(block * 32 + i, quantValue);
-            }
-        }
-
-        return new Q8_0QuantizedTensor(size, scales, quants, q8Segment);
     }
 
     public static FloatBuffer[] loadArrayOfFloatBuffer(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
@@ -306,23 +275,6 @@ public abstract class ModelLoader {
             case F32 -> tensorEntry.memorySegment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
             default -> throw new UnsupportedOperationException("Conversion to " + ggmlType);
         };
-    }
-
-    public abstract Model loadModel();
-
-    // Helper class to encapsulate RoPE configuration parameters
-    private static class RopeConfig {
-        final float scaleFactor;
-        final float loFreqFactor;
-        final float hiFreqFactor;
-        final int oldContextLength;
-
-        RopeConfig(float scaleFactor, float loFreqFactor, float hiFreqFactor, int oldContextLength) {
-            this.scaleFactor = scaleFactor;
-            this.loFreqFactor = loFreqFactor;
-            this.hiFreqFactor = hiFreqFactor;
-            this.oldContextLength = oldContextLength;
-        }
     }
 
 }

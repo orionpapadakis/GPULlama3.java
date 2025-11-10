@@ -1,15 +1,15 @@
 package org.beehive.gpullama3.model.loader;
 
-import org.beehive.gpullama3.core.model.GGMLType;
-import org.beehive.gpullama3.core.model.GGUF;
-import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
-import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
-import org.beehive.gpullama3.core.types.Pair;
+import org.beehive.gpullama3.tensor.GGMLType;
+import org.beehive.gpullama3.tensor.GGUF;
+import org.beehive.gpullama3.tensor.standard.ArrayFloatTensor;
+import org.beehive.gpullama3.tensor.tornado.FP32TornadoTensor;
+import org.beehive.gpullama3.tensor.GGMLTensorEntry;
+import org.beehive.gpullama3.auxiliary.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.inference.weights.standard.LlamaStandardWeights;
-import org.beehive.gpullama3.inference.weights.tornado.fp16.LlamaTornadoWeights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.LlamaTornadoWeights;
 import org.beehive.gpullama3.model.format.ChatFormat;
 import org.beehive.gpullama3.model.mistral.Mistral;
 import org.beehive.gpullama3.model.mistral.MistralConfiguration;
@@ -23,10 +23,6 @@ import java.nio.channels.FileChannel;
 import java.util.Map;
 
 import static org.beehive.gpullama3.model.loader.ModelLoader.*;
-import static org.beehive.gpullama3.model.loader.ModelLoader.floatBufferToFloatArray;
-import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsFloatArrayFromBuffer;
-import static org.beehive.gpullama3.model.loader.ModelLoader.loadArrayAsQ8_0QuantizedTensor;
-import static org.beehive.gpullama3.model.loader.ModelLoader.loadQ8_0QuantizedTensor;
 
 public class MistralModelLoader extends AbstractModelLoader<Mistral, MistralConfiguration> {
 
@@ -76,76 +72,59 @@ public class MistralModelLoader extends AbstractModelLoader<Mistral, MistralConf
     protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, MistralConfiguration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
             GGMLTensorEntry outputWeight) {
 
+        final int nl = config.numberOfLayers();
+
         return new LlamaStandardWeights(
-                loadQuantized(tokenEmbeddings),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
-                loadQuantized(tensorEntries.get("output_norm.weight")),
+                loadTensor(tokenEmbeddings),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
+                loadTensor(tensorEntries.get("output_norm.weight")),
                 new ArrayFloatTensor(ropeFreqs.first()),
                 new ArrayFloatTensor(ropeFreqs.second()),
-                loadQuantized(outputWeight),
+                loadTensor(outputWeight),
                 outputWeight.ggmlType());
     }
 
     @Override
     protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, MistralConfiguration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                              GGMLTensorEntry outputWeight) {
+        GGMLType ggmlType = outputWeight.ggmlType();
+
         if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
-            System.out.println("Loading model weights in TornadoVM format (loading " + outputWeight.ggmlType() + " -> " + GGMLType.F16 + ")");
+            System.out.println("Loading model weights in TornadoVM format (loading " + ggmlType + ")");
         }
 
-        GGMLType ggmlType = outputWeight.ggmlType();
-        return switch(ggmlType) {
-            case F16 -> createTornadoVMWeightsF16(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
-            case Q8_0 -> createTornadoVMWeightsQ8_0(tensorEntries, config, ropeFreqs, tokenEmbeddings, outputWeight);
-            default -> throw new UnsupportedOperationException("Type: " + ggmlType + " currently not supported for TornadoVM weights.");
-        };
-    }
+        // Validate supported types
+        if (ggmlType != GGMLType.F16 && ggmlType != GGMLType.Q8_0) {
+            throw new UnsupportedOperationException("Type: " + ggmlType + " currently not supported for TornadoVM weights.");
+        }
 
-    private Weights createTornadoVMWeightsF16(Map<String, GGMLTensorEntry> tensorEntries, MistralConfiguration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
+        final int nl = config.numberOfLayers();
 
-        return new LlamaTornadoWeights(ModelLoader.loadTensorAsFloatArray(tokenEmbeddings),
-                ModelLoader.loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                ModelLoader.loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                ModelLoader.loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                ModelLoader.loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
-                ModelLoader.loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                ModelLoader.loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                ModelLoader.loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                ModelLoader.loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                ModelLoader.loadArrayAsHalfFloatArray(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
-                ModelLoader.floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
-                FloatArray.fromArray(ropeFreqs.first()),
-                FloatArray.fromArray(ropeFreqs.second()),
-                ModelLoader.loadTensorAsHalfFloatArray(outputWeight),
-                outputWeight.ggmlType());
-    }
-
-    private LlamaTornadoWeightsQ8_0 createTornadoVMWeightsQ8_0(Map<String, GGMLTensorEntry> tensorEntries, MistralConfiguration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings, GGMLTensorEntry outputWeight) {
-        return new LlamaTornadoWeightsQ8_0(
-                loadTensorAsFloatArray(tokenEmbeddings),
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayAsFloatArrayFromBuffer(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayAsQ8_0QuantizedTensor(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
-                floatBufferToFloatArray(tensorEntries.get("output_norm.weight")),
-                FloatArray.fromArray(ropeFreqs.first()),
-                FloatArray.fromArray(ropeFreqs.second()),
-                loadQ8_0QuantizedTensor(outputWeight),
-                outputWeight.ggmlType()
+        // Load all tensors uniformly as TornadoTensor hierarchy
+        return new LlamaTornadoWeights(
+                loadTornadoTensorAsFP32(tokenEmbeddings),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
+                loadArrayOfTornadoTensorsAsFP32(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
+                loadTornadoTensorAsFP32(tensorEntries.get("output_norm.weight")),
+                new FP32TornadoTensor(FloatArray.fromArray(ropeFreqs.first())),
+                new FP32TornadoTensor(FloatArray.fromArray(ropeFreqs.second())),
+                loadTornadoTensor(outputWeight),
+                ggmlType
         );
     }
 }

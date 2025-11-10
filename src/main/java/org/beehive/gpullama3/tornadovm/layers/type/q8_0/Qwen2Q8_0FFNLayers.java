@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 
 import org.beehive.gpullama3.inference.state.Qwen2State;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen2TornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.Qwen2TornadoWeights;
 import org.beehive.gpullama3.model.qwen2.Qwen2Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.Qwen2Kernels;
 import org.beehive.gpullama3.tornadovm.kernels.Qwen3Kernels;
@@ -41,7 +41,7 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
     private final Qwen2State qwen2State;
     private final Qwen2Configuration qwen2Config;
 
-    public Qwen2Q8_0FFNLayers(String taskGraphName, Qwen2State state, Qwen2TornadoWeightsQ8_0 weights, Qwen2Configuration config) {
+    public Qwen2Q8_0FFNLayers(String taskGraphName, Qwen2State state, Qwen2TornadoWeights weights, Qwen2Configuration config) {
         super(taskGraphName, state, weights, config);
         this.qwen2State = state;
         this.qwen2Config = config;
@@ -147,7 +147,7 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
         qwen2State.tempFFN.init(0.0f);
 
         for (int layerIndex = 0; layerIndex < qwen2Config.numberOfLayers(); layerIndex++) {
-            TaskGraph ffnLayer = setupSingleQwen2Q8_0FFNLayer((Qwen2TornadoWeightsQ8_0) weights, layerIndex);
+            TaskGraph ffnLayer = setupSingleQwen2Q8_0FFNLayer((Qwen2TornadoWeights) weights, layerIndex);
             if (layerIndex == qwen2Config.numberOfLayers() - 1) {
                 setupLastID(ffnLayer.getTaskGraphName());
             }
@@ -159,12 +159,12 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
     /**
      * Setup a single transformer layer for Qwen2 with Q8_0 quantization and GQA
      */
-    TaskGraph setupSingleQwen2Q8_0FFNLayer(Qwen2TornadoWeightsQ8_0 weights, int layerIndex) {
+    TaskGraph setupSingleQwen2Q8_0FFNLayer(Qwen2TornadoWeights weights, int layerIndex) {
       TaskGraph  unifiedLayer = new TaskGraph("layer_" + layerIndex);
         unifiedLayer.consumeFromDevice(state.wrapX);
         unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
                 //Copy-in weights per layer for batched-layered layout
-                weights.rms_att_weightLayered[layerIndex],
+                weights.rms_att_weightLayered[layerIndex].asFloatArray(),
                 weights.wqLayered[layerIndex].getScales(),
                 weights.wqLayered[layerIndex].getQuants(),
                 weights.wkLayered[layerIndex].getScales(),
@@ -173,10 +173,10 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
                 weights.wvLayered[layerIndex].getQuants(),
                 weights.woLayered[layerIndex].getScales(),
                 weights.woLayered[layerIndex].getQuants(),
-                weights.q_biasLayered[layerIndex],
-                weights.k_biasLayered[layerIndex],
-                weights.v_biasLayered[layerIndex],
-                weights.rms_ffn_weightLayered[layerIndex],
+                weights.q_biasLayered[layerIndex].asFloatArray(),
+                weights.k_biasLayered[layerIndex].asFloatArray(),
+                weights.v_biasLayered[layerIndex].asFloatArray(),
+                weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
                 weights.w1Layered[layerIndex].getScales(),
                 weights.w1Layered[layerIndex].getQuants(),
                 weights.w2Layered[layerIndex].getScales(),
@@ -189,16 +189,16 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
         unifiedLayer.task("reductionsOneBlock" , TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.temp,
                         state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
                 .task("mapContext", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb,
-                        state.wrapX, weights.rms_att_weightLayered[layerIndex], state.temp)
+                        state.wrapX, weights.rms_att_weightLayered[layerIndex].asFloatArray(), state.temp)
                 .task("qmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context,
                         state.wrapXb,  state.wrapQ, weights.wqLayered[layerIndex].getQuants(), weights.wqLayered[layerIndex].getScales(), config.dim(), config.dim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
                 .task("kmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context,
                         state.wrapXb,  state.wrapK, weights.wkLayered[layerIndex].getQuants(), weights.wkLayered[layerIndex].getScales(), config.dim(), config.kvDim(), LOCAL_WORK_GROUP_SIZE_ALLOC)
                 .task("vmatmul", TransformerComputeKernelsLayered::matrixVectorGeneric, context,
                         state.wrapXb,   state.wrapV, weights.wvLayered[layerIndex].getQuants(), weights.wvLayered[layerIndex].getScales(), config.dim(), config.kvDim(),  LOCAL_WORK_GROUP_SIZE_ALLOC)
-                .task("qbias", TransformerComputeKernelsLayered::addInPlace, state.wrapQ, weights.q_biasLayered[layerIndex], config.dim())
-                .task("kbias", TransformerComputeKernelsLayered::addInPlace, state.wrapK, weights.k_biasLayered[layerIndex], config.kvDim())
-                .task("vbias", TransformerComputeKernelsLayered::addInPlace, state.wrapV, weights.v_biasLayered[layerIndex], config.kvDim())
+                .task("qbias", TransformerComputeKernelsLayered::addInPlace, state.wrapQ, weights.q_biasLayered[layerIndex].asFloatArray(), config.dim())
+                .task("kbias", TransformerComputeKernelsLayered::addInPlace, state.wrapK, weights.k_biasLayered[layerIndex].asFloatArray(), config.kvDim())
+                .task("vbias", TransformerComputeKernelsLayered::addInPlace, state.wrapV, weights.v_biasLayered[layerIndex].asFloatArray(), config.kvDim())
                 .task("rope", Qwen3Kernels::ropeRotation,context, state.positionHolder, state.wrapQ, state.wrapK, config.numberOfKeyValueHeads(),
                         config.headSize())
                 .task("copyToCaches", TransformerComputeKernelsLayered::copyToCache,
@@ -212,7 +212,7 @@ public class Qwen2Q8_0FFNLayers extends AbstractFFNLayers {
                 .task("reductionsOneBlockFFN", TransformerComputeKernelsLayered::reductionOneBlockWithLayer, context, state.tempFFN,
                         state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
                 .task("mapContextFFN", TransformerComputeKernelsLayered::reductionOneBlock2WithLayer, context, state.wrapXb,
-                        state.wrapX, weights.rms_ffn_weightLayered[layerIndex], state.tempFFN)
+                        state.wrapX, weights.rms_ffn_weightLayered[layerIndex].asFloatArray(), state.tempFFN)
                 .task("fused_ffn_w1_w3", TransformerComputeKernelsLayered::fusedFeedForwardWithSiLUAndGLUActivation, context,
                         state.wrapXb,   state.wrapHb, weights.w1Layered[layerIndex].getQuants(), weights.w1Layered[layerIndex].getScales(), weights.w3Layered[layerIndex].getQuants(), weights.w3Layered[layerIndex].getScales(), config.dim(), config.hiddenDim(),  LOCAL_WORK_GROUP_SIZE_ALLOC)
                 .task("projectionTwo", TransformerComputeKernelsLayered::matrixVectorGenericWithResidual, context,

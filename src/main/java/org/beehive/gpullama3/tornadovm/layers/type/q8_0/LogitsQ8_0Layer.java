@@ -2,8 +2,8 @@ package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.Weights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen2TornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.TornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.Qwen2TornadoWeights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
@@ -27,14 +27,14 @@ public class LogitsQ8_0Layer extends AbstractLayer {
         super(taskGraphName, state, weights, config);
         this.lastTaskGraphID = lastTaskGraphID;
         state.tempLogits.init(0.0f);
-        var q8_0Weights = requireWeightsType(weights, LlamaTornadoWeightsQ8_0.class, "LogitsQ8_0Layer", "Q8_0");
-        this.logitsTaskGraph = setupLogitsTaskGraph(q8_0Weights, config);
+        var tornadoWeights = requireWeightsType(weights, TornadoWeights.class, "LogitsQ8_0Layer", "TornadoTensor");
+        this.logitsTaskGraph = setupLogitsTaskGraph(tornadoWeights, config);
     }
 
     @Override
     public GridScheduler updateGridScheduler(GridScheduler tornadoForwardScheduler) {
         WorkerGrid logitsRMS;
-        if (weights instanceof Qwen2TornadoWeightsQ8_0) {
+        if (weights instanceof Qwen2TornadoWeights) {
             logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 32);
         } else {
             logitsRMS = WorkerGridFactory.createRmsNormWorker(config.dim(), 256);
@@ -50,15 +50,15 @@ public class LogitsQ8_0Layer extends AbstractLayer {
         return tornadoForwardScheduler;
     }
 
-    private TaskGraph setupLogitsTaskGraph(LlamaTornadoWeightsQ8_0 weights, Configuration config) {
+    private TaskGraph setupLogitsTaskGraph(TornadoWeights weights, Configuration config) {
         TaskGraph logits = new TaskGraph("logits");
         logits.consumeFromDevice(lastTaskGraphID, state.wrapX).transferToDevice(DataTransferMode.EVERY_EXECUTION, state.tempLogits)
-                .transferToDevice(DataTransferMode.FIRST_EXECUTION, context, state.wrapLogits, weights.wclsHalfFloat.getQuants(), weights.wclsHalfFloat.getScales(),
+                .transferToDevice(DataTransferMode.FIRST_EXECUTION, context, state.wrapLogits, weights.wclsByteArray.getQuants(), weights.wclsByteArray.getScales(),
                         weights.rms_final_weight_as_floatArray)
                 .task("reductionsOneBlockLogits", TransformerComputeKernels::reductionOneBlockWithLayer, context, state.tempLogits, state.wrapX, config.dim(), config.rmsNormEps(), state.localSize)
-                .task("mapContextLogits", TransformerComputeKernels::reductionOneBlock2WithLogits, context, state.wrapX, weights.rms_final_weight_as_floatArray, state.tempLogits)
+                .task("mapContextLogits", TransformerComputeKernels::reductionOneBlock2WithLogits, context, state.wrapX, weights.rms_final_weight_as_floatArray.asFloatArray(), state.tempLogits)
                 .task("projection", TransformerComputeKernelsLayered::matrixVectorGeneric,  //
-                        context, state.wrapX, state.wrapLogits, weights.wclsHalfFloat.getQuants(), weights.wclsHalfFloat.getScales(), //
+                        context, state.wrapX, state.wrapLogits, weights.wclsByteArray.getQuants(), weights.wclsByteArray.getScales(), //
                         config.dim(), config.vocabularySize(), LOCAL_WORK_GROUP_SIZE_ALLOC * THREAD_SCALE_FOR_LOGITS) //
                 .transferToHost(DataTransferMode.EVERY_EXECUTION, state.wrapLogits);
         return logits;

@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm.layerplanner.model.fp16;
 
 import org.beehive.gpullama3.inference.state.LlamaState;
-import org.beehive.gpullama3.inference.weights.tornado.fp16.LlamaTornadoWeights;
+import org.beehive.gpullama3.inference.weights.tornado.LlamaTornadoWeights;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.llama.LlamaConfiguration;
 import org.beehive.gpullama3.tornadovm.layerplanner.quantization.FP16LayerPlanner;

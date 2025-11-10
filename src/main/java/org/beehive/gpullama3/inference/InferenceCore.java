@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.inference;
 
 import org.beehive.gpullama3.auxiliary.Parallel;
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
+import org.beehive.gpullama3.tensor.standard.FloatTensor;
 import org.beehive.gpullama3.inference.state.Phi3State;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.standard.Phi3StandardWeights;
@@ -583,7 +583,7 @@ public final class InferenceCore {
         final Configuration configuration = model.configuration();
         final TornadoWeights weights = (TornadoWeights) model.weights();
 
-        MemorySegment.copy(weights.getTokenEmbeddingTable().getSegment(), (long) token * configuration.dim() * Float.BYTES, state.wrapX.getSegment(), 0, configuration.dim() * Float.BYTES);
+        MemorySegment.copy(weights.getTokenEmbeddingTable().asFloatArray().getSegment(), (long) token * configuration.dim() * Float.BYTES, state.wrapX.getSegment(), 0, configuration.dim() * Float.BYTES);
 
         return tornadoVMMasterPlan.tornadoVMForwardExecuteLayered(position);
     }

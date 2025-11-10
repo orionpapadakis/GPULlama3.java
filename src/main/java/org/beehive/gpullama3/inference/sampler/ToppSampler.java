@@ -1,6 +1,6 @@
 package org.beehive.gpullama3.inference.sampler;
 
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
+import org.beehive.gpullama3.tensor.standard.FloatTensor;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 import java.util.Comparator;

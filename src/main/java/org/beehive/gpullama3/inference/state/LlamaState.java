@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.inference.state;
 
-import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
+import org.beehive.gpullama3.tensor.standard.ArrayFloatTensor;
+import org.beehive.gpullama3.tensor.standard.FloatTensor;
 import org.beehive.gpullama3.model.Configuration;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.IntArray;
