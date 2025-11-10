@@ -3,7 +3,7 @@ package org.beehive.gpullama3.model.loader;
 import org.beehive.gpullama3.tensor.GGMLType;
 import org.beehive.gpullama3.tensor.GGUF;
 import org.beehive.gpullama3.tensor.standard.ArrayFloatTensor;
-import org.beehive.gpullama3.tensor.tornado.F32TornadoTensor;
+import org.beehive.gpullama3.tensor.tornado.FP32TornadoTensor;
 import org.beehive.gpullama3.tensor.GGMLTensorEntry;
 import org.beehive.gpullama3.auxiliary.Pair;
 import org.beehive.gpullama3.inference.operation.RoPE;
@@ -123,8 +123,8 @@ public class LlamaModelLoader extends AbstractModelLoader<Llama, LlamaConfigurat
                 loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
                 loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
                 loadTornadoTensorAsF32(tensorEntries.get("output_norm.weight")),
-                new F32TornadoTensor(FloatArray.fromArray(ropeFreqs.first())),
-                new F32TornadoTensor(FloatArray.fromArray(ropeFreqs.second())),
+                new FP32TornadoTensor(FloatArray.fromArray(ropeFreqs.first())),
+                new FP32TornadoTensor(FloatArray.fromArray(ropeFreqs.second())),
                 loadTornadoTensor(outputWeight),
                 ggmlType
         );

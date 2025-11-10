@@ -5,10 +5,10 @@ import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 
 import java.lang.foreign.MemorySegment;
 
-public class F16TornadoTensor extends TornadoTensor {
+public class FP16TornadoTensor extends TornadoTensor {
     private final HalfFloatArray values;
 
-    public F16TornadoTensor(int size, MemorySegment segment) {
+    public FP16TornadoTensor(int size, MemorySegment segment) {
         super(size);
         this.values = new HalfFloatArray(size);
         this.values.getSegment().copyFrom(segment);

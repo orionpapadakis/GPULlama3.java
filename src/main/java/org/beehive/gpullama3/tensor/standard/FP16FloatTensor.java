@@ -9,12 +9,12 @@ import jdk.incubator.vector.VectorSpecies;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
 
-public final class F16FloatTensor extends FloatTensor {
+public final class FP16FloatTensor extends FloatTensor {
 
     final int size;
     final MemorySegment memorySegment;
 
-    public F16FloatTensor(int size, MemorySegment memorySegment) {
+    public FP16FloatTensor(int size, MemorySegment memorySegment) {
         this.size = size;
         this.memorySegment = memorySegment;
     }
@@ -59,7 +59,7 @@ public final class F16FloatTensor extends FloatTensor {
         }
     }
 
-    private static float vectorDot(F16FloatTensor thiz, int thisOffset, ArrayFloatTensor that, int thatOffset, int size) {
+    private static float vectorDot(FP16FloatTensor thiz, int thisOffset, ArrayFloatTensor that, int thatOffset, int size) {
         assert S_SPECIES_HALF.length() == F_SPECIES.length();
         FloatVector val = FloatVector.zero(F_SPECIES);
         int upperBound = F_SPECIES.loopBound(size);

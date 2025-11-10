@@ -7,11 +7,11 @@ import jdk.incubator.vector.VectorSpecies;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
-public final class F32FloatTensor extends FloatTensor {
+public final class FP32FloatTensor extends FloatTensor {
     final int size;
     final MemorySegment segment;
 
-    public F32FloatTensor(int size, MemorySegment segment) {
+    public FP32FloatTensor(int size, MemorySegment segment) {
         this.size = size;
         this.segment = segment;
     }
