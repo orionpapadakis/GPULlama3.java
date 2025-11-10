@@ -8,13 +8,13 @@ import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
 
 import java.lang.foreign.MemorySegment;
 
-public class Q8_0QuantizedTensor extends TornadoTensor {
+public class Q8_0TornadoTensor extends TornadoTensor {
 
     private final HalfFloatArray scales;  // One per 32-element block
     private final Int8Array quants;       // Quantized int8 values
     private MemorySegment segment;
 
-    public Q8_0QuantizedTensor(int size, HalfFloatArray scales, Int8Array quants, MemorySegment segment) {
+    public Q8_0TornadoTensor(int size, HalfFloatArray scales, Int8Array quants, MemorySegment segment) {
         super(size);
         this.scales = scales;
         this.quants = quants;
