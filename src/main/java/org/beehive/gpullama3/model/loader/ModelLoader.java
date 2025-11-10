@@ -97,10 +97,10 @@ public abstract class ModelLoader {
     }
 
     /**
-     * Dispatcher method for loading a standard (non-tornado) tensor based on type.
+     * Dispatcher method for loading a standard (non-tornado) tensor based on GGML type.
      * Used in CPU-path.
      */
-    public static FloatTensor loadQuantized(GGMLTensorEntry entry) {
+    public static FloatTensor loadTensor(GGMLTensorEntry entry) {
         GGMLType ggmlType = entry.ggmlType();
         return switch (ggmlType) {
             case F32 -> new FP32FloatTensor(FloatTensor.numberOfElements(entry.shape()), entry.memorySegment());
@@ -115,20 +115,17 @@ public abstract class ModelLoader {
      * Dispatcher method for loading a standard tensor array based on type.
      * Used in CPU-path.
      */
-    public static FloatTensor[] loadArrayOfQuantized(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+    public static FloatTensor[] loadArrayOfTensors(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         FloatTensor[] array = new FloatTensor[size];
         for (int i = 0; i < size; i++) {
-            array[i] = loadQuantized(getTensorEntry.apply(i));
+            array[i] = loadTensor(getTensorEntry.apply(i));
         }
         return array;
     }
 
     /**
-     * [WIP]
-     * Dispatcher method for loading a TornadoVM tensor based on type.
+     * Dispatcher method for loading a TornadoVM-compatible tensor based on GGML type.
      * Used in GPU-path.
-     *
-     * TODO: fix this to follow loadQuantized logic
      */
     public static TornadoTensor loadTornadoTensor(GGMLTensorEntry entry) {
         GGMLType ggmlType = entry.ggmlType();
@@ -230,7 +227,7 @@ public abstract class ModelLoader {
     }
 
     public static ByteArray createByteArrayFromTensor(GGMLTensorEntry entry) {
-        FloatTensor tensor = loadQuantized(entry);
+        FloatTensor tensor = loadTensor(entry);
         return ByteArray.fromSegment(tensor.asMemorySegment());
     }
 
@@ -245,7 +242,7 @@ public abstract class ModelLoader {
             return array;
         } else {
             // For quantized formats, we need to load through FloatTensor
-            FloatTensor tensor = loadQuantized(entry);
+            FloatTensor tensor = loadTensor(entry);
             FloatArray array = new FloatArray(tensor.size());
             for (int i = 0; i < tensor.size(); i++) {
                 array.set(i, tensor.getFloat(i));
@@ -260,7 +257,7 @@ public abstract class ModelLoader {
             return null;
         } else {
             // For quantized formats, we need to load through FloatTensor
-            FloatTensor tensor = loadQuantized(entry);
+            FloatTensor tensor = loadTensor(entry);
             HalfFloatArray array = new HalfFloatArray(tensor.size());
             for (int i = 0; i < tensor.size(); i++) {
                 HalfFloat x = new HalfFloat(tensor.getFloat(i));

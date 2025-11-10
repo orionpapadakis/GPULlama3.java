@@ -95,24 +95,24 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
         final int nl = config.numberOfLayers();
 
         return new Qwen3StandardWeights(
-                loadQuantized(tokenEmbeddings),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),    // rms_att_weight
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_q.weight")),       // wq
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_k.weight")),       // wk
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_v.weight")),       // wv
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),  // wo
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_k_norm.weight")),  // attnKNorm
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_q_norm.weight")),  // attnQNorm
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),     //rms_ffn_weight
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),     // w1
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),     // w2
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),       // w3
-                loadQuantized(tensorEntries.get("output_norm.weight")), // rms_final_weight
+                loadTensor(tokenEmbeddings),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),    // rms_att_weight
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_q.weight")),       // wq
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_k.weight")),       // wk
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_v.weight")),       // wv
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),  // wo
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_k_norm.weight")),  // attnKNorm
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_q_norm.weight")),  // attnQNorm
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),     //rms_ffn_weight
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),     // w1
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),     // w2
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),       // w3
+                loadTensor(tensorEntries.get("output_norm.weight")), // rms_final_weight
                 new ArrayFloatTensor(ropeFreqsReal),
                 new ArrayFloatTensor(ropeFreqsImag),
                 tensorEntries.containsKey("output.weight")
-                        ? ModelLoader.loadQuantized(tensorEntries.get("output.weight"))
-                        : loadQuantized(tokenEmbeddings), // weights are shared
+                        ? ModelLoader.loadTensor(tensorEntries.get("output.weight"))
+                        : loadTensor(tokenEmbeddings), // weights are shared
                 null
         );
     }

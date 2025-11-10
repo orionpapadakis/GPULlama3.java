@@ -97,17 +97,17 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
         final int nl = config.numberOfLayers();
 
         return new Phi3StandardWeights(
-                loadQuantized(tokenEmbeddings),                                                                               // token_embedding_table
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),    // rms_att_weight (as FloatTensor[])
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),     // wqkv (combined)
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),  // wo
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),     // rms_ffn_weight (as FloatTensor[])
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),     // wDown
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),       // wUp (separate, not combined)
-                loadQuantized(tensorEntries.get("output_norm.weight")),                                                      // rms_final_weight (as FloatTensor)
+                loadTensor(tokenEmbeddings),                                                                               // token_embedding_table
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),    // rms_att_weight (as FloatTensor[])
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),     // wqkv (combined)
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),  // wo
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),     // rms_ffn_weight (as FloatTensor[])
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),     // wDown
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),       // wUp (separate, not combined)
+                loadTensor(tensorEntries.get("output_norm.weight")),                                                      // rms_final_weight (as FloatTensor)
                 new ArrayFloatTensor(ropeFreqsReal),                                                                         // freq_cis_real
                 new ArrayFloatTensor(ropeFreqsImag),                                                                         // freq_cis_imag
-                loadQuantized(outputWeight),                                                                                 // wcls
+                loadTensor(outputWeight),                                                                                 // wcls
                 outputWeight.ggmlType()                                                                                      // weightType
         );
     }

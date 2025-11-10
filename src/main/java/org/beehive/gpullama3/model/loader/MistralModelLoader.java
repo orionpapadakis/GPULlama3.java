@@ -75,20 +75,20 @@ public class MistralModelLoader extends AbstractModelLoader<Mistral, MistralConf
         final int nl = config.numberOfLayers();
 
         return new LlamaStandardWeights(
-                loadQuantized(tokenEmbeddings),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
-                loadQuantized(tensorEntries.get("output_norm.weight")),
+                loadTensor(tokenEmbeddings),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
+                loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
+                loadTensor(tensorEntries.get("output_norm.weight")),
                 new ArrayFloatTensor(ropeFreqs.first()),
                 new ArrayFloatTensor(ropeFreqs.second()),
-                loadQuantized(outputWeight),
+                loadTensor(outputWeight),
                 outputWeight.ggmlType());
     }
 
