@@ -15,8 +15,6 @@ import uk.ac.manchester.tornado.api.types.HalfFloat;
 import uk.ac.manchester.tornado.api.types.arrays.*;
 
 import java.io.IOException;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
@@ -43,8 +41,6 @@ public abstract class ModelLoader {
 
     private static ModelType detectModelType(Map<String, Object> metadata) {
         String name = (String) metadata.get("general.name");
-        String tokenizerModel = (String) metadata.get("tokenizer.ggml.model");
-        Integer vocabSize = (Integer) metadata.get("llama.vocab_size");
 
         // Check by name first
         if (name != null) {
@@ -133,7 +129,7 @@ public abstract class ModelLoader {
         return switch (ggmlType) {
             case F32 -> new FP32TornadoTensor(size, entry.memorySegment());
             case F16 -> new FP16TornadoTensor(size, entry.memorySegment());
-            case Q8_0 -> loadQ8_0QuantizedTensor(entry);
+            case Q8_0 -> Q8_0TornadoTensor.create(entry);
             case Q4_0 -> throw new UnsupportedOperationException("Q4 format not supported yet");
             default -> throw new UnsupportedOperationException("Quantization format " + ggmlType);
         };
@@ -181,6 +177,8 @@ public abstract class ModelLoader {
         return array;
     }
 
+    // Helper methods
+
     public static FloatArray[] loadArrayAsFloatArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         FloatArray[] array = new FloatArray[size];
         for (int i = 0; i < size; i++) {
@@ -188,7 +186,6 @@ public abstract class ModelLoader {
         }
         return array;
     }
-    //@formatter:on
 
     public static HalfFloatArray[] loadArrayAsHalfFloatArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         HalfFloatArray[] array = new HalfFloatArray[size];
@@ -198,15 +195,13 @@ public abstract class ModelLoader {
         return array;
     }
 
-    public static Q8_0TornadoTensor[] loadArrayAsQ8_0QuantizedTensor(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+    public static Q8_0TornadoTensor[] loadArrayAsQ8_0TornadoTensor(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         Q8_0TornadoTensor[] array = new Q8_0TornadoTensor[size];
         for (int i = 0; i < size; i++) {
-            array[i] = loadQ8_0QuantizedTensor(getTensorEntry.apply(i));
+            array[i] = Q8_0TornadoTensor.create(getTensorEntry.apply(i));
         }
         return array;
     }
-
-    //@formatter:off
 
     public static FloatArray floatBufferToFloatArray(GGMLTensorEntry tensorEntry) {
         if (tensorEntry.ggmlType() == GGMLType.F32) {
@@ -216,7 +211,6 @@ public abstract class ModelLoader {
             throw new UnsupportedOperationException("Conversion to FloatArray from " + tensorEntry.ggmlType());
         }
     }
-    //@formatter:on
 
     public static FloatArray[] loadArrayAsFloatArrayFromBuffer(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         FloatArray[] array = new FloatArray[size];
@@ -267,50 +261,6 @@ public abstract class ModelLoader {
         }
     }
 
-    // TODO: rename to loadQ8_0Tensor
-    // move to a utils class
-    public static Q8_0TornadoTensor loadQ8_0QuantizedTensor(GGMLTensorEntry entry) {
-        if (entry.ggmlType() != GGMLType.Q8_0) {
-            throw new IllegalArgumentException("Expected Q8_0 tensor, got: " + entry.ggmlType() + " for tensor: " + entry.name());
-        }
-
-        int[] shape = entry.shape();
-        int size = FloatTensor.numberOfElements(shape);
-        int numBlocks = size / GGMLType.Q8_0.getBlockSize();
-
-        if (size % GGMLType.Q8_0.getBlockSize() != 0) {
-            throw new IllegalArgumentException("Q8_0 tensor size must be multiple of " + GGMLType.Q8_0.getBlockSize() + ", got: " + size + " for tensor: " + entry.name());
-        }
-
-        MemorySegment q8Segment = entry.memorySegment();
-
-        // allocate the arrays for quantized data (int8) and scales (fp16)
-        HalfFloatArray scales = new HalfFloatArray(numBlocks);
-        Int8Array quants = new Int8Array(size);
-
-        // unpack Q8_0 blocks: [2 bytes fp16 scale][32 bytes int8 quants]
-        ValueLayout.OfShort shortLayout = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
-        ValueLayout.OfByte byteLayout = ValueLayout.JAVA_BYTE;
-
-        for (int block = 0; block < numBlocks; block++) {
-            // TODO: use GGML type method for the 34L size
-            long blockOffset = block * 34L;  // 34 bytes per block
-
-            // read fp16 scale (first 2 bytes of block)
-            short scaleRaw = q8Segment.get(shortLayout, blockOffset);
-            scales.set(block, new HalfFloat(scaleRaw));
-
-            // read 32 int8 quantized values (remaining bytes of block)
-            // TODO: use GGML type method for the 32 size
-            for (int i = 0; i < 32; i++) {
-                byte quantValue = q8Segment.get(byteLayout, blockOffset + 2 + i);
-                quants.set(block * 32 + i, quantValue);
-            }
-        }
-
-        return new Q8_0TornadoTensor(size, scales, quants, q8Segment);
-    }
-
     public static FloatBuffer[] loadArrayOfFloatBuffer(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         FloatBuffer[] array = new FloatBuffer[size];
         for (int i = 0; i < size; i++) {
@@ -325,23 +275,6 @@ public abstract class ModelLoader {
             case F32 -> tensorEntry.memorySegment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
             default -> throw new UnsupportedOperationException("Conversion to " + ggmlType);
         };
-    }
-
-    public abstract Model loadModel();
-
-    // Helper class to encapsulate RoPE configuration parameters
-    private static class RopeConfig {
-        final float scaleFactor;
-        final float loFreqFactor;
-        final float hiFreqFactor;
-        final int oldContextLength;
-
-        RopeConfig(float scaleFactor, float loFreqFactor, float hiFreqFactor, int oldContextLength) {
-            this.scaleFactor = scaleFactor;
-            this.loFreqFactor = loFreqFactor;
-            this.hiFreqFactor = hiFreqFactor;
-            this.oldContextLength = oldContextLength;
-        }
     }
 
 }
