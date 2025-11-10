@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 
 import org.beehive.gpullama3.inference.state.Qwen3State;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Qwen3TornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.Qwen3TornadoWeights;
 import org.beehive.gpullama3.model.qwen3.Qwen3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.Qwen3Kernels;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
@@ -48,7 +48,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
     private final int nEmbdGqa;
     private final int gqa;
 
-    public Qwen3Q8_0FFNLayers(String taskGraphName, Qwen3State state, Qwen3TornadoWeightsQ8_0 weights, Qwen3Configuration config) {
+    public Qwen3Q8_0FFNLayers(String taskGraphName, Qwen3State state, Qwen3TornadoWeights weights, Qwen3Configuration config) {
         super(taskGraphName, state, weights, config);
         this.qwen3State = state;
         this.qwen3Config = config;
@@ -142,7 +142,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
         qwen3State.tempKcur.init(0.0f);
 
         for (int layerIndex = 0; layerIndex < qwen3Config.numberOfLayers(); layerIndex++) {
-            TaskGraph ffnLayer = setupSingleQwen3FFNLayer((Qwen3TornadoWeightsQ8_0) weights, layerIndex);
+            TaskGraph ffnLayer = setupSingleQwen3FFNLayer((Qwen3TornadoWeights) weights, layerIndex);
             if (layerIndex == qwen3Config.numberOfLayers() - 1) {
                 setupLastID(ffnLayer.getTaskGraphName());
             }
@@ -154,14 +154,14 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
     /**
      * Setup a single transformer layer for Qwen3 with GQA (Q8_0 quantized)
      */
-    TaskGraph setupSingleQwen3FFNLayer(Qwen3TornadoWeightsQ8_0 weights, int layerIndex) {
+    TaskGraph setupSingleQwen3FFNLayer(Qwen3TornadoWeights weights, int layerIndex) {
 
         var unifiedLayerName = "layer_" + layerIndex;
         TaskGraph unifiedLayer = new TaskGraph(unifiedLayerName);
         unifiedLayer.consumeFromDevice(qwen3State.wrapX);
         // Transfer Q8_0 weights for this layer (quants and scales)
         unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
-                weights.rms_att_weightLayered[layerIndex], //
+                weights.rms_att_weightLayered[layerIndex].asFloatArray(), //
                 weights.wqLayered[layerIndex].getQuants(), //
                 weights.wqLayered[layerIndex].getScales(), //
                 weights.wkLayered[layerIndex].getQuants(), //
@@ -170,9 +170,9 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
                 weights.wvLayered[layerIndex].getScales(),//
                 weights.woLayered[layerIndex].getQuants(),//
                 weights.woLayered[layerIndex].getScales(),//
-                weights.rms_att_KNormLayered[layerIndex], //
-                weights.rms_att_QNormLayered[layerIndex],//
-                weights.rms_ffn_weightLayered[layerIndex], //
+                weights.rms_att_KNormLayered[layerIndex].asFloatArray(), //
+                weights.rms_att_QNormLayered[layerIndex].asFloatArray(),//
+                weights.rms_ffn_weightLayered[layerIndex].asFloatArray(), //
                 weights.w1Layered[layerIndex].getQuants(), //
                 weights.w1Layered[layerIndex].getScales(), //
                 weights.w2Layered[layerIndex].getQuants(), //
@@ -190,7 +190,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
                 context, qwen3State.temp, qwen3State.wrapX, config.dim(), config.rmsNormEps(), qwen3State.localSize)
                 .task("mapContext",
                         TransformerComputeKernelsLayered::reductionOneBlock2WithLayer,
-                        context, qwen3State.wrapXb, qwen3State.wrapX, weights.rms_att_weightLayered[layerIndex], qwen3State.temp);
+                        context, qwen3State.wrapXb, qwen3State.wrapX, weights.rms_att_weightLayered[layerIndex].asFloatArray(), qwen3State.temp);
 
         // QKV projections with Qwen3 GQA dimensions
         // Q8_0 weights pass both quants and scales
@@ -221,7 +221,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
                 context, qwen3State.tempQcur, qwen3State.wrapQ, qwen3State.localSize, nEmbdHead, config.rmsNormEps())
                 .task("rmsnormMapIndexInPlace_Qcur",
                         Qwen3Kernels::rmsnormMapIndexInPlaceWithParallelOffset,
-                        context, qwen3State.wrapQ, weights.rms_att_QNormLayered[layerIndex], nEmbdHead, qwen3State.tempQcur);
+                        context, qwen3State.wrapQ, weights.rms_att_QNormLayered[layerIndex].asFloatArray(), nEmbdHead, qwen3State.tempQcur);
 
         // Kcur: RMS norm with parallel offset for Key
         unifiedLayer.task("rmsnormReduction_Kcur",
@@ -229,7 +229,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
                 context, qwen3State.tempKcur, qwen3State.wrapK, qwen3State.localSize, nEmbdHead, config.rmsNormEps())
                 .task("rmsnormMapIndexInPlace_Kcur",
                         Qwen3Kernels::rmsnormMapIndexInPlaceWithParallelOffset,
-                        context, qwen3State.wrapK, weights.rms_att_KNormLayered[layerIndex], nEmbdHead, qwen3State.tempKcur);
+                        context, qwen3State.wrapK, weights.rms_att_KNormLayered[layerIndex].asFloatArray(), nEmbdHead, qwen3State.tempKcur);
 
         // RoPE rotation (Qwen3 variant)
         unifiedLayer.task("ropeRotation",
@@ -264,7 +264,7 @@ public class Qwen3Q8_0FFNLayers extends AbstractFFNLayers {
                 context, qwen3State.tempFFN, qwen3State.wrapX, config.dim(), config.rmsNormEps(), qwen3State.localSize)
                 .task("mapContextFFN",
                         TransformerComputeKernelsLayered::reductionOneBlock2WithLayer,
-                        context, qwen3State.wrapXb, qwen3State.wrapX, weights.rms_ffn_weightLayered[layerIndex], qwen3State.tempFFN);
+                        context, qwen3State.wrapXb, qwen3State.wrapX, weights.rms_ffn_weightLayered[layerIndex].asFloatArray(), qwen3State.tempFFN);
 
         // Fused FFN: w1(x) ⊗ w3(x) with SiLU activation (Q8_0 weights)
         unifiedLayer.task("fused_ffn_w1_w3",

@@ -132,20 +132,14 @@ public abstract class ModelLoader {
      *
      * TODO: fix this to follow loadQuantized logic
      */
-    public static FloatTensor loadTornadoTensor(GGMLTensorEntry entry) {
+    public static TornadoTensor loadTornadoTensor(GGMLTensorEntry entry) {
         GGMLType ggmlType = entry.ggmlType();
         int size = FloatTensor.numberOfElements(entry.shape());
         return switch (ggmlType) {
-//            case F32 -> new F32QuantizedTensor(size, entry.memorySegment());
+            case F32 -> new F32QuantizedTensor(size, entry.memorySegment());
+            case F16 -> new F16QuantizedTensor(size, entry.memorySegment());
             case Q8_0 -> loadQ8_0QuantizedTensor(entry);
-//            case Q4_0 -> throw new UnsupportedOperationException("Not yet implemented");
-//            //FloatTensor.numberOfElements(entry.shape()), entry.memorySegment()
-//            case F16 -> new F16QuantizedTensor(size, entry.memorySegment());
-//            /*{
-//                HalfFloatArray array = new HalfFloatArray();
-//                array.getSegment().copyFrom(entry.memorySegment());
-//                // or array.getSegmentWithHeader() ?
-//            }*/
+            case Q4_0 -> throw new UnsupportedOperationException("Q4 format not supported yet");
             default -> throw new UnsupportedOperationException("Quantization format " + ggmlType);
         };
     }
@@ -154,10 +148,40 @@ public abstract class ModelLoader {
      * Dispatcher method for loading a TornadoVM tensor array based on type.
      * Used in GPU-path.
      */
-    public static FloatTensor[] loadTornadoTensorArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
-        FloatTensor[] array = new FloatTensor[size];
+    public static TornadoTensor[] loadArrayOfTornadoTensors(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+        TornadoTensor[] array = new TornadoTensor[size];
         for (int i = 0; i < size; i++) {
             array[i] = loadTornadoTensor(getTensorEntry.apply(i));
+        }
+        return array;
+    }
+
+    /**
+     * Load a tensor and ensure it's F32 (FloatArray).
+     * Used for embeddings and normalization weights that must always be F32.
+     */
+    public static TornadoTensor loadTornadoTensorAsF32(GGMLTensorEntry entry) {
+        // If already F32, load directly
+        if (entry.ggmlType() == GGMLType.F32) {
+            return new F32QuantizedTensor(
+                    FloatTensor.numberOfElements(entry.shape()),
+                    entry.memorySegment()
+            );
+        }
+
+        // Otherwise, dequantize to F32
+        FloatArray floatArray = loadTensorAsFloatArray(entry);
+        return new F32QuantizedTensor(floatArray);
+    }
+
+    /**
+     * Load array of tensors as F32.
+     * Used for normalization weight arrays.
+     */
+    public static TornadoTensor[] loadArrayOfTornadoTensorsAsF32(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+        TornadoTensor[] array = new TornadoTensor[size];
+        for (int i = 0; i < size; i++) {
+            array[i] = loadTornadoTensorAsF32(getTensorEntry.apply(i));
         }
         return array;
     }

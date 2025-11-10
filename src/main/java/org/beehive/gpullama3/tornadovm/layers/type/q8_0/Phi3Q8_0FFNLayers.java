@@ -1,21 +1,15 @@
 package org.beehive.gpullama3.tornadovm.layers.type.q8_0;
 
 import org.beehive.gpullama3.inference.state.Phi3State;
-import org.beehive.gpullama3.inference.state.State;
-import org.beehive.gpullama3.inference.weights.Weights;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.Phi3TornadoWeightsQ8_0;
-import org.beehive.gpullama3.model.Configuration;
+import org.beehive.gpullama3.inference.weights.tornado.Phi3TornadoWeights;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
 import org.beehive.gpullama3.tornadovm.layers.AbstractFFNLayers;
-import org.beehive.gpullama3.tornadovm.layers.AbstractLayer;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
 import uk.ac.manchester.tornado.api.WorkerGrid;
-import uk.ac.manchester.tornado.api.WorkerGrid1D;
-import uk.ac.manchester.tornado.api.WorkerGrid2D;
 import uk.ac.manchester.tornado.api.enums.DataTransferMode;
 
 import java.util.ArrayList;
@@ -46,7 +40,7 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
     // Phi3-specific dimension for combined QKV buffer
     private final int opSize;
 
-    public Phi3Q8_0FFNLayers(String taskGraphName, Phi3State state, Phi3TornadoWeightsQ8_0 weights, Phi3Configuration config) {
+    public Phi3Q8_0FFNLayers(String taskGraphName, Phi3State state, Phi3TornadoWeights weights, Phi3Configuration config) {
         super(taskGraphName, state, weights, config);
         this.phi3State = state;
         this.phi3Config = config;
@@ -122,7 +116,7 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
         phi3State.tempFFN.init(0.0f);
 
         for (int layerIndex = 0; layerIndex < phi3Config.numberOfLayers(); layerIndex++) {
-            TaskGraph ffnLayer = setupSinglePhi3Q8_0FFNLayer((Phi3TornadoWeightsQ8_0) weights, layerIndex);
+            TaskGraph ffnLayer = setupSinglePhi3Q8_0FFNLayer((Phi3TornadoWeights) weights, layerIndex);
             if (layerIndex == phi3Config.numberOfLayers() - 1) {
                 setupLastID(ffnLayer.getTaskGraphName());
             }
@@ -135,18 +129,18 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
     /**
      * Setup a single transformer layer for Phi3 with Q8_0 quantization, combined QKV and gate/up FFN
      */
-    TaskGraph setupSinglePhi3Q8_0FFNLayer(Phi3TornadoWeightsQ8_0 weights, int layerIndex) {
+    TaskGraph setupSinglePhi3Q8_0FFNLayer(Phi3TornadoWeights weights, int layerIndex) {
 
         TaskGraph unifiedLayer = new TaskGraph("layer_" + layerIndex);
         unifiedLayer.consumeFromDevice(phi3State.wrapX);
         unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
                 // Copy-in quantized weights per layer
-                weights.rms_att_weightLayered[layerIndex],
+                weights.rms_att_weightLayered[layerIndex].asFloatArray(),
                 weights.wqkvLayered[layerIndex].getQuants(),
                 weights.wqkvLayered[layerIndex].getScales(),
                 weights.woLayered[layerIndex].getQuants(),
                 weights.woLayered[layerIndex].getScales(),
-                weights.rms_ffn_weightLayered[layerIndex],
+                weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
                 weights.wUpLayered[layerIndex].getQuants(),
                 weights.wUpLayered[layerIndex].getScales(),
                 weights.wDownLayered[layerIndex].getQuants(),
@@ -168,7 +162,7 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
                         context,
                         phi3State.wrapXb,
                         phi3State.wrapX,
-                        weights.rms_att_weightLayered[layerIndex],
+                        weights.rms_att_weightLayered[layerIndex].asFloatArray(),
                         phi3State.temp);
 
         // Combined QKV projection (quantized)
@@ -255,7 +249,7 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
                         context,
                         phi3State.wrapXb,
                         phi3State.wrapX,
-                        weights.rms_ffn_weightLayered[layerIndex],
+                        weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
                         phi3State.tempFFN);
 
         // FFN: combined Up and Gate projection (outputs 2 * hiddenDim, quantized)

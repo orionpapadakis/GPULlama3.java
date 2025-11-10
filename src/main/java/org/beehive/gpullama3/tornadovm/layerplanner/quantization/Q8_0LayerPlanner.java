@@ -2,7 +2,7 @@ package org.beehive.gpullama3.tornadovm.layerplanner.quantization;
 
 import org.beehive.gpullama3.core.model.GGMLType;
 import org.beehive.gpullama3.inference.state.State;
-import org.beehive.gpullama3.inference.weights.tornado.q8_0.LlamaTornadoWeightsQ8_0;
+import org.beehive.gpullama3.inference.weights.tornado.TornadoWeights;
 import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.tornadovm.layerplanner.base.QuantizedLayerPlanner;
@@ -23,7 +23,7 @@ import java.util.List;
  * Q8_0 Specific: - Uses 8-bit integer quantization with uniform scaling per 32-element block - Weights: weights.xxxByteArray arrays - Compute: dequantize on-the-fly during matmul - Memory: 2x
  * compression vs FP16
  */
-public abstract class Q8_0LayerPlanner<S extends State, C extends Configuration, W extends LlamaTornadoWeightsQ8_0> extends QuantizedLayerPlanner<S, C, W> {
+public abstract class Q8_0LayerPlanner<S extends State, C extends Configuration, W extends TornadoWeights> extends QuantizedLayerPlanner<S, C, W> {
 
     protected Activation activationLayer;
     protected AbstractFFNLayers ffnLayers;

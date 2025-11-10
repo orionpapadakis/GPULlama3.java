@@ -10,7 +10,7 @@ public class Phi3TornadoWeights extends TornadoWeights {
     public TornadoTensor[] wDownLayered;   // hf - FFN down projection: (layer, dim, hidden_dim)
     public TornadoTensor[] wUpLayered;     // hf - FFN up projection: (layer, hidden_dim, dim)
 
-    protected Phi3TornadoWeights(
+    public Phi3TornadoWeights(
             TornadoTensor tokenEmbeddingTable,
             TornadoTensor[] rms_att_weightLayered,
             TornadoTensor[] wqkvLayered,        // Combined QKV weights for Phi3
