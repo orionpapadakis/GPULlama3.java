@@ -11,9 +11,9 @@ import org.beehive.gpullama3.model.loader.ModelLoader;
  * <p>
  * Notes:
  * <ul>
- *     {@link TornadoWeights#tokenEmbeddingTable} should always be loaded as F32 see {@link ModelLoader#loadTornadoTensorAsF32}.
- *     {@link TornadoWeights#rms_ffn_weightLayered} should always be loaded as F32 see {@link ModelLoader#loadTornadoTensorAsF32}.
- *     {@link TornadoWeights#rms_final_weight_as_floatArray} should always be loaded as F32 see {@link ModelLoader#loadTornadoTensorAsF32}.
+ *     {@link TornadoWeights#tokenEmbeddingTable} should always be loaded as F32 see {@link ModelLoader#loadTornadoTensorAsFP32}.
+ *     {@link TornadoWeights#rms_ffn_weightLayered} should always be loaded as F32 see {@link ModelLoader#loadTornadoTensorAsFP32}.
+ *     {@link TornadoWeights#rms_final_weight_as_floatArray} should always be loaded as F32 see {@link ModelLoader#loadTornadoTensorAsFP32}.
  * </ul>
  * </p>
  */

@@ -155,10 +155,10 @@ public abstract class ModelLoader {
     }
 
     /**
-     * Load a tensor and ensure it's F32 (FloatArray).
-     * Used for embeddings and normalization weights that must always be F32.
+     * Load a tensor and ensure it's FP32 (FloatArray).
+     * Used for embeddings and normalization weights that must always be FP32.
      */
-    public static TornadoTensor loadTornadoTensorAsF32(GGMLTensorEntry entry) {
+    public static TornadoTensor loadTornadoTensorAsFP32(GGMLTensorEntry entry) {
         // If already F32, load directly
         if (entry.ggmlType() == GGMLType.F32) {
             return new FP32TornadoTensor(
@@ -173,13 +173,13 @@ public abstract class ModelLoader {
     }
 
     /**
-     * Load array of tensors as F32.
+     * Load array of tensors as FP32.
      * Used for normalization weight arrays.
      */
-    public static TornadoTensor[] loadArrayOfTornadoTensorsAsF32(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
+    public static TornadoTensor[] loadArrayOfTornadoTensorsAsFP32(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
         TornadoTensor[] array = new TornadoTensor[size];
         for (int i = 0; i < size; i++) {
-            array[i] = loadTornadoTensorAsF32(getTensorEntry.apply(i));
+            array[i] = loadTornadoTensorAsFP32(getTensorEntry.apply(i));
         }
         return array;
     }
