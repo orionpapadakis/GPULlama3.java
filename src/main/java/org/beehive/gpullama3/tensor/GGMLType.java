@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.core.model;
+package org.beehive.gpullama3.tensor;
 
 public enum GGMLType {
     // Floating point types

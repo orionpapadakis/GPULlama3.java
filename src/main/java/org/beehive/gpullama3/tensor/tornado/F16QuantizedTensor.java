@@ -1,8 +1,6 @@
-package org.beehive.gpullama3.core.model.tensor;
+package org.beehive.gpullama3.tensor.tornado;
 
-import jdk.incubator.vector.FloatVector;
-import jdk.incubator.vector.VectorSpecies;
-import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.tensor.GGMLType;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 
 import java.lang.foreign.MemorySegment;

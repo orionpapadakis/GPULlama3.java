@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.inference.weights.tornado;
 
-import org.beehive.gpullama3.core.model.GGMLType;
-import org.beehive.gpullama3.core.model.tensor.TornadoTensor;
+import org.beehive.gpullama3.tensor.GGMLType;
+import org.beehive.gpullama3.tensor.tornado.TornadoTensor;
 
 public class Qwen3TornadoWeights extends TornadoWeights {
     // Qwen3-specific fields

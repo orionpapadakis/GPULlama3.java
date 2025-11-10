@@ -1,6 +1,4 @@
-package org.beehive.gpullama3.core.model.tensor;
-
-import org.beehive.gpullama3.core.model.GGMLType;
+package org.beehive.gpullama3.tensor;
 
 import java.lang.foreign.MemorySegment;
 

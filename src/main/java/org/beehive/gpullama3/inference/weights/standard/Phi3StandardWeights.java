@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.inference.weights.standard;
 
-import org.beehive.gpullama3.core.model.GGMLType;
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
+import org.beehive.gpullama3.tensor.GGMLType;
+import org.beehive.gpullama3.tensor.standard.FloatTensor;
 
 public class Phi3StandardWeights extends StandardWeights {
 

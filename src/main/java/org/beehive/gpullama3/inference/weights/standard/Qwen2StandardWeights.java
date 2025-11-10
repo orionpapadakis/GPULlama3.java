@@ -1,9 +1,8 @@
 package org.beehive.gpullama3.inference.weights.standard;
 
-import org.beehive.gpullama3.core.model.GGMLType;
-import org.beehive.gpullama3.core.model.tensor.ArrayFloatTensor;
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
-import org.beehive.gpullama3.inference.weights.Weights;
+import org.beehive.gpullama3.tensor.GGMLType;
+import org.beehive.gpullama3.tensor.standard.ArrayFloatTensor;
+import org.beehive.gpullama3.tensor.standard.FloatTensor;
 
 public class Qwen2StandardWeights extends StandardWeights {
     // Qwen2-specific weights

@@ -1,18 +1,16 @@
 package org.beehive.gpullama3.model.loader;
 
 import org.beehive.gpullama3.Options;
-import org.beehive.gpullama3.core.model.GGMLType;
-import org.beehive.gpullama3.core.model.GGUF;
-import org.beehive.gpullama3.core.model.tensor.*;
-import org.beehive.gpullama3.core.model.tensor.F16FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.F32FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
-import org.beehive.gpullama3.core.model.tensor.Q4_0FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.Q8_0FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.Q8_0QuantizedTensor;
+import org.beehive.gpullama3.tensor.GGMLType;
+import org.beehive.gpullama3.tensor.GGUF;
+import org.beehive.gpullama3.tensor.*;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.model.ModelType;
+import org.beehive.gpullama3.tensor.standard.*;
+import org.beehive.gpullama3.tensor.tornado.F16QuantizedTensor;
+import org.beehive.gpullama3.tensor.tornado.F32QuantizedTensor;
+import org.beehive.gpullama3.tensor.tornado.Q8_0QuantizedTensor;
+import org.beehive.gpullama3.tensor.tornado.TornadoTensor;
 import uk.ac.manchester.tornado.api.types.HalfFloat;
 import uk.ac.manchester.tornado.api.types.arrays.*;
 

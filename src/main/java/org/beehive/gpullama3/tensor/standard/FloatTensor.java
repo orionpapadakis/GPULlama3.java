@@ -1,7 +1,7 @@
-package org.beehive.gpullama3.core.model.tensor;
+package org.beehive.gpullama3.tensor.standard;
 
 import org.beehive.gpullama3.auxiliary.Parallel;
-import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.tensor.GGMLType;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;

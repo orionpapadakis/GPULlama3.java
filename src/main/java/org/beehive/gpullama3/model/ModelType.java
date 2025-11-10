@@ -1,6 +1,6 @@
 package org.beehive.gpullama3.model;
 
-import org.beehive.gpullama3.core.model.GGUF;
+import org.beehive.gpullama3.tensor.GGUF;
 import org.beehive.gpullama3.model.loader.LlamaModelLoader;
 import org.beehive.gpullama3.model.loader.MistralModelLoader;
 import org.beehive.gpullama3.model.loader.Phi3ModelLoader;

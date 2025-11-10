@@ -1,8 +1,6 @@
-package org.beehive.gpullama3.core.model;
+package org.beehive.gpullama3.tensor;
 
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
-import org.beehive.gpullama3.core.model.tensor.GGMLTensorEntry;
-import org.beehive.gpullama3.core.types.MetadataValueType;
+import org.beehive.gpullama3.tensor.standard.FloatTensor;
 import org.beehive.gpullama3.auxiliary.Pair;
 
 import java.io.FileNotFoundException;

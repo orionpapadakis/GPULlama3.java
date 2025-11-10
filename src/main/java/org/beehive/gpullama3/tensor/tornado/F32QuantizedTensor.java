@@ -1,6 +1,6 @@
-package org.beehive.gpullama3.core.model.tensor;
+package org.beehive.gpullama3.tensor.tornado;
 
-import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.tensor.GGMLType;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 import java.lang.foreign.MemorySegment;

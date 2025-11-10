@@ -1,8 +1,8 @@
-package org.beehive.gpullama3.core.model.tensor;
+package org.beehive.gpullama3.tensor.standard;
 
 import org.beehive.gpullama3.LlamaApp;
-import org.beehive.gpullama3.core.model.GGMLType;
-import org.beehive.gpullama3.core.types.Float16;
+import org.beehive.gpullama3.tensor.GGMLType;
+import org.beehive.gpullama3.tensor.Float16;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;

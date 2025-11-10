@@ -1,6 +1,6 @@
 package org.beehive.gpullama3.tornadovm.layerplanner.base;
 
-import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.tensor.GGMLType;
 import org.beehive.gpullama3.inference.state.LlamaState;
 import org.beehive.gpullama3.inference.state.Phi3State;
 import org.beehive.gpullama3.inference.state.Qwen2State;

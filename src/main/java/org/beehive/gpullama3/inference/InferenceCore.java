@@ -1,7 +1,7 @@
 package org.beehive.gpullama3.inference;
 
 import org.beehive.gpullama3.auxiliary.Parallel;
-import org.beehive.gpullama3.core.model.tensor.FloatTensor;
+import org.beehive.gpullama3.tensor.standard.FloatTensor;
 import org.beehive.gpullama3.inference.state.Phi3State;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.standard.Phi3StandardWeights;

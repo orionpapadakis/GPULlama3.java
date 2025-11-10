@@ -1,15 +1,12 @@
-package org.beehive.gpullama3.core.model.tensor;
+package org.beehive.gpullama3.tensor.tornado;
 
-import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
-import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
-import org.beehive.gpullama3.core.model.GGMLType;
+import org.beehive.gpullama3.tensor.GGMLType;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
 
 import java.lang.foreign.MemorySegment;
-import java.nio.ByteOrder;
 
 public class Q8_0QuantizedTensor extends TornadoTensor {
 

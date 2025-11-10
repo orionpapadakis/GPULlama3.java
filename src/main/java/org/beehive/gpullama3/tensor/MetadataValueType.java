@@ -1,4 +1,4 @@
-package org.beehive.gpullama3.core.types;
+package org.beehive.gpullama3.tensor;
 
 public enum MetadataValueType {
     // The value is a 8-bit unsigned integer.
