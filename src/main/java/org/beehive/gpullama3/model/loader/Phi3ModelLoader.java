@@ -94,14 +94,16 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
         float[] ropeFreqsReal = ropeFreqs.first();
         float[] ropeFreqsImag = ropeFreqs.second();
 
+        final int nl = config.numberOfLayers();
+
         return new Phi3StandardWeights(
                 loadQuantized(tokenEmbeddings),                                                                               // token_embedding_table
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),    // rms_att_weight (as FloatTensor[])
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),     // wqkv (combined)
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),  // wo
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),     // rms_ffn_weight (as FloatTensor[])
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),     // wDown
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),       // wUp (separate, not combined)
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),    // rms_att_weight (as FloatTensor[])
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),     // wqkv (combined)
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),  // wo
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),     // rms_ffn_weight (as FloatTensor[])
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),     // wDown
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),       // wUp (separate, not combined)
                 loadQuantized(tensorEntries.get("output_norm.weight")),                                                      // rms_final_weight (as FloatTensor)
                 new ArrayFloatTensor(ropeFreqsReal),                                                                         // freq_cis_real
                 new ArrayFloatTensor(ropeFreqsImag),                                                                         // freq_cis_imag
@@ -124,15 +126,17 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
             throw new UnsupportedOperationException("Type: " + ggmlType + " currently not supported for TornadoVM weights.");
         }
 
+        final int nl = config.numberOfLayers();
+
         // Load all tensors uniformly as TornadoTensor hierarchy
         return new Phi3TornadoWeights(
                 loadTornadoTensorAsF32(tokenEmbeddings),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayOfTornadoTensorsAsF32(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
+                loadArrayOfTornadoTensorsAsF32(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
                 loadTornadoTensorAsF32(tensorEntries.get("output_norm.weight")),
                 new FP32TornadoTensor(FloatArray.fromArray(ropeFreqs.first())),
                 new FP32TornadoTensor(FloatArray.fromArray(ropeFreqs.second())),

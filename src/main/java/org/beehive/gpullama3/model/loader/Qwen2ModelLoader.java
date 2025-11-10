@@ -87,20 +87,23 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
     @Override
     protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
             GGMLTensorEntry outputWeight) {
+
+        final int nl = config.numberOfLayers();
+
         return new Qwen2StandardWeights(
                 loadQuantized(tokenEmbeddings),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.bias")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.bias")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.bias")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayOfQuantized(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_q.bias")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_k.bias")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_v.bias")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
+                loadArrayOfQuantized(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
                 loadQuantized(tensorEntries.get("output_norm.weight")),
                 new ArrayFloatTensor(ropeFreqs.first()),
                 new ArrayFloatTensor(ropeFreqs.second()),
@@ -123,22 +126,24 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
             throw new UnsupportedOperationException("Type: " + ggmlType + " currently not supported for TornadoVM weights.");
         }
 
+        final int nl = config.numberOfLayers();
+
         // Load all tensors uniformly as TornadoTensor hierarchy
         return new Qwen2TornadoWeights(
                 loadTornadoTensorAsF32(tokenEmbeddings),
-                loadArrayOfTornadoTensorsAsF32(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
+                loadArrayOfTornadoTensorsAsF32(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_q.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_k.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_v.weight")),
                 // Qwen2-specific: qkv bias (always F32)
-                loadArrayOfTornadoTensorsAsF32(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_q.bias")),
-                loadArrayOfTornadoTensorsAsF32(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_k.bias")),
-                loadArrayOfTornadoTensorsAsF32(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_v.bias")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
-                loadArrayOfTornadoTensorsAsF32(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
-                loadArrayOfTornadoTensors(config.numberOfLayers(), i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
+                loadArrayOfTornadoTensorsAsF32(nl, i -> tensorEntries.get("blk." + i + ".attn_q.bias")),
+                loadArrayOfTornadoTensorsAsF32(nl, i -> tensorEntries.get("blk." + i + ".attn_k.bias")),
+                loadArrayOfTornadoTensorsAsF32(nl, i -> tensorEntries.get("blk." + i + ".attn_v.bias")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),
+                loadArrayOfTornadoTensorsAsF32(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_gate.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),
+                loadArrayOfTornadoTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),
                 loadTornadoTensorAsF32(tensorEntries.get("output_norm.weight")),
                 new FP32TornadoTensor(FloatArray.fromArray(ropeFreqs.first())),
                 new FP32TornadoTensor(FloatArray.fromArray(ropeFreqs.second())),
