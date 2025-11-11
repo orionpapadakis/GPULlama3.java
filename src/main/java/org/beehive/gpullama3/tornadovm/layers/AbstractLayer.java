@@ -18,7 +18,7 @@ public abstract class AbstractLayer {
 
     /** Common constants used in tasks & worker-grid sizing. */
     protected static final int LOCAL_WORK_GROUP_SIZE_ALLOC = 32;
-    protected static final int THREAD_SCALE_FOR_LOGITS = 1;
+    protected static final int THREAD_SCALE_FOR_LOGITS = 8;
     protected static String lastTaskGraphID;
     protected final Weights weights;
     protected final Configuration config;
