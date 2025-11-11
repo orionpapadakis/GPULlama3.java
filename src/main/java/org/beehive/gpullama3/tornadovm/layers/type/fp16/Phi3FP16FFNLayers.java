@@ -5,6 +5,7 @@ import org.beehive.gpullama3.inference.weights.tornado.Phi3TornadoWeights;
 import org.beehive.gpullama3.model.phi3.Phi3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.tornadovm.layerplanner.WorkerGridFactory;
+import org.beehive.gpullama3.tornadovm.layerplanner.strategy.SchedulerType;
 import org.beehive.gpullama3.tornadovm.layers.AbstractFFNLayers;
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
@@ -42,8 +43,8 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
     // Phi3-specific dimension for combined QKV buffer
     private final int opSize;
 
-    public Phi3FP16FFNLayers(String taskGraphName, Phi3State state, Phi3TornadoWeights weights, Phi3Configuration config) {
-        super(taskGraphName, state, weights, config);
+    public Phi3FP16FFNLayers(String taskGraphName, Phi3State state, Phi3TornadoWeights weights, Phi3Configuration config, SchedulerType schedulerType) {
+        super(taskGraphName, state, weights, config,schedulerType);
         this.phi3State = state;
         this.phi3Config = config;
 
@@ -55,7 +56,6 @@ public class Phi3FP16FFNLayers extends AbstractFFNLayers {
         // Calculate opSize for combined QKV buffer
         // opSize = num_heads * head_dim + 2 * (num_key_value_heads * head_dim) = dim + 2 * kvDim
         this.opSize = config.dim() + 2 * (config.numberOfKeyValueHeads() * config.headSize());
-
         ffnLayerTaskGraphs = setupFFNLayered();
     }
 

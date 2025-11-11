@@ -3,6 +3,7 @@ package org.beehive.gpullama3.tornadovm.layers;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.Weights;
 import org.beehive.gpullama3.model.Configuration;
+import org.beehive.gpullama3.tornadovm.layerplanner.strategy.SchedulerType;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 
 import java.util.List;
@@ -20,6 +21,8 @@ import java.util.List;
 public abstract class AbstractFFNLayers extends AbstractLayer {
 
     protected String lastTaskGraphID;
+    protected final SchedulerType schedulerType;
+
 
     /**
      * Constructor for FFN layers.
@@ -33,8 +36,9 @@ public abstract class AbstractFFNLayers extends AbstractLayer {
      * @param config
      *         Model configuration
      */
-    protected AbstractFFNLayers(String taskGraphName, State state, Weights weights, Configuration config) {
+    protected AbstractFFNLayers(String taskGraphName, State state, Weights weights, Configuration config, SchedulerType schedulerType) {
         super(taskGraphName, state, weights, config);
+        this.schedulerType = schedulerType;
     }
 
     /**
@@ -59,11 +63,16 @@ public abstract class AbstractFFNLayers extends AbstractLayer {
     }
 
     /**
-     * Clear the last task graph ID.
+     * Configures the attention mechanism based on hardware scheduler type.
      *
-     * Used for resetting state if needed.
+     * - NVIDIA hardware: Uses Flash Attention for optimized performance
+     * - NON_NVIDIA hardware: Uses parallel head processing
+     *
+     * This method should be called during task graph setup in subclasses.
+     *
+     * @return true if final normalization step should be used (NON_NVIDIA), false otherwise
      */
-    public void clearLastTaskGraphID() {
-        lastTaskGraphID = null;
+    protected boolean shouldUseFinalNormalization() {
+        return schedulerType == SchedulerType.NON_NVIDIA;
     }
 }

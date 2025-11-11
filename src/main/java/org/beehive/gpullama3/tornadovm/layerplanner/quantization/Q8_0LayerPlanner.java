@@ -40,7 +40,6 @@ public abstract class Q8_0LayerPlanner<S extends State, C extends Configuration,
 
     @Override
     protected void validateQuantizationType() {
-        // Verify we have Q8_0 weights
         if (this.weights.getWeightType() != GGMLType.Q8_0) {
             throw new IllegalArgumentException("Q8_0LayerPlanner requires GGMLType.Q8_0, got: " + this.weights.getWeightType());
         }
