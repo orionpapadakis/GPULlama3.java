@@ -20,12 +20,10 @@ public class LlamaQ8_0FFNLayers extends AbstractFFNLayers {
 
     GridScheduler scheduler;
     List<ImmutableTaskGraph> ffnLayerTaskGraphs;
-    SchedulerType schedulerType;
 
     public LlamaQ8_0FFNLayers(String taskGraphName, LlamaState state, LlamaTornadoWeights weights, Configuration config, SchedulerType schedulerType) {
         super(taskGraphName, state, weights, config, schedulerType);
         ffnLayerTaskGraphs = setupFFNLayered();
-        this.schedulerType = schedulerType;
     }
 
     @Override

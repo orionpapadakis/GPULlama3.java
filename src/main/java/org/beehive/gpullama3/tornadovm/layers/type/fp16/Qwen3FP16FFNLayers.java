@@ -41,7 +41,6 @@ public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
     TaskGraph ffnLayerTaskGraph;
     GridScheduler scheduler;
     List<ImmutableTaskGraph> ffnLayerTaskGraphs;
-    private SchedulerType schedulerType;
 
     public Qwen3FP16FFNLayers(String taskGraphName, Qwen3State state, Qwen3TornadoWeights weights, Qwen3Configuration config, SchedulerType schedulerType) {
         super(taskGraphName, state, weights, config,schedulerType);
@@ -57,7 +56,6 @@ public class Qwen3FP16FFNLayers extends AbstractFFNLayers {
         this.nEmbdGqa = nEmbdVGqa;
         this.gqa = config.numberOfHeads() / config.numberOfKeyValueHeads();
         ffnLayerTaskGraphs = setupFFNLayered();
-        this.schedulerType = schedulerType;
     }
 
     @Override

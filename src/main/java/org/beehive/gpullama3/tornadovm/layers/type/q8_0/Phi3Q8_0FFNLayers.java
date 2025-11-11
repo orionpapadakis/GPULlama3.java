@@ -40,7 +40,6 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
 
     // Phi3-specific dimension for combined QKV buffer
     private final int opSize;
-    private SchedulerType schedulerType;
 
     public Phi3Q8_0FFNLayers(String taskGraphName, Phi3State state, Phi3TornadoWeights weights, Phi3Configuration config, SchedulerType schedulerType) {
         super(taskGraphName, state, weights, config, schedulerType);
@@ -48,7 +47,6 @@ public class Phi3Q8_0FFNLayers extends AbstractFFNLayers {
         this.phi3Config = config;
         this.opSize = config.dim() + 2 * (config.numberOfKeyValueHeads() * config.headSize());
         ffnLayerTaskGraphs = setupFFNLayered();
-        this.schedulerType = schedulerType;
     }
 
     @Override
