@@ -1,0 +1,66 @@
+name: GPULlama3 Build & Run
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+jobs:
+  build-and-run:
+    runs-on: self-hosted
+    env:
+      # TornadoVM paths
+      TORNADO_ROOT: ${{ github.workspace }}/GPULlama3.java/external/tornadovm
+      TORNADO_SDK: ${{ github.workspace }}/GPULlama3.java/external/tornadovm/bin/sdk  # Keep this for make
+      # Java
+      JAVA_HOME: /opt/jenkins/jdks/graal-23.1.0/jdk-21.0.3
+    steps:
+      - name: Checkout GPULlama3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Clone TornadoVM explicitly
+        run: |
+          git clone --branch master https://github.com/beehive-lab/TornadoVM.git GPULlama3.java/external/tornadovm
+          cd GPULlama3.java/external/tornadovm
+          git pull origin master
+      - name: Verify Java
+        run: |
+          java -version
+          echo "JAVA_HOME=$JAVA_HOME"
+      - name: Set up Python 3
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Create Python venv
+        run: |
+          cd GPULlama3.java/external/tornadovm
+          python3 -m venv venv
+          source venv/bin/activate
+      - name: Build TornadoVM
+        run: |
+          cd GPULlama3.java/external/tornadovm
+          source venv/bin/activate
+          make  # Uses the initial TORNADO_SDK from env
+          
+          # After build, find and update TORNADO_SDK to the actual SDK location
+          TORNADO_SDK_DIR=$(ls -d dist/tornado-sdk/tornado-sdk-* | head -1)
+          FULL_TORNADO_SDK="${PWD}/${TORNADO_SDK_DIR}"
+          echo "TORNADO_SDK=${FULL_TORNADO_SDK}" >> $GITHUB_ENV
+          echo "Updated TORNADO_SDK to: ${FULL_TORNADO_SDK}"
+          
+          # Verify TornadoVM with the updated path
+          export TORNADO_SDK="${FULL_TORNADO_SDK}"
+          export PATH="${TORNADO_SDK}/bin:$JAVA_HOME/bin:$PATH"
+          tornado --devices
+      - name: Build GPULlama3
+        run: |
+          export PATH="${TORNADO_SDK}/bin:$JAVA_HOME/bin:$PATH"
+          echo "Using TORNADO_SDK: $TORNADO_SDK"
+          pwd
+          ls -l 
+          make
+      - name: Run llama-tornado test prompt
+        run: |
+          # export PATH="${TORNADO_SDK}/bin:$JAVA_HOME/bin:$PATH"
+          echo "Using TORNADO_SDK: $TORNADO_SDK"
+          ./llama-tornado --gpu --opencl --model /home/michalis/models/Llama-3.2-1B-Instruct-F16.gguf --prompt "Say hello"
