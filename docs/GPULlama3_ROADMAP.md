@@ -2,9 +2,9 @@
 
 - [Pending Merge] **LangChain4j integration**
 - [ ] **Additional quantization formats**
-  - [ ] Q8 
+  - [x] Q8 
   - [ ] Q4
-  - [ ] INT8 native support for GPUs
+  - [x] INT8 native support for GPUs
 - [ ] **Additional architectures and model format**
   - [x] Mistral/Mixtral models
   - [x] Qwen
@@ -20,5 +20,4 @@
 - [ ] **Performance optimizations**
   - [ ] Multi-GPU support
   - [X] Memory-efficient attention mechanisms
-  - [ ] More Kernel fusion improvements
-- [ ] **GraalVM Native Image**
+  - [x] More Kernel fusion improvements
