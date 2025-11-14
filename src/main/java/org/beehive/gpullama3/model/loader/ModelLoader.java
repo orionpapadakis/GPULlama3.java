@@ -165,18 +165,6 @@ public abstract class ModelLoader {
         return new FP32TornadoTensor(floatArray);
     }
 
-    /**
-     * Load array of tensors as FP32.
-     * Used for normalization weight arrays.
-     */
-    public static TornadoTensor[] loadArrayOfTornadoTensorsAsFP32(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
-        TornadoTensor[] array = new TornadoTensor[size];
-        for (int i = 0; i < size; i++) {
-            array[i] = loadTornadoTensorAsFP32(getTensorEntry.apply(i));
-        }
-        return array;
-    }
-
     // Helper methods
 
     public static FloatArray[] loadArrayAsFloatArray(int size, IntFunction<GGMLTensorEntry> getTensorEntry) {
