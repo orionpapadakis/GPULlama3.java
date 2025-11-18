@@ -57,12 +57,11 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
             // Step 3: Create configuration
             C config = createConfiguration(metadata);
 
-            // Step 4: Load weights (if requested)
-            Weights weights = null;
-            if (loadWeights) {
-                Map<String, GGMLTensorEntry> tensorEntries = GGUF.loadTensors(fileChannel, gguf.getTensorDataOffset(), gguf.getTensorInfos());
-                weights = loadWeights(tensorEntries, config);
-            }
+            // Step 4: Load tensor entries
+            Map<String, GGMLTensorEntry> tensorEntries = GGUF.loadTensors(fileChannel, gguf.getTensorDataOffset(), gguf.getTensorInfos());
+
+            // Step 4: Load weights
+            Weights weights = loadWeights(tensorEntries, config);
 
             // Step 5: Create and return model instance
             return createModel(config, tokenizer, weights);
