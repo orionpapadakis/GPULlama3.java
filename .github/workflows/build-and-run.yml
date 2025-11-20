@@ -40,10 +40,15 @@ jobs:
         run: |
           cd GPULlama3.java/external/tornadovm
           source venv/bin/activate
-          make  # Uses the initial TORNADO_SDK from env
+          
+          # Use a different Maven command to ensure the opencl-backend is used
+          ./mvnw -Pjdk21,opencl-backend -Dtornado.backend=opencl install
           
           # After build, find and update TORNADO_SDK to the actual SDK location
-          TORNADO_SDK_DIR=$(ls -d dist/tornado-sdk/tornado-sdk-* | head -1)
+          # Look for the OpenCL specific directory instead of tornado-sdk-*
+          TORNADO_SDK_DIR=$(ls -d dist/tornadovm-*-opencl-linux-amd64 | head -1)
+          
+          # The SDK might be one level deeper, depending on the structure, but we'll try this first.
           FULL_TORNADO_SDK="${PWD}/${TORNADO_SDK_DIR}"
           echo "TORNADO_SDK=${FULL_TORNADO_SDK}" >> $GITHUB_ENV
           echo "Updated TORNADO_SDK to: ${FULL_TORNADO_SDK}"
