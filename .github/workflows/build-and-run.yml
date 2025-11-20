@@ -41,14 +41,14 @@ jobs:
           cd GPULlama3.java/external/tornadovm
           source venv/bin/activate
           
-          # Use a different Maven command to ensure the opencl-backend is used
-          ./mvnw -Pjdk21,opencl-backend -Dtornado.backend=opencl install
+          # Use the target that explicitly selects the Graal JDK 21 profile.
+          make graal-jdk-21
           
-          # After build, find and update TORNADO_SDK to the actual SDK location
-          # Look for the OpenCL specific directory instead of tornado-sdk-*
+          # The subsequent path finding logic needs to be robust:
+          # Assuming the 'bin/compile' script correctly creates the SDK in a known location.
+          # Based on the previous successful log fragment, we'll search for the OpenCL SDK name.
           TORNADO_SDK_DIR=$(ls -d dist/tornadovm-*-opencl-linux-amd64 | head -1)
           
-          # The SDK might be one level deeper, depending on the structure, but we'll try this first.
           FULL_TORNADO_SDK="${PWD}/${TORNADO_SDK_DIR}"
           echo "TORNADO_SDK=${FULL_TORNADO_SDK}" >> $GITHUB_ENV
           echo "Updated TORNADO_SDK to: ${FULL_TORNADO_SDK}"
