@@ -61,6 +61,12 @@ jobs:
           make
       - name: Run llama-tornado test prompt
         run: |
-          # export PATH="${TORNADO_SDK}/bin:$JAVA_HOME/bin:$PATH"
+          # The TORNADO_SDK variable is available because it was updated via GITHUB_ENV
+          export PATH="${TORNADO_SDK}/bin:$JAVA_HOME/bin:$PATH"
           echo "Using TORNADO_SDK: $TORNADO_SDK"
           ./llama-tornado --gpu --opencl --model /home/michalis/models/Llama-3.2-1B-Instruct-F16.gguf --prompt "Say hello"
+      # - name: Run llama-tornado test prompt
+      #   run: |
+      #     # export PATH="${TORNADO_SDK}/bin:$JAVA_HOME/bin:$PATH"
+      #     echo "Using TORNADO_SDK: $TORNADO_SDK"
+      #     ./llama-tornado --gpu --opencl --model /home/michalis/models/Llama-3.2-1B-Instruct-F16.gguf --prompt "Say hello"
