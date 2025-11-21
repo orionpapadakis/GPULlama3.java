@@ -84,8 +84,7 @@ public abstract class ModelLoader {
 
     public static Model loadModel(Path ggufPath, int contextLength, boolean loadWeights, boolean useTornadovm) throws IOException {
         // initial load of metadata from gguf file
-        GGUF gguf = GGUF.loadModel(ggufPath);
-        FileChannel fileChannel = FileChannel.open(ggufPath, StandardOpenOption.READ);
+        GGUF gguf = GGUF.loadGGUFMetadata(ggufPath);
         // detect model type
         ModelType modelType = detectModelType(gguf.getMetadata());
         // model type-specific load

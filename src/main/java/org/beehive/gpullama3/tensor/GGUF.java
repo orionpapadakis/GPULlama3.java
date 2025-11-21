@@ -34,7 +34,7 @@ public final class GGUF {
     private Map<String, GGUFTensorInfo> tensorInfos;
     private long tensorDataOffset;
 
-    public static GGUF loadModel(Path modelPath) throws IOException {
+    public static GGUF loadGGUFMetadata(Path modelPath) throws IOException {
 
         // file existence check
         if (!Files.exists(modelPath)) {
