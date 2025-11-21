@@ -17,7 +17,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.nio.file.StandardOpenOption.READ;
+import static java.nio.file.StandardOpenOption.WRITE;
+
 public final class GGUF {
+    private static FileChannel fileChannel;
     private static final int GGUF_MAGIC = 0x46554747;
     private static final int DEFAULT_ALIGNMENT = 32; // must be a power of 2
     private static final List<Integer> SUPPORTED_GGUF_VERSIONS = List.of(2, 3);
@@ -41,9 +45,18 @@ public final class GGUF {
             throw new FileNotFoundException("Model file not found: " + modelPath);
         }
 
-        // second check to make sure that nothing goes wrong during model loading
-        try (FileChannel fileChannel = FileChannel.open(modelPath);
-        ) {
+        // Open file
+        try {
+            System.out.println("[GGUF] fileChannel = FileChannel.open(modelPath, READ, WRITE);");
+            fileChannel = FileChannel.open(modelPath, READ, WRITE);
+            // Ensure we start reading from the beginning of the file
+            fileChannel.position(0);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to open file channel for " + modelPath, e);
+        }
+
+        // Read and store the gguf metadata
+        try {
             GGUF gguf = new GGUF();
             // The header of the file.
             gguf.readHeader(fileChannel); // gguf_header_t header;

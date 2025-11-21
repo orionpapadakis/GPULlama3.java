@@ -88,7 +88,7 @@ public abstract class ModelLoader {
         // detect model type
         ModelType modelType = detectModelType(gguf.getMetadata());
         // model type-specific load
-        return modelType.loadModel(fileChannel, gguf, contextLength, loadWeights, useTornadovm);
+        return modelType.loadModel(gguf.getFileChannel(), gguf, contextLength, loadWeights, useTornadovm);
     }
 
     /**
