@@ -45,7 +45,32 @@ public final class GGUF {
         try (FileChannel fileChannel = FileChannel.open(modelPath);
         ) {
             GGUF gguf = new GGUF();
-            gguf.loadModelImpl(fileChannel);
+            // The header of the file.
+            gguf.readHeader(fileChannel); // gguf_header_t header;
+            // Tensor infos, which can be used to locate the tensor data.
+            // gguf_tensor_info_t tensor_infos[header.tensor_count];
+            this.tensorInfos = HashMap.newHashMap(gguf.tensorCount);
+            for (int i = 0; i < gguf.tensorCount; ++i) {
+                GGUF.GGUFTensorInfo ti = gguf.readTensorInfo(fileChannel);
+                assert !gguf.tensorInfos.containsKey(ti.name);
+                gguf.tensorInfos.put(ti.name, ti);
+            }
+            // Padding to the nearest multiple of `ALIGNMENT`.
+            // uint8_t _padding[ALIGNMENT - (sizeof(header + tensor_infos) % ALIGNMENT)];
+            long _padding = (gguf.getAlignment() - (fileChannel.position() % gguf.getAlignment())) % gguf.getAlignment();
+            fileChannel.position(fileChannel.position() + _padding);
+            // Tensor data.
+            //
+            // This is arbitrary binary data corresponding to the weights of the model. This data should be close
+            // or identical to the data in the original model file, but may be different due to quantization or
+            // other optimizations for inference. Any such deviations should be recorded in the metadata or as
+            // part of the architecture definition.
+            //
+            // Each tensor's data must be stored within this array, and located through its `tensor_infos` entry.
+            // The offset of each tensor's data must be a multiple of `ALIGNMENT`, and the space between tensors
+            // should be padded to `ALIGNMENT` bytes.
+            // uint8_t tensor_data[];
+            gguf.tensorDataOffset = fileChannel.position();
             return gguf;
         } catch (Exception e) {
             throw new RuntimeException("Unexpected error while loading GGUF model from " + modelPath, e);
@@ -76,35 +101,6 @@ public final class GGUF {
 
     public Map<String, Object> getMetadata() {
         return metadata;
-    }
-
-    private void loadModelImpl(FileChannel fileChannel) throws IOException {
-        // The header of the file.
-        readHeader(fileChannel); // gguf_header_t header;
-        // Tensor infos, which can be used to locate the tensor data.
-        // gguf_tensor_info_t tensor_infos[header.tensor_count];
-        this.tensorInfos = HashMap.newHashMap(tensorCount);
-        for (int i = 0; i < tensorCount; ++i) {
-            GGUF.GGUFTensorInfo ti = readTensorInfo(fileChannel);
-            assert !tensorInfos.containsKey(ti.name);
-            tensorInfos.put(ti.name, ti);
-        }
-        // Padding to the nearest multiple of `ALIGNMENT`.
-        // uint8_t _padding[ALIGNMENT - (sizeof(header + tensor_infos) % ALIGNMENT)];
-        long _padding = (getAlignment() - (fileChannel.position() % getAlignment())) % getAlignment();
-        fileChannel.position(fileChannel.position() + _padding);
-        // Tensor data.
-        //
-        // This is arbitrary binary data corresponding to the weights of the model. This data should be close
-        // or identical to the data in the original model file, but may be different due to quantization or
-        // other optimizations for inference. Any such deviations should be recorded in the metadata or as
-        // part of the architecture definition.
-        //
-        // Each tensor's data must be stored within this array, and located through its `tensor_infos` entry.
-        // The offset of each tensor's data must be a multiple of `ALIGNMENT`, and the space between tensors
-        // should be padded to `ALIGNMENT` bytes.
-        // uint8_t tensor_data[];
-        this.tensorDataOffset = fileChannel.position();
     }
 
     private GGMLType readGGMLType(FileChannel fileChannel) throws IOException {
