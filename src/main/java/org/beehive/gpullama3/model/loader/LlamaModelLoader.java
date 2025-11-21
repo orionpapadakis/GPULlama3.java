@@ -28,8 +28,8 @@ import static org.beehive.gpullama3.model.loader.ModelLoader.*;
 
 public class LlamaModelLoader extends AbstractModelLoader<Llama, LlamaConfiguration> {
 
-    public LlamaModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean loadWeights, boolean useTornadovm) {
-        super(fileChannel, gguf, contextLength, loadWeights, useTornadovm);
+    public LlamaModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean useTornadovm) {
+        super(fileChannel, gguf, contextLength, useTornadovm);
     }
 
     @Override

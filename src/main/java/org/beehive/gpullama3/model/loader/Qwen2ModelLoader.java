@@ -27,8 +27,8 @@ import static org.beehive.gpullama3.model.loader.ModelLoader.*;
 
 public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configuration> {
 
-    public Qwen2ModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean loadWeights, boolean useTornadovm) {
-        super(fileChannel, gguf, contextLength, loadWeights, useTornadovm);
+    public Qwen2ModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean useTornadovm) {
+        super(fileChannel, gguf, contextLength, useTornadovm);
     }
 
     @Override

@@ -26,16 +26,14 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
     protected final FileChannel fileChannel;
     protected final GGUF gguf;
     protected final int contextLength;
-    protected final boolean loadWeights;
     protected final boolean useTornadovm;
 
     protected Vocabulary vocabulary;
 
-    protected AbstractModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean loadWeights, boolean useTornadovm) {
+    protected AbstractModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean useTornadovm) {
         this.fileChannel = fileChannel;
         this.gguf = gguf;
         this.contextLength = contextLength;
-        this.loadWeights = loadWeights;
         this.useTornadovm = useTornadovm;
     }
 

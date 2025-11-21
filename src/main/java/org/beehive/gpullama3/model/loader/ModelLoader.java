@@ -79,10 +79,10 @@ public abstract class ModelLoader {
      *         if AOT loading is enabled but the preloaded model is unavailable
      */
     public static Model loadModel(Options options) throws IOException {
-        return ModelLoader.loadModel(options.modelPath(), options.maxTokens(), true, options.useTornadovm());
-    }
+        Path ggufPath = options.modelPath();
+        int contextLength = options.maxTokens();
+        boolean useTornadovm = options.useTornadovm();
 
-    public static Model loadModel(Path ggufPath, int contextLength, boolean loadWeights, boolean useTornadovm) throws IOException {
         // initial load of metadata from gguf file
         GGUF gguf = GGUF.loadGGUFMetadata(ggufPath);
         // detect model type

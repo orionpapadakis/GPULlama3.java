@@ -27,8 +27,8 @@ import static org.beehive.gpullama3.model.loader.ModelLoader.*;
 public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration> {
     private int modelContextLength;
 
-    public Phi3ModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean loadWeights, boolean useTornadovm) {
-        super(fileChannel, gguf, contextLength, loadWeights, useTornadovm);
+    public Phi3ModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean useTornadovm) {
+        super(fileChannel, gguf, contextLength, useTornadovm);
     }
 
     @Override

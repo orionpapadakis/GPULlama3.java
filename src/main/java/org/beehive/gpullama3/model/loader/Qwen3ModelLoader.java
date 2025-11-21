@@ -28,8 +28,8 @@ import static org.beehive.gpullama3.tokenizer.Vocabulary.loadQwen3Vocabulary;
 
 public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configuration> {
 
-    public Qwen3ModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean loadWeights, boolean useTornadovm) {
-        super(fileChannel, gguf, contextLength, loadWeights, useTornadovm);
+    public Qwen3ModelLoader(FileChannel fileChannel, GGUF gguf, int contextLength, boolean useTornadovm) {
+        super(fileChannel, gguf, contextLength, useTornadovm);
     }
 
     @Override
