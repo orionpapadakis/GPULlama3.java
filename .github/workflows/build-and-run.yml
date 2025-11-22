@@ -22,6 +22,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check code formatting (Spotless)
+        run: |
+          cd ${{ github.workspace }}
+          ./mvnw -T12C -Pspotless spotless:check
+          
       - name: Clone TornadoVM explicitly
         run: |
           git clone --depth 1 --branch master \
