@@ -33,20 +33,11 @@ jobs:
             https://github.com/beehive-lab/TornadoVM.git \
             GPULlama3.java/external/tornadovm
 
-      - name: Verify Java
+      - name: Set up Python venv for TornadoVM
         run: |
-          java -version
-          echo JAVA_HOME=$JAVA_HOME
-
-      - name: Set up Python 3
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Create Python venv
-        run: |
-          cd GPULlama3.java/external/tornadovm
-          python3 -m venv venv
+          python3 -m venv GPULlama3.java/external/tornadovm/venv
+          source GPULlama3.java/external/tornadovm/venv/bin/activate
+          python --version
 
       - name: Build TornadoVM
         run: |
