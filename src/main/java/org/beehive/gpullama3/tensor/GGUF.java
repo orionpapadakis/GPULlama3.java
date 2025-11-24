@@ -129,6 +129,65 @@ public final class GGUF {
         }
         return tensorEntries;
     }
+
+    /**
+     * Loads GGUF tensor data using a TornadoVM-compatible memory layout.
+     *
+     * <p>This method parses the GGUF tensor list and memory-maps each tensor
+     * in {@link TornadoNativeArray} layout directly from the underlying{@link FileChannel}.
+     * For compatibility with {@link TornadoNativeArray} layout, an additional header is required at
+     * the start of each tensor region. To satisfy this requirement, each tensor
+     * is mapped using {@link FileChannel.MapMode#PRIVATE} starting 16 bytes
+     * before the actual tensor position, providing a writable header region
+     * without modifying the underlying GGUF file.</p>
+     *
+     *
+     * @param fileChannel       the channel from which tensor storage is read
+     * @param tensorDataOffset  the absolute byte offset of the GGUF tensor-data section
+     * @param tensorInfos        metadata describing all GGUF tensors
+     *
+     * @return a map from tensor name to {@link GGMLTensorEntry} containing
+     *         TornadoVM-compatible memory segments for each tensor
+     *
+     * @throws IOException if memory mapping fails or the channel cannot be read
+     */
+    public static Map<String, GGMLTensorEntry> loadTensorsTornado(FileChannel fileChannel, long tensorDataOffset, Map<String, GGUFTensorInfo> tensorInfos) throws IOException {
+
+        Arena arena = Arena.ofAuto();
+        Map<String, GGMLTensorEntry> tensorEntries = HashMap.newHashMap(tensorInfos.size());
+
+        for (Map.Entry<String, GGUFTensorInfo> entry : tensorInfos.entrySet()) {
+            GGUFTensorInfo ti = entry.getValue();
+
+            // skip rope_freqs.weight (not required for inference)
+            if (ti.name().equals("rope_freqs.weight")) {
+                continue;
+            }
+
+            int numberOfElements = FloatTensor.numberOfElements(ti.dimensions());
+            int sizeInBytes = Math.toIntExact(ti.ggmlType().byteSizeFor(numberOfElements));
+
+            // absolute tensor offset - relative to start of the file
+            long mappingOffset = tensorDataOffset + ti.offset();
+
+            // create memory segment in TornadoVM NativeArray layout:
+            // TornadoNativeArray.ARRAY_HEADER (16-byte) + tensor data
+            long headerBytes = TornadoNativeArray.ARRAY_HEADER;
+
+            // start 16 bytes before the tensor position to include header space
+            long offset = mappingOffset - headerBytes;
+            long size = sizeInBytes + headerBytes;
+            MemorySegment memorySegment =
+                    fileChannel.map(FileChannel.MapMode.PRIVATE, offset, size, arena);
+
+            // zero out the 16-byte header
+            for (int i = 0; i < headerBytes; i++) {
+                memorySegment.set(ValueLayout.JAVA_BYTE, i, (byte) 0);
+            }
+
+            // store tornado-compatible segment
+            tensorEntries.put(ti.name(),
+                    new GGMLTensorEntry(memorySegment, ti.name(), ti.ggmlType(), ti.dimensions(), memorySegment));
         }
         return tensorEntries;
     }
