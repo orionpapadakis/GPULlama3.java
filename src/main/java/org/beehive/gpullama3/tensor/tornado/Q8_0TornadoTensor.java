@@ -17,8 +17,7 @@ public class Q8_0TornadoTensor extends TornadoTensor {
     private final Int8Array quants;       // Quantized int8 values
     private MemorySegment segment;
 
-    public Q8_0TornadoTensor(int size, HalfFloatArray scales, Int8Array quants, MemorySegment segment) {
-        super(size);
+    public Q8_0TornadoTensor(HalfFloatArray scales, Int8Array quants, MemorySegment segment) {
         this.scales = scales;
         this.quants = quants;
         this.segment = segment;

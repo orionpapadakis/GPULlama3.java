@@ -10,15 +10,6 @@ import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
  * These tensors wrap TornadoVM native arrays for GPU execution.
  */
 public abstract class TornadoTensor {
-    protected final int size;
-
-    protected TornadoTensor(int size) {
-        this.size = size;
-    }
-
-    public int size() {
-        return size;
-    }
 
     public abstract GGMLType type();
 
