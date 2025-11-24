@@ -90,16 +90,45 @@ public final class GGUF {
         }
     }
 
-    public static Map<String, GGMLTensorEntry> loadTensors(FileChannel fileChannel, long tensorDataOffset, Map<String, GGUFTensorInfo> tensorInfos) throws IOException {
+    /**
+     * Loads tensor data from a given file channel based on the tensor metadata information.
+     * The mapping is read-
+     */
+    public static Map<String, GGMLTensorEntry> loadTensorsStandard(FileChannel fileChannel, long tensorDataOffset, Map<String, GGUFTensorInfo> tensorInfos) throws IOException {
         Arena arena = Arena.ofAuto();
-        MemorySegment tensorData = fileChannel.map(FileChannel.MapMode.READ_ONLY, tensorDataOffset, fileChannel.size() - tensorDataOffset, arena);
+
+        // absolute file offset where the tensor-data section begins
+        long mappingOffset = tensorDataOffset;
+        // size of the entire tensor-data section
+        long mappingSize = fileChannel.size() - tensorDataOffset;
+
+        MemorySegment tensorData =
+                fileChannel.map(FileChannel.MapMode.READ_ONLY, mappingOffset, mappingSize, arena);
+
         Map<String, GGMLTensorEntry> tensorEntries = HashMap.newHashMap(tensorInfos.size());
+
         for (Map.Entry<String, GGUFTensorInfo> entry : tensorInfos.entrySet()) {
             GGUFTensorInfo ti = entry.getValue();
+
+            // skip rope_freqs.weight (not needed for inference)
+            if (ti.name().equals("rope_freqs.weight")) {
+                continue;
+            }
+
             int numberOfElements = FloatTensor.numberOfElements(ti.dimensions());
             int sizeInBytes = Math.toIntExact(ti.ggmlType().byteSizeFor(numberOfElements));
-            MemorySegment memorySegment = tensorData.asSlice(ti.offset(), sizeInBytes);
-            tensorEntries.put(ti.name(), new GGMLTensorEntry(tensorData, ti.name(), ti.ggmlType(), ti.dimensions(), memorySegment));
+
+            // per-tensor slice offset; ti.offset() is relative to tensor-data start
+            long offset = ti.offset();
+
+            // per-tensor slice segment
+            MemorySegment memorySegment = tensorData.asSlice(offset, sizeInBytes);
+
+            tensorEntries.put(ti.name(),
+                    new GGMLTensorEntry(tensorData, ti.name(), ti.ggmlType(), ti.dimensions(), memorySegment));
+        }
+        return tensorEntries;
+    }
         }
         return tensorEntries;
     }
