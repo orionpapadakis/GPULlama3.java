@@ -12,8 +12,8 @@ public class FP32TornadoTensor extends TornadoTensor {
         this.tornadoNativeArray = floatArray;
     }
 
-    public FP32TornadoTensor(MemorySegment segment) {
-        this.tornadoNativeArray = new FloatArray(segment);
+    public static FP32TornadoTensor fromTornadoMemorySegment(MemorySegment segment) {
+        return new FP32TornadoTensor(FloatArray.fromSegmentShallow(segment));
     }
 
     @Override

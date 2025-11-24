@@ -13,8 +13,8 @@ public class FP16TornadoTensor extends TornadoTensor {
         this.tornadoNativeArray = halfFloatArray;
     }
 
-    public FP16TornadoTensor(MemorySegment segment) {
-        this.tornadoNativeArray = new HalfFloatArray(segment);
+    public static FP16TornadoTensor fromTornadoMemorySegment(MemorySegment segment) {
+        return new FP16TornadoTensor(HalfFloatArray.fromSegmentShallow(segment));
     }
 
     @Override

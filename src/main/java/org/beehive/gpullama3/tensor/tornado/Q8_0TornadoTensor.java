@@ -42,11 +42,6 @@ public class Q8_0TornadoTensor extends TornadoTensor {
     }
 
     @Override
-    public int size() {
-        return size;
-    }
-
-    @Override
     public GGMLType type() {
         return GGMLType.Q8_0;
     }
@@ -62,7 +57,7 @@ public class Q8_0TornadoTensor extends TornadoTensor {
      * @return Dequantized float value
      */
     public float getFloat(int index) {
-        assert 0 <= index && index < size;
+        assert 0 <= index;
         int blockIdx = index / GGMLType.Q8_0.getBlockSize();
         float scale = scales.get(blockIdx).getFloat32();
         byte quant = quants.get(index);
@@ -108,6 +103,6 @@ public class Q8_0TornadoTensor extends TornadoTensor {
             }
         }
 
-        return new Q8_0TornadoTensor(size, scales, quants, q8Segment);
+        return new Q8_0TornadoTensor(scales, quants, q8Segment);
     }
 }

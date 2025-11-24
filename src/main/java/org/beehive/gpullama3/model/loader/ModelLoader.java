@@ -126,8 +126,8 @@ public abstract class ModelLoader {
         GGMLType ggmlType = entry.ggmlType();
         int size = FloatTensor.numberOfElements(entry.shape());
         return switch (ggmlType) {
-            case F32 -> new FP32TornadoTensor(size, entry.memorySegment());
-            case F16 -> new FP16TornadoTensor(size, entry.memorySegment());
+            case F32 -> FP32TornadoTensor.fromTornadoMemorySegment(entry.memorySegment());
+            case F16 -> FP16TornadoTensor.fromTornadoMemorySegment(entry.memorySegment());
             case Q8_0 -> Q8_0TornadoTensor.create(entry);
             case Q4_0 -> throw new UnsupportedOperationException("Q4 format not supported yet");
             default -> throw new UnsupportedOperationException("Quantization format " + ggmlType);
