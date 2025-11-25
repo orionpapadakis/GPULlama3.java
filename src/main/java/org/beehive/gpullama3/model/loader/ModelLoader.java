@@ -21,7 +21,6 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntFunction;
@@ -74,13 +73,10 @@ public abstract class ModelLoader {
      * If Ahead-of-Time (AOT) mode is enabled, attempts to use a pre-loaded compiled model. Otherwise, loads the model from the specified path using the model loader.
      * </p>
      *
-     * @param options
-     *         the parsed CLI options containing model path and max token limit
+     * @param options the parsed CLI options containing model path and max token limit
      * @return the loaded {@link Model} instance
-     * @throws IOException
-     *         if the model fails to load
-     * @throws IllegalStateException
-     *         if AOT loading is enabled but the preloaded model is unavailable
+     * @throws IOException           if the model fails to load
+     * @throws IllegalStateException if AOT loading is enabled but the preloaded model is unavailable
      */
     public static Model loadModel(Options options) throws IOException {
         Path ggufPath = options.modelPath();
@@ -163,7 +159,7 @@ public abstract class ModelLoader {
                 HalfFloatArray tensorHFA = tensor.asHalfFloatArray();
                 int numOfElements = tensorHFA.getSize();
                 FloatArray tensorFA = new FloatArray(numOfElements);
-                for(int i = 0; i < numOfElements; i++) {
+                for (int i = 0; i < numOfElements; i++) {
                     tensorFA.set(i, tensorHFA.get(i).getFloat32());
                 }
                 yield new FP32TornadoTensor(tensorFA);
@@ -172,13 +168,15 @@ public abstract class ModelLoader {
                 Q8_0TornadoTensor tensorQ8_0 = Q8_0TornadoTensor.create(entry);
                 int numOfElements = tensorQ8_0.getSize();
                 FloatArray tensorFA = new FloatArray(numOfElements);
-                for(int i = 0; i < numOfElements; i++) {
+                for (int i = 0; i < numOfElements; i++) {
                     tensorFA.set(i, tensorQ8_0.getFloat(i));
                 }
                 yield new FP32TornadoTensor(tensorFA);
 
             }
-            default -> { throw new UnsupportedOperationException("Unsupported tensor type: " + tensor.type()); }
+            default -> {
+                throw new UnsupportedOperationException("Unsupported tensor type: " + tensor.type());
+            }
         };
     }
 

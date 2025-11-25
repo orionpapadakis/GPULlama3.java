@@ -15,6 +15,7 @@ public abstract class TornadoTensor {
 
     /**
      * Get as FloatArray (for F32 tensors).
+     *
      * @throws UnsupportedOperationException if not F32
      */
     public FloatArray asFloatArray() {
@@ -23,6 +24,7 @@ public abstract class TornadoTensor {
 
     /**
      * Get as HalfFloatArray (for F16 tensors).
+     *
      * @throws UnsupportedOperationException if not F16
      */
     public HalfFloatArray asHalfFloatArray() {
@@ -31,6 +33,7 @@ public abstract class TornadoTensor {
 
     /**
      * Get quantized scales (for Q8_0 tensors).
+     *
      * @throws UnsupportedOperationException if not quantized
      */
     public HalfFloatArray getScales() {
@@ -39,6 +42,7 @@ public abstract class TornadoTensor {
 
     /**
      * Get quantized values (for Q8_0 tensors).
+     *
      * @throws UnsupportedOperationException if not quantized
      */
     public Int8Array getQuants() {

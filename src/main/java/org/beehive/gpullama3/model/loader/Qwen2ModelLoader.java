@@ -86,7 +86,7 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
 
     @Override
     protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
+                                            GGMLTensorEntry outputWeight) {
 
         final int nl = config.numberOfLayers();
 
@@ -114,7 +114,7 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
 
     @Override
     protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
+                                             GGMLTensorEntry outputWeight) {
         GGMLType ggmlType = outputWeight.ggmlType();
 
         if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {

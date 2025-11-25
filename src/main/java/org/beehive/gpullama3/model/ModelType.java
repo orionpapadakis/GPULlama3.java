@@ -16,7 +16,7 @@ import java.nio.channels.FileChannel;
  * <p><b>Usage:</b> Use {@code ModelType} to specify or retrieve the type of
  * large language model (LLM), such as Llama or Qwen3. This ensures clean and structured handling of model behaviors and configurations by
  * dispatching calls to the appropriate model loader for each
- *  model type.</p>
+ * model type.</p>
  *
  * <p>Each enum value represents a distinct model type, which might be used for
  * conditional logic, initialization, or resource allocation within GPULlama3.java.</p>

@@ -96,13 +96,11 @@ public final class GGUF {
      * Loads tensor data from a given file channel based on the tensor metadata information.
      * The mapping is read-only and creates standard memory segments for each tensor.
      *
-     * @param fileChannel       the channel from which tensor storage is read
-     * @param tensorDataOffset  the absolute byte offset of the GGUF tensor-data section
-     * @param tensorInfos       metadata describing all GGUF tensors
-     *
+     * @param fileChannel      the channel from which tensor storage is read
+     * @param tensorDataOffset the absolute byte offset of the GGUF tensor-data section
+     * @param tensorInfos      metadata describing all GGUF tensors
      * @return a map from tensor name to {@link GGMLTensorEntry} containing
-     *         standard memory segments for each tensor
-     *
+     * standard memory segments for each tensor
      * @throws IOException if memory mapping fails or the channel cannot be read
      */
     public static Map<String, GGMLTensorEntry> loadTensorsStandard(FileChannel fileChannel, long tensorDataOffset, Map<String, GGUFTensorInfo> tensorInfos) throws IOException {
@@ -152,14 +150,11 @@ public final class GGUF {
      * before the actual tensor position, providing a writable header region
      * without modifying the underlying GGUF file.</p>
      *
-     *
-     * @param fileChannel       the channel from which tensor storage is read
-     * @param tensorDataOffset  the absolute byte offset of the GGUF tensor-data section
-     * @param tensorInfos        metadata describing all GGUF tensors
-     *
+     * @param fileChannel      the channel from which tensor storage is read
+     * @param tensorDataOffset the absolute byte offset of the GGUF tensor-data section
+     * @param tensorInfos      metadata describing all GGUF tensors
      * @return a map from tensor name to {@link GGMLTensorEntry} containing
-     *         TornadoVM-compatible memory segments for each tensor
-     *
+     * TornadoVM-compatible memory segments for each tensor
      * @throws IOException if memory mapping fails or the channel cannot be read
      */
     public static Map<String, GGMLTensorEntry> loadTensorsTornado(FileChannel fileChannel, long tensorDataOffset, Map<String, GGUFTensorInfo> tensorInfos) throws IOException {

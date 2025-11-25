@@ -16,10 +16,8 @@ import java.util.Map;
 /**
  * Abstract base class for model loaders using Template Method pattern. Provides common loading flow with extension points for model-specific logic.
  *
- * @param <M>
- *         The specific Model type to load
- * @param <C>
- *         The specific Configuration type for the model
+ * @param <M> The specific Model type to load
+ * @param <C> The specific Configuration type for the model
  */
 public abstract class AbstractModelLoader<M extends Model, C extends Configuration> {
 
@@ -77,8 +75,7 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
     /**
      * Load the vocabulary from GGUF metadata. Model-specific implementations should override this method.
      *
-     * @param metadata
-     *         The GGUF metadata map
+     * @param metadata The GGUF metadata map
      * @return The loaded Vocabulary
      */
     protected abstract Vocabulary loadVocabulary(Map<String, Object> metadata);
@@ -86,10 +83,8 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
     /**
      * Create a tokenizer instance for this model.
      *
-     * @param metadata
-     *         The GGUF metadata map
-     * @param vocabulary
-     *         The loaded vocabulary
+     * @param metadata   The GGUF metadata map
+     * @param vocabulary The loaded vocabulary
      * @return The tokenizer instance
      */
     protected abstract Tokenizer createTokenizer(Map<String, Object> metadata, Vocabulary vocabulary);
@@ -97,8 +92,7 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
     /**
      * Create a configuration instance from GGUF metadata.
      *
-     * @param metadata
-     *         The GGUF metadata map
+     * @param metadata The GGUF metadata map
      * @return The configuration instance
      */
     protected abstract C createConfiguration(Map<String, Object> metadata);
@@ -106,10 +100,8 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
     /**
      * Load model weights from tensor entries. Default implementation handles common weight loading logic.
      *
-     * @param tensorEntries
-     *         Map of tensor names to tensor entries
-     * @param config
-     *         The model configuration
+     * @param tensorEntries Map of tensor names to tensor entries
+     * @param config        The model configuration
      * @return The loaded weights
      */
     public Weights loadWeights(Map<String, GGMLTensorEntry> tensorEntries, C config) {
@@ -131,12 +123,9 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
     /**
      * Create the final model instance.
      *
-     * @param config
-     *         The model configuration
-     * @param tokenizer
-     *         The tokenizer
-     * @param weights
-     *         The loaded weights
+     * @param config    The model configuration
+     * @param tokenizer The tokenizer
+     * @param weights   The loaded weights
      * @return The model instance
      */
     protected abstract M createModel(C config, Tokenizer tokenizer, Weights weights);
@@ -164,11 +153,11 @@ public abstract class AbstractModelLoader<M extends Model, C extends Configurati
      * Create standard (CPU) weights.
      */
     protected abstract Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, C config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight);
+                                                     GGMLTensorEntry outputWeight);
 
     /**
      * Create TornadoVM (GPU) weights.
      */
     protected abstract Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, C config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight);
+                                                      GGMLTensorEntry outputWeight);
 }

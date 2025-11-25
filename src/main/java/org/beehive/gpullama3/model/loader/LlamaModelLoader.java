@@ -73,7 +73,7 @@ public class LlamaModelLoader extends AbstractModelLoader<Llama, LlamaConfigurat
 
     @Override
     protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, LlamaConfiguration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
+                                            GGMLTensorEntry outputWeight) {
 
         final int nl = config.numberOfLayers();
 

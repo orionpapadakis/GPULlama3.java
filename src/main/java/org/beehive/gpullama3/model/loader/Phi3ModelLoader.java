@@ -114,9 +114,9 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
 
     @Override
     protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-            GGMLTensorEntry outputWeight) {
+                                             GGMLTensorEntry outputWeight) {
         GGMLType ggmlType = outputWeight.ggmlType();
-        
+
         if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
             System.out.println("Loading model weights in TornadoVM format (loading " + ggmlType + ")");
         }
