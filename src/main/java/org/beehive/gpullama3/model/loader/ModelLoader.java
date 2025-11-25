@@ -147,21 +147,25 @@ public abstract class ModelLoader {
     }
 
     /**
-     * Load a tensor and ensure it's FP32 (FloatArray).
-     * Used for embeddings and normalization weights that must always be FP32.
+     * Load a tensor and manually convert to FP32 (FloatArray).
+     * Used for embeddings that currently are treated as FP32.
+     * TODO: it is ultra-slow and will be removed
      */
     public static TornadoTensor loadTornadoTensorAsFP32(GGMLTensorEntry entry) {
-        // If already F32, load directly
-        if (entry.ggmlType() == GGMLType.F32) {
-            return new FP32TornadoTensor(
-                    FloatTensor.numberOfElements(entry.shape()),
-                    entry.memorySegment()
-            );
-        }
-
-        // Otherwise, dequantize to F32
-        FloatArray floatArray = loadTensorAsFloatArray(entry);
-        return new FP32TornadoTensor(floatArray);
+        TornadoTensor tensor = loadTornadoTensor(entry);
+        return switch (tensor.type()) {
+            case F32 -> tensor;
+            case F16 -> {
+                HalfFloatArray tensorHFA = tensor.asHalfFloatArray();
+                int numOfElements = tensorHFA.getSize();
+                FloatArray tensorFA = new FloatArray(numOfElements);
+                for(int i = 0; i < numOfElements; i++) {
+                    tensorFA.set(i, tensorHFA.get(i).getFloat32());
+                }
+                yield new FP32TornadoTensor(tensorFA);
+            }
+            default -> { throw new UnsupportedOperationException("Unsupported tensor type: " + tensor.type()); }
+        };
     }
 
     // Helper methods
