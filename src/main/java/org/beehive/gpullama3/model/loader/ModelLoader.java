@@ -15,13 +15,17 @@ import uk.ac.manchester.tornado.api.types.HalfFloat;
 import uk.ac.manchester.tornado.api.types.arrays.*;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 public abstract class ModelLoader {
 
@@ -88,7 +92,120 @@ public abstract class ModelLoader {
         // detect model type
         ModelType modelType = detectModelType(gguf.getMetadata());
         // model type-specific load
-        return modelType.loadModel(gguf.getFileChannel(), gguf, contextLength, loadWeights, useTornadovm);
+        return modelType.loadModel(gguf.getFileChannel(), gguf, contextLength, useTornadovm);
+    }
+
+    private static void compareTensorEntries(Map<String, GGMLTensorEntry> tensorEntries1, Map<String, GGMLTensorEntry> tensorEntries2) {
+        System.out.println("[COMPARISON] Starting tensor entries comparison...");
+
+        // Check if both maps have the same keys
+        Set<String> keys1 = tensorEntries1.keySet();
+        Set<String> keys2 = tensorEntries2.keySet();
+
+        if (!keys1.equals(keys2)) {
+            System.err.println("[ERROR] Tensor entry key sets don't match!");
+            System.err.println("Keys in tensorEntries1 only: " +
+                    keys1.stream().filter(k -> !keys2.contains(k)).collect(Collectors.toSet()));
+            System.err.println("Keys in tensorEntries2 only: " +
+                    keys2.stream().filter(k -> !keys1.contains(k)).collect(Collectors.toSet()));
+            return;
+        }
+
+        int totalTensors = keys1.size();
+        int matchingTensors = 0;
+        int errors = 0;
+
+        for (String tensorName : keys1) {
+            GGMLTensorEntry entry1 = tensorEntries1.get(tensorName);
+            GGMLTensorEntry entry2 = tensorEntries2.get(tensorName);
+
+            if (entry1 == null || entry2 == null) {
+                System.err.println("[ERROR] Missing tensor entry for: " + tensorName);
+                errors++;
+                continue;
+            }
+
+            try {
+                boolean isMatch = compareSingleTensor(tensorName, entry1, entry2);
+                if (isMatch) {
+                    matchingTensors++;
+                    System.out.println("[OK] " + tensorName + " - tensors match");
+                } else {
+                    errors++;
+                    System.err.println("[MISMATCH] " + tensorName + " - tensors don't match");
+                }
+            } catch (Exception e) {
+                errors++;
+                System.err.println("[ERROR] Exception comparing " + tensorName + ": " + e.getMessage());
+            }
+        }
+
+        System.out.println("\n[COMPARISON SUMMARY]");
+        System.out.println("Total tensors: " + totalTensors);
+        System.out.println("Matching tensors: " + matchingTensors);
+        System.out.println("Errors/Mismatches: " + errors);
+        System.out.println("Success rate: " + String.format("%.1f%%", (matchingTensors * 100.0) / totalTensors));
+    }
+
+    private static boolean compareSingleTensor(String tensorName, GGMLTensorEntry entry1, GGMLTensorEntry entry2) {
+        // Get memory segments
+        MemorySegment segment1 = entry1.memorySegment();
+        MemorySegment segment2 = entry2.memorySegment();
+
+        // Special case: token_embd.weight and rope_freqs.weight should be identical
+        boolean isSpecialCase = tensorName.equals("token_embd.weight") || tensorName.equals("rope_freqs.weight");
+
+        if (isSpecialCase) {
+            // For these tensors, the segments should be identical
+            if (segment1.byteSize() != segment2.byteSize()) {
+                System.err.println("  Size mismatch for " + tensorName + ": " +
+                        segment1.byteSize() + " vs " + segment2.byteSize());
+                return false;
+            }
+
+            // Compare byte by byte
+            for (long i = 0; i < segment1.byteSize(); i++) {
+                byte b1 = segment1.get(ValueLayout.JAVA_BYTE, i);
+                byte b2 = segment2.get(ValueLayout.JAVA_BYTE, i);
+                if (b1 != b2) {
+                    System.err.println("  Byte mismatch at offset " + i + " for " + tensorName +
+                            ": " + String.format("0x%02X", b1) + " vs " + String.format("0x%02X", b2));
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // For regular tensors, segment2 should have 16-byte header + segment1 data
+        long expectedSize2 = segment1.byteSize() + 16;
+        if (segment2.byteSize() != expectedSize2) {
+            System.err.println("  Size mismatch for " + tensorName + ": expected " +
+                    expectedSize2 + " (16 + " + segment1.byteSize() + "), got " + segment2.byteSize());
+            return false;
+        }
+
+        // Check that first 16 bytes of segment2 are zeros (header)
+        for (long i = 0; i < 16; i++) {
+            byte headerByte = segment2.get(ValueLayout.JAVA_BYTE, i);
+            if (headerByte != 0) {
+                System.err.println("  Non-zero header byte at offset " + i + " for " + tensorName +
+                        ": " + String.format("0x%02X", headerByte));
+                return false;
+            }
+        }
+
+        // Compare the actual tensor data (starting at offset 16 in segment2)
+        for (long i = 0; i < segment1.byteSize(); i++) {
+            byte b1 = segment1.get(ValueLayout.JAVA_BYTE, i);
+            byte b2 = segment2.get(ValueLayout.JAVA_BYTE, i + 16); // +16 to skip header
+            if (b1 != b2) {
+                System.err.println("  Data mismatch at offset " + i + " for " + tensorName +
+                        ": " + String.format("0x%02X", b1) + " vs " + String.format("0x%02X", b2));
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

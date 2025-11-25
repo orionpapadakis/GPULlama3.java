@@ -2,11 +2,13 @@ package org.beehive.gpullama3.tensor;
 
 import org.beehive.gpullama3.tensor.standard.FloatTensor;
 import org.beehive.gpullama3.auxiliary.Pair;
+import uk.ac.manchester.tornado.api.types.arrays.TornadoNativeArray;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
@@ -62,7 +64,7 @@ public final class GGUF {
             gguf.readHeader(fileChannel); // gguf_header_t header;
             // Tensor infos, which can be used to locate the tensor data.
             // gguf_tensor_info_t tensor_infos[header.tensor_count];
-            this.tensorInfos = HashMap.newHashMap(gguf.tensorCount);
+            gguf.tensorInfos = HashMap.newHashMap(gguf.tensorCount);
             for (int i = 0; i < gguf.tensorCount; ++i) {
                 GGUF.GGUFTensorInfo ti = gguf.readTensorInfo(fileChannel);
                 assert !gguf.tensorInfos.containsKey(ti.name);
@@ -202,6 +204,10 @@ public final class GGUF {
 
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public FileChannel getFileChannel() {
+        return fileChannel;
     }
 
     private GGMLType readGGMLType(FileChannel fileChannel) throws IOException {
