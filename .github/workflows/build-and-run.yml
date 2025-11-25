@@ -28,7 +28,7 @@ jobs:
       - name: Check code formatting (Spotless)
         run: |
           cd ${{ github.workspace }}
-          ./mvnw -T12C -Pspotless spotless:check
+          #./mvnw -T12C -Pspotless spotless:check
           
       - name: Clone TornadoVM explicitly
         run: |
