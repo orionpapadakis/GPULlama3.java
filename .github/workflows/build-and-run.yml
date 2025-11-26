@@ -75,12 +75,50 @@ jobs:
           which tornado || { echo "::error::tornado unavailable during GPULlama3 build"; exit 1; }
           tornado --version
           make
-      - name: Run Test Inference
+  
+  test-models:
+    runs-on: self-hosted
+    needs: build-and-run
+
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - /opt/models/DeepSeek-R1-Distill-Qwen-1.5B-F16.gguf
+          - /opt/models/DeepSeek-R1-Distill-Qwen-1.5B-Q8_0.gguf
+          - /opt/models/Llama-3.2-1B-Instruct-F16.gguf
+          - /opt/models/Llama-3.2-1B-Instruct-Q8_0.gguf
+          - /opt/models/Llama-3.2-3B-Instruct-F16.gguf
+          - /opt/models/Llama-3.2-3B-Instruct-Q8_0.gguf
+          - /opt/models/Mistral-7B-Instruct-v0.3.fp16.gguf
+          - /opt/models/Mistral-7B-Instruct-v0.3.Q8_0.gguf
+          - /opt/models/Phi-3-mini-4k-instruct-fp16.gguf
+          - /opt/models/Phi-3-mini-4k-instruct-Q8_0.gguf
+          - /opt/models/Qwen2.5-0.5B-Instruct-f16.gguf
+          - /opt/models/Qwen2.5-0.5B-Instruct-Q8_0.gguf
+          - /opt/models/qwen2.5-1.5b-instruct-fp16.gguf
+          - /opt/models/qwen2.5-1.5b-instruct-q8_0.gguf
+          - /opt/models/Qwen3-0.6B-f16.gguf
+          - /opt/models/Qwen3-0.6B-Q8_0.gguf
+          - /opt/models/Qwen3-4B-f16.gguf
+          - /opt/models/Qwen3-4B-Q8_0.gguf
+
+    env:
+      JAVA_HOME: /opt/jenkins/jdks/graal-23.1.0/jdk-21.0.3
+      TORNADO_SDK: ${{ needs.build-and-run.outputs.tornado_sdk }}
+
+    steps:
+      - name: Checkout GPULlama3
+        uses: actions/checkout@v4
+
+      - name: Run inference for ${{ matrix.model }}
         run: |
           set -x
           cd ${{ github.workspace }}
+
           export PATH="$TORNADO_SDK/bin:$JAVA_HOME/bin:$PATH"
-          which tornado || { echo "::error::tornado not found at runtime"; exit 1; }
+          echo "Using Tornado SDK: $TORNADO_SDK"
+
           ./llama-tornado --gpu --opencl \
-            --model /home/michalis/models/Llama-3.2-1B-Instruct-F16.gguf \
+            --model "${{ matrix.model }}" \
             --prompt "Say hello"
