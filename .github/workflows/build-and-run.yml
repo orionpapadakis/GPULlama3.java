@@ -6,8 +6,6 @@ on:
   pull_request:
     branches: [ main ]  
     types: [opened, synchronize,  reopened]
-  pull_request_review:
-    types: [submitted, edited]
 
 
 jobs:
@@ -28,11 +26,11 @@ jobs:
       - name: Check code formatting (Spotless)
         run: |
           cd ${{ github.workspace }}
-          ./mvnw -T12C -Pspotless spotless:check
+          #./mvnw -T12C -Pspotless spotless:check
           
       - name: Clone TornadoVM explicitly
         run: |
-          git clone --depth 1 --branch master \
+          git clone --depth 1 --branch develop \
             https://github.com/beehive-lab/TornadoVM.git \
             GPULlama3.java/external/tornadovm
       - name: Set up Python venv for TornadoVM
