@@ -49,7 +49,6 @@ public final class GGUF {
 
         // Open file
         try {
-            System.out.println("[GGUF] fileChannel = FileChannel.open(modelPath, READ, WRITE);");
             fileChannel = FileChannel.open(modelPath, READ, WRITE);
             // Ensure we start reading from the beginning of the file
             fileChannel.position(0);
@@ -141,7 +140,7 @@ public final class GGUF {
      * Loads GGUF tensor data using a TornadoVM-compatible memory layout.
      *
      * <p>This method parses the GGUF tensor list and memory-maps each tensor
-     * in {@link TornadoNativeArray} layout directly from the underlying{@link FileChannel}.
+     * in {@link TornadoNativeArray} layout directly from the underlying {@link FileChannel}.
      * For compatibility with {@link TornadoNativeArray} layout, an additional header is required at
      * the start of each tensor region. To satisfy this requirement, each tensor
      * is mapped using {@link FileChannel.MapMode#PRIVATE} starting 16 bytes
