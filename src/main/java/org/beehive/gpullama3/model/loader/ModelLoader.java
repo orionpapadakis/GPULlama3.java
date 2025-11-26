@@ -61,7 +61,6 @@ public abstract class ModelLoader {
             } else if (lowerName.contains("phi3") || lowerName.contains("phi-3")) {
                 return ModelType.PHI_3;
             }
-
         }
 
         return ModelType.UNKNOWN;
@@ -69,9 +68,9 @@ public abstract class ModelLoader {
 
     /**
      * Loads the language model based on the given options.
-     * <p>
-     * If Ahead-of-Time (AOT) mode is enabled, attempts to use a pre-loaded compiled model. Otherwise, loads the model from the specified path using the model loader.
-     * </p>
+     *
+     * <p>If Ahead-of-Time (AOT) mode is enabled, attempts to use a pre-loaded compiled model.
+     * Otherwise, loads the model from the specified path using the model loader.
      *
      * @param options the parsed CLI options containing model path and max token limit
      * @return the loaded {@link Model} instance
@@ -279,5 +278,4 @@ public abstract class ModelLoader {
             default -> throw new UnsupportedOperationException("Conversion to " + ggmlType);
         };
     }
-
 }

@@ -42,6 +42,7 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
         return new Qwen3Tokenizer(metadata, vocabulary, isDeepSeekR1DistillQwen);
     }
 
+    // @formatter:off
     @Override
     protected Qwen2Configuration createConfiguration(Map<String, Object> metadata) {
         int modelContextLength = (int) metadata.get("qwen2.context_length");
@@ -68,12 +69,14 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
                 (float) metadata.get("qwen2.rope.freq_base")
         );
     }
+    // @formatter:on
 
     @Override
     protected Pair<float[], float[]> precomputeRopeFrequencies(Qwen2Configuration config) {
         return RoPE.precomputeFreqsCis(config.contextLengthModel(), config.headSize(), config.ropeTheta(), false, 8, 1, 3, 8192);
     }
 
+    // @formatter:off
     @Override
     protected Qwen2 createModel(Qwen2Configuration config, Tokenizer tokenizer, Weights weights) {
         Map<String, Object> metadata = gguf.getMetadata();
@@ -83,7 +86,9 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
                 : new ChatTokens("<|im_start|>", "<|im_end|>", "", "<|end_of_text|>", "<|endoftext|>");
         return new Qwen2(config, tokenizer, weights, ChatFormat.create(tokenizer, chatTokens));
     }
+    // @formatter:on
 
+    // @formatter:off
     @Override
     protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                             GGMLTensorEntry outputWeight) {
@@ -111,7 +116,9 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
                 outputWeight.ggmlType()
         );
     }
+    // @formatter:on
 
+    // @formatter:off
     @Override
     protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen2Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                              GGMLTensorEntry outputWeight) {
@@ -152,4 +159,5 @@ public class Qwen2ModelLoader extends AbstractModelLoader<Qwen2, Qwen2Configurat
         );
 
     }
+    // @formatter:off
 }

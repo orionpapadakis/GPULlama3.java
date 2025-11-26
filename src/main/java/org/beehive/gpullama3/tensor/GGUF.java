@@ -111,8 +111,7 @@ public final class GGUF {
         // size of the entire tensor-data section
         long mappingSize = fileChannel.size() - tensorDataOffset;
 
-        MemorySegment tensorData =
-                fileChannel.map(FileChannel.MapMode.READ_ONLY, mappingOffset, mappingSize, arena);
+        MemorySegment tensorData = fileChannel.map(FileChannel.MapMode.READ_ONLY, mappingOffset, mappingSize, arena);
 
         Map<String, GGMLTensorEntry> tensorEntries = HashMap.newHashMap(tensorInfos.size());
 
@@ -133,8 +132,7 @@ public final class GGUF {
             // per-tensor slice segment
             MemorySegment memorySegment = tensorData.asSlice(offset, sizeInBytes);
 
-            tensorEntries.put(ti.name(),
-                    new GGMLTensorEntry(tensorData, ti.name(), ti.ggmlType(), ti.dimensions(), memorySegment));
+            tensorEntries.put(ti.name(), new GGMLTensorEntry(tensorData, ti.name(), ti.ggmlType(), ti.dimensions(), memorySegment));
         }
         return tensorEntries;
     }
@@ -183,8 +181,7 @@ public final class GGUF {
             // start 16 bytes before the tensor position to include header space
             long offset = mappingOffset - headerBytes;
             long size = sizeInBytes + headerBytes;
-            MemorySegment memorySegment =
-                    fileChannel.map(FileChannel.MapMode.PRIVATE, offset, size, arena);
+            MemorySegment memorySegment = fileChannel.map(FileChannel.MapMode.PRIVATE, offset, size, arena);
 
             // zero out the 16-byte header
             for (int i = 0; i < headerBytes; i++) {
@@ -192,8 +189,7 @@ public final class GGUF {
             }
 
             // store tornado-compatible segment
-            tensorEntries.put(ti.name(),
-                    new GGMLTensorEntry(memorySegment, ti.name(), ti.ggmlType(), ti.dimensions(), memorySegment));
+            tensorEntries.put(ti.name(), new GGMLTensorEntry(memorySegment, ti.name(), ti.ggmlType(), ti.dimensions(), memorySegment));
         }
         return tensorEntries;
     }

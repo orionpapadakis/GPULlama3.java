@@ -42,6 +42,7 @@ public class LlamaModelLoader extends AbstractModelLoader<Llama, LlamaConfigurat
         return new LlamaTokenizer(metadata, vocabulary);
     }
 
+    // @formatter:off
     @Override
     protected LlamaConfiguration createConfiguration(Map<String, Object> metadata) {
         int vocabSize = metadata.containsKey("llama.vocab_size") ? (int) metadata.get("llama.vocab_size") : (int) metadata.get("tokenizer.ggml.tokens.length");
@@ -59,11 +60,11 @@ public class LlamaModelLoader extends AbstractModelLoader<Llama, LlamaConfigurat
                 (float) metadata.getOrDefault("llama.attention.layer_norm_rms_epsilon", 1e-5f),
                 (float) metadata.getOrDefault("llama.rope.freq_base", 10000f)).withContextLength(contextLength);
     }
+    // @formatter:on
 
     @Override
     protected Pair<float[], float[]> precomputeRopeFrequencies(LlamaConfiguration config) {
-        return RoPE.precomputeFreqsCis(config.contextLength(), config.dim() / config.numberOfHeads(), config.ropeTheta(), false, 1.0f, 1.0f, 1.0f, config.contextLength()
-        );
+        return RoPE.precomputeFreqsCis(config.contextLength(), config.dim() / config.numberOfHeads(), config.ropeTheta(), false, 1.0f, 1.0f, 1.0f, config.contextLength());
     }
 
     @Override
@@ -71,6 +72,7 @@ public class LlamaModelLoader extends AbstractModelLoader<Llama, LlamaConfigurat
         return new Llama(config, tokenizer, weights, ChatFormat.create(tokenizer, null));
     }
 
+    // @formatter:off
     @Override
     protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, LlamaConfiguration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                             GGMLTensorEntry outputWeight) {
@@ -94,7 +96,9 @@ public class LlamaModelLoader extends AbstractModelLoader<Llama, LlamaConfigurat
                 loadTensor(outputWeight),
                 outputWeight.ggmlType());
     }
+    // @formatter:on
 
+    // @formatter:off
     @Override
     protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries,
                                              LlamaConfiguration config,
@@ -133,4 +137,5 @@ public class LlamaModelLoader extends AbstractModelLoader<Llama, LlamaConfigurat
                 ggmlType
         );
     }
+    // @formatter:on
 }

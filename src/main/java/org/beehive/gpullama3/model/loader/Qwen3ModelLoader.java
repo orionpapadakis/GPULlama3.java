@@ -43,6 +43,7 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
         return new Qwen3Tokenizer(metadata, vocabulary, isDeepSeekR1DistillQwen);
     }
 
+    // @formatter:off
     @Override
     protected Qwen3Configuration createConfiguration(Map<String, Object> metadata) {
         int modelContextLength = (int) metadata.get("qwen3.context_length");
@@ -70,12 +71,14 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
                 (float) metadata.get("qwen3.rope.freq_base")
         );
     }
+    // @formatter:on
 
     @Override
     protected Pair<float[], float[]> precomputeRopeFrequencies(Qwen3Configuration config) {
         return RoPE.precomputeFreqsCis(config.contextLengthModel(), config.numberOfHeadsKey(), config.ropeTheta(), false, 0, 0, 0, 0);
     }
 
+    // @formatter:off
     @Override
     protected Qwen3 createModel(Qwen3Configuration config, Tokenizer tokenizer, Weights weights) {
         Map<String, Object> metadata = gguf.getMetadata();
@@ -85,7 +88,9 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
                 : new ChatTokens("<|im_start|>", "<|im_end|>", "", "<|end_of_text|>", "<|endoftext|>");
         return new Qwen3(config, tokenizer, weights, ChatFormat.create(tokenizer, chatTokens));
     }
+    // @formatter:off
 
+    // @formatter:off
     @Override
     protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
                                             GGMLTensorEntry outputWeight) {
@@ -116,7 +121,9 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
                 null
         );
     }
+    // @formatter:on
 
+    // @formatter:off
     @Override
     protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Qwen3Configuration config,
                                              Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
@@ -151,4 +158,5 @@ public class Qwen3ModelLoader extends AbstractModelLoader<Qwen3, Qwen3Configurat
         );
 
     }
+    // @formatter:on
 }

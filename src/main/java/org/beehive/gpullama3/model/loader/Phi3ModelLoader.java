@@ -46,6 +46,7 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
         return new Phi3Tokenizer(metadata, vocabulary);
     }
 
+    // @formatter:off
     @Override
     protected Phi3Configuration createConfiguration(Map<String, Object> metadata) {
         final String modelPrefix = "phi3.";
@@ -67,18 +68,26 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
         );
         return config;
     }
+    // @formatter:off
 
+    // @formatter:off
     @Override
     protected Pair<float[], float[]> precomputeRopeFrequencies(Phi3Configuration config) {
         // Calculate head size from dim and numberOfHeads
         int headSize = config.dim() / config.numberOfHeads();
 
-        return RoPE.precomputeFreqsCis(modelContextLength,    // Use model context length for RoPE precomputation
-                headSize,              // Calculated head size
-                config.ropeTheta(), false,                 // Phi3 uses standard RoPE, not neox-style based on reference
-                8, 1, 3, 8192         // Additional RoPE parameters from reference
+        return RoPE.precomputeFreqsCis(
+                modelContextLength,     // Use model context length for RoPE precomputation
+                headSize,               // Calculated head size
+                config.ropeTheta(),
+                false,      // Phi3 uses standard RoPE, not neox-style based on reference
+                8,
+                1,
+                3,
+                8192                    // Additional RoPE parameters from reference
         );
     }
+    // @formatter:off
 
     @Override
     protected Phi3 createModel(Phi3Configuration config, Tokenizer tokenizer, Weights weights) {
@@ -88,33 +97,34 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
         return new Phi3(config, tokenizer, weights, ChatFormat.create(tokenizer, chatTokens));
     }
 
+    // @formatter:off
     @Override
-    protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-                                            GGMLTensorEntry outputWeight) {
+    protected Weights createStandardWeights(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings, GGMLTensorEntry outputWeight) {
         float[] ropeFreqsReal = ropeFreqs.first();
         float[] ropeFreqsImag = ropeFreqs.second();
 
         final int nl = config.numberOfLayers();
 
         return new Phi3StandardWeights(
-                loadTensor(tokenEmbeddings),                                                                               // token_embedding_table
+                loadTensor(tokenEmbeddings),                                                             // token_embedding_table
                 loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_norm.weight")),    // rms_att_weight (as FloatTensor[])
                 loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_qkv.weight")),     // wqkv (combined)
                 loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".attn_output.weight")),  // wo
                 loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_norm.weight")),     // rms_ffn_weight (as FloatTensor[])
                 loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_down.weight")),     // wDown
                 loadArrayOfTensors(nl, i -> tensorEntries.get("blk." + i + ".ffn_up.weight")),       // wUp (separate, not combined)
-                loadTensor(tensorEntries.get("output_norm.weight")),                                                      // rms_final_weight (as FloatTensor)
-                new ArrayFloatTensor(ropeFreqsReal),                                                                         // freq_cis_real
-                new ArrayFloatTensor(ropeFreqsImag),                                                                         // freq_cis_imag
-                loadTensor(outputWeight),                                                                                 // wcls
-                outputWeight.ggmlType()                                                                                      // weightType
+                loadTensor(tensorEntries.get("output_norm.weight")),                                     // rms_final_weight (as FloatTensor)
+                new ArrayFloatTensor(ropeFreqsReal),                                                     // freq_cis_real
+                new ArrayFloatTensor(ropeFreqsImag),                                                     // freq_cis_imag
+                loadTensor(outputWeight),                                                                // wcls
+                outputWeight.ggmlType()                                                                  // weightType
         );
     }
+    // @formatter:on
 
+    // @formatter:off
     @Override
-    protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings,
-                                             GGMLTensorEntry outputWeight) {
+    protected Weights createTornadoVMWeights(Map<String, GGMLTensorEntry> tensorEntries, Phi3Configuration config, Pair<float[], float[]> ropeFreqs, GGMLTensorEntry tokenEmbeddings, GGMLTensorEntry outputWeight) {
         GGMLType ggmlType = outputWeight.ggmlType();
 
         if (TornadoVMMasterPlan.ENABLE_TORNADOVM_INIT_TIME) {
@@ -144,4 +154,5 @@ public class Phi3ModelLoader extends AbstractModelLoader<Phi3, Phi3Configuration
                 ggmlType
         );
     }
+    // @formatter:on
 }
