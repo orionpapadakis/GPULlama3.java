@@ -9,6 +9,8 @@ import uk.ac.manchester.tornado.api.types.arrays.*;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
+import java.util.concurrent.*;
+import java.util.stream.IntStream;
 
 public class Q8_0TornadoTensor extends TornadoTensor {
 
@@ -98,21 +100,34 @@ public class Q8_0TornadoTensor extends TornadoTensor {
         ValueLayout.OfShort shortLayout = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         ValueLayout.OfByte byteLayout = ValueLayout.JAVA_BYTE;
 
-        for (int block = 0; block < numBlocks; block++) {
-            // TODO: use GGML type method for the 34L size
-            long blockOffset = block * 34L;  // 34 bytes per block
+        // element-wise copy and unpack from MemorySegment to HalfFloatArray scales and Int8Array quants
+        // use parallel streams and unroll inner loop for better performance
+        IntStream.range(0, numBlocks)
+                .parallel()
+                .forEach(block -> {
+                    // TODO: use GGML type method for the 34L size
+                    long blockOffset = block * 34L;  // 34 bytes per block
 
-            // read fp16 scale (first 2 bytes of block)
-            short scaleRaw = q8Segment.get(shortLayout, blockOffset);
-            scales.set(block, new HalfFloat(scaleRaw));
+                    // read fp16 scale (first 2 bytes of block)
+                    short scaleRaw = q8Segment.get(shortLayout, blockOffset);
+                    scales.set(block, new HalfFloat(scaleRaw));
+                    int blockStart = block * 32;
 
-            // read 32 int8 quantized values (remaining bytes of block)
-            // TODO: use GGML type method for the 32 size
-            for (int i = 0; i < 32; i++) {
-                byte quantValue = q8Segment.get(byteLayout, blockOffset + 2 + i);
-                quants.set(block * 32 + i, quantValue);
-            }
-        }
+                    // read 32 int8 quantized values (remaining bytes of block)
+                    // TODO: use GGML type method for the 32 size
+                    for (int i = 0; i < 32; i += 4) {
+                        // unroll inner loop for better performance
+                        byte q0 = q8Segment.get(byteLayout, blockOffset + 2 + i);
+                        byte q1 = q8Segment.get(byteLayout, blockOffset + 2 + i + 1);
+                        byte q2 = q8Segment.get(byteLayout, blockOffset + 2 + i + 2);
+                        byte q3 = q8Segment.get(byteLayout, blockOffset + 2 + i + 3);
+
+                        quants.set(blockStart + i,     q0);
+                        quants.set(blockStart + i + 1, q1);
+                        quants.set(blockStart + i + 2, q2);
+                        quants.set(blockStart + i + 3, q3);
+                    }
+                });
 
         return new Q8_0TornadoTensor(size, scales, quants, q8Segment);
     }
@@ -146,22 +161,34 @@ public class Q8_0TornadoTensor extends TornadoTensor {
         ValueLayout.OfShort shortLayout = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         ValueLayout.OfByte byteLayout = ValueLayout.JAVA_BYTE;
 
-        for (int block = 0; block < numBlocks; block++) {
-            // TODO: use GGML type method for the 34L size
-            long blockOffset = block * 34L;  // 34 bytes per block
+        // element-wise dequantization and copy from MemorySegment to FloatArray
+        // use parallel streams and unroll inner loop for better performance
+        IntStream.range(0, numBlocks)
+                .parallel()
+                .forEach(block -> {
+                    // TODO: use GGML type method for the 34L size
+                    long blockOffset = block * 34L;  // 34 bytes per block
 
-            // read fp16 scale (first 2 bytes of block) and convert to float
-            short scaleRaw = q8Segment.get(shortLayout, blockOffset);
-            float scale = Float.float16ToFloat(scaleRaw);
+                    // read fp16 scale (first 2 bytes of block) and convert to float
+                    short scaleRaw = q8Segment.get(shortLayout, blockOffset);
+                    float scale = Float.float16ToFloat(scaleRaw);
+                    int blockStart = block * 32;
 
-            // read 32 int8 quantized values (remaining bytes of block)
-            // TODO: use GGML type method for the 32 size
-            for (int i = 0; i < 32; i++) {
-                byte quantValue = q8Segment.get(byteLayout, blockOffset + 2 + i);
-                float floatValue = quantValue * scale;
-                floatArray.set(block * 32 + i, floatValue);
-            }
-        }
+                    // read 32 int8 quantized values (remaining bytes of block)
+                    // TODO: use GGML type method for the 32 size
+                    for (int i = 0; i < 32; i += 4) {
+                        // unroll inner loop for better performance
+                        byte q0 = q8Segment.get(byteLayout, blockOffset + 2 + i);
+                        byte q1 = q8Segment.get(byteLayout, blockOffset + 2 + i + 1);
+                        byte q2 = q8Segment.get(byteLayout, blockOffset + 2 + i + 2);
+                        byte q3 = q8Segment.get(byteLayout, blockOffset + 2 + i + 3);
+
+                        floatArray.set(blockStart + i,     q0 * scale);
+                        floatArray.set(blockStart + i + 1, q1 * scale);
+                        floatArray.set(blockStart + i + 2, q2 * scale);
+                        floatArray.set(blockStart + i + 3, q3 * scale);
+                    }
+                });
 
         return new FP32TornadoTensor(floatArray);
     }
