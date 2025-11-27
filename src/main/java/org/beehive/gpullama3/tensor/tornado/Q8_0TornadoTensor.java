@@ -69,7 +69,10 @@ public class Q8_0TornadoTensor extends TornadoTensor {
         return quant * scale;
     }
 
-    public static Q8_0TornadoTensor create(GGMLTensorEntry entry) {
+    /**
+     * Creates a Q8_0TornadoTensor from a GGMLTensorEntry (original implementation).
+     */
+    public static Q8_0TornadoTensor createAsQ8_0(GGMLTensorEntry entry) {
         if (entry.ggmlType() != GGMLType.Q8_0) {
             throw new IllegalArgumentException("Expected Q8_0 tensor, got: " + entry.ggmlType() + " for tensor: " + entry.name());
         }
