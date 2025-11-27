@@ -163,16 +163,7 @@ public abstract class ModelLoader {
                 }
                 yield new FP32TornadoTensor(tensorFA);
             }
-            case Q8_0 -> {
-                Q8_0TornadoTensor tensorQ8_0 = Q8_0TornadoTensor.create(entry);
-                int numOfElements = tensorQ8_0.getSize();
-                FloatArray tensorFA = new FloatArray(numOfElements);
-                for (int i = 0; i < numOfElements; i++) {
-                    tensorFA.set(i, tensorQ8_0.getFloat(i));
-                }
-                yield new FP32TornadoTensor(tensorFA);
-
-            }
+            case Q8_0 -> Q8_0TornadoTensor.createAsFP32(entry);
             default -> {
                 throw new UnsupportedOperationException("Unsupported tensor type: " + tensor.type());
             }
