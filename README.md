@@ -93,16 +93,37 @@ GPULlama3ChatModel model = GPULlama3ChatModel.builder()
 
 ### 📦 Maven
 
+<!-- DEPENDENCY-SNIPPETS:START -->
+**JDK 21** (`jdk21` profile, auto-activates for JDK `[21,25)`):
 ```xml
-<!-- JDK 21 -->
 <dependency>
     <groupId>io.github.beehive-lab</groupId>
     <artifactId>gpu-llama3</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.0-jdk21</version>
 </dependency>
-
-<!-- JDK 25 → use version 0.4.0-jdk25 -->
 ```
+
+**JDK 25** (`jdk25` profile, auto-activates for JDK `[25.0.2,)`):
+```xml
+<dependency>
+    <groupId>io.github.beehive-lab</groupId>
+    <artifactId>gpu-llama3</artifactId>
+    <version>1.0.0-jdk25</version>
+</dependency>
+```
+
+### 📦 Gradle
+
+**JDK 21**:
+```groovy
+implementation 'io.github.beehive-lab:gpu-llama3:1.0.0-jdk21'
+```
+
+**JDK 25**:
+```groovy
+implementation 'io.github.beehive-lab:gpu-llama3:1.0.0-jdk25'
+```
+<!-- DEPENDENCY-SNIPPETS:END -->
 
 -----------
 
