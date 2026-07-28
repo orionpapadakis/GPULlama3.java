@@ -98,7 +98,7 @@ GPULlama3ChatModel model = GPULlama3ChatModel.builder()
 <dependency>
     <groupId>io.github.beehive-lab</groupId>
     <artifactId>gpu-llama3</artifactId>
-    <version>0.4.0</version>
+    <version>1.0.0</version>
 </dependency>
 
 <!-- JDK 25 → use version 0.4.0-jdk25 -->
