@@ -1,9 +1,6 @@
 name: Deploy to Maven Central
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_run:
     workflows: ["Finalize GPULlama3 Release"]
     types: [completed]
@@ -23,7 +20,9 @@ on:
 jobs:
   deploy:
     name: Deploy to Maven Central (${{ matrix.jdk.name }})
-    if: github.repository == 'beehive-lab/GPULlama3.java'
+    if: |
+      github.repository == 'beehive-lab/GPULlama3.java' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: [self-hosted, Linux, x64]
     timeout-minutes: 15
     strategy:
@@ -38,6 +37,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Pin to the exact commit finalize-release tagged, rather than whatever
+          # main HEAD happens to be when this job starts (it can drift if another
+          # PR merges in the gap between finalize-release finishing and this job
+          # picking up the workflow_run event).
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.tag || '' }}
 
       - name: Set up Java
         uses: ./.github/actions/setup-java
