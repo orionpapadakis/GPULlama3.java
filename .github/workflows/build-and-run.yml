@@ -34,13 +34,14 @@ jobs:
   # max-parallel: 2 lets the Metal matrix entry (Mac runner) run alongside the
   # Linux entries, while opencl/cuda still serialize against each other since
   # they share the same self-hosted Linux runner and workspace.
+  # fail-fast: false so a Linux failure doesn't cancel the independent Mac runner's job (and vice versa).
   build:
     if: github.repository == 'beehive-lab/GPULlama3.java'
     runs-on: ${{ matrix.backend.os == 'macos' && fromJSON('["self-hosted","macOS"]') || fromJSON('["self-hosted","Linux"]') }}
     needs: code-quality
     timeout-minutes: 30
     strategy:
-      fail-fast: true
+      fail-fast: false
       max-parallel: 2
       matrix:
         backend:
@@ -109,7 +110,7 @@ jobs:
     needs: build
     timeout-minutes: 30
     strategy:
-      fail-fast: true
+      fail-fast: false
       max-parallel: 2
       matrix:
         backend:
@@ -410,7 +411,7 @@ jobs:
     needs: build
     timeout-minutes: 10
     strategy:
-      fail-fast: true
+      fail-fast: false
       max-parallel: 2
       matrix:
         backend:
