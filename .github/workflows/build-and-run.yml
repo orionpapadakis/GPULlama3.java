@@ -96,7 +96,10 @@ jobs:
       - name: Build Quarkus LangChain4j
         run: |
           cd ${{ github.workspace }}/quarkus-langchain4j
-          sed -i 's/<gpu-llama3\.version>.*<\/gpu-llama3\.version>/<gpu-llama3.version>'$GPULLAMA3_VERSION'<\/gpu-llama3.version>/' pom.xml
+          # -i.bak (extension glued to the flag) is the portable form: GNU sed (Linux) accepts it,
+          # and BSD sed (macOS) requires it — a bare `-i ''` is parsed as the script on BSD sed.
+          sed -i.bak 's/<gpu-llama3\.version>.*<\/gpu-llama3\.version>/<gpu-llama3.version>'$GPULLAMA3_VERSION'<\/gpu-llama3.version>/' pom.xml
+          rm -f pom.xml.bak
           # -Dtornado activates the TornadoVM profile; -am builds only the gpu-llama3 module + deps
           mvn clean install -pl integration-tests/gpu-llama3 -am -DskipTests -Dtornado
 
