@@ -31,9 +31,10 @@ jobs:
           # ./mvnw -T12C -Pspotless spotless:check
 
   # Build: TornadoVM → GPULlama3 → Quarkus LangChain4j
-  # max-parallel: 2 lets the Metal matrix entry (Mac runner) run alongside the
-  # Linux entries, while opencl/cuda still serialize against each other since
-  # they share the same self-hosted Linux runner and workspace.
+  # No max-parallel cap: opencl/cuda still serialize against each other since they share
+  # the same self-hosted Linux runner, but that's the runner queue doing the serializing,
+  # not the matrix — the independent Mac runner must be free to start immediately rather
+  # than wait for a slot in a shared parallelism budget it doesn't actually contend for.
   # fail-fast: false so a Linux failure doesn't cancel the independent Mac runner's job (and vice versa).
   build:
     if: github.repository == 'beehive-lab/GPULlama3.java'
@@ -42,7 +43,6 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         backend:
           - name: opencl
@@ -111,7 +111,6 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         backend:
           - name: opencl
@@ -412,7 +411,6 @@ jobs:
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         backend:
           - name: opencl
