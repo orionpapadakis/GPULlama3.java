@@ -238,6 +238,8 @@ jobs:
           metrics_file: ${{ runner.temp }}/metrics-${{ matrix.backend.name }}-phi3-mini-fp16-standard.json
 
       - name: FP16 - Run Granite-3.2-2b-instruct-f16.gguf
+        # TODO: not yet provisioned under /opt/models on the Mac runner; re-enable once it is.
+        if: matrix.backend.name != 'metal'
         uses: ./.github/actions/run-inference
         with:
           backend: ${{ matrix.backend.name }}
@@ -551,7 +553,9 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             echo "Attempt $attempt of 3 for streaming endpoint..."
-            HTTP_CODE=$(timeout 10s curl -s -o /dev/null -w "%{http_code}" http://localhost:$QUARKUS_PORT/chat/streaming)
+            # curl's own --max-time (not the external `timeout` command, which stock
+            # macOS doesn't ship) so this works the same on both runner OSes.
+            HTTP_CODE=$(curl -s --max-time 10 -o /dev/null -w "%{http_code}" http://localhost:$QUARKUS_PORT/chat/streaming)
             if [ "$HTTP_CODE" = "200" ]; then
               echo "SUCCESS: HTTP $HTTP_CODE"
               break
