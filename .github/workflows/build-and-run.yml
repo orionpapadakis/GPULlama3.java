@@ -108,10 +108,7 @@ jobs:
     if: github.repository == 'beehive-lab/GPULlama3.java'
     runs-on: ${{ matrix.backend.os == 'macos' && fromJSON('["self-hosted","macOS"]') || fromJSON('["self-hosted","Linux"]') }}
     needs: build
-    # Metal on the Mac runner is far slower than the Linux GPU backends for the larger
-    # models (e.g. Mistral-7B alone exceeded the old 30-minute budget), so give the full
-    # matrix enough headroom regardless of which backend the job landed on.
-    timeout-minutes: 180
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       max-parallel: 2
