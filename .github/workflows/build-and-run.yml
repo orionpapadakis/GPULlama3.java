@@ -505,8 +505,14 @@ jobs:
           echo "APP_LOG=$APP_LOG" >> $GITHUB_ENV
           # Background process output stops being captured by the Actions log once this
           # step ends, so redirect it to a file we can dump later if a request fails.
+          #
+          # -Dtornado.device.memory here is dead: the gpu-llama3 extension's ChatModelConfig
+          # defaults device-memory to "4GB" and calls System.setProperty("tornado.device.memory", ...)
+          # itself during model init, overwriting whatever we pass as a bare JVM flag. On Metal
+          # that 4GB budget isn't enough even for Llama-3.2-1B in batch-prefill-decode mode
+          # (TornadoOutOfMemoryException), so override the actual Quarkus config property instead.
           java  @"$TORNADOVM_HOME/tornado-argfile" \
-                -Dtornado.device.memory=8GB \
+                -Dquarkus.langchain4j.gpu-llama3.chat-model.device-memory=8GB \
                 -Dquarkus.http.port=$QUARKUS_PORT \
                 -jar target/quarkus-app/quarkus-run.jar > "$APP_LOG" 2>&1 &
           APP_PID=$!
