@@ -9,6 +9,7 @@ import org.beehive.gpullama3.tokenizer.Tokenizer;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
 import org.beehive.gpullama3.tornadovm.layers.type.fp16.LogitsFP16Layer;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
+import org.beehive.gpullama3.validation.MoECorrectnessTrace;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
@@ -209,6 +210,7 @@ public final class InferenceEngine {
 
             // Track the generated token
             generatedTokens.add(nextToken);
+            MoECorrectnessTrace.recordToken(nextToken);
 
             // Notify via callback if provided
             if (onTokenGenerated != null) {
@@ -449,6 +451,7 @@ public final class InferenceEngine {
 
             // Track the generated token
             generatedTokens.add(nextToken);
+            MoECorrectnessTrace.recordToken(nextToken);
 
             // Notify via callback if provided
             if (onTokenGenerated != null) {
