@@ -34,7 +34,6 @@ public class Qwen2MoEState extends Qwen2State {
     // separate from the CPU FloatTensor fields above: TaskGraph kernels operate on
     // TornadoVM arrays that can remain resident on the device between tasks.
     public final FloatArray wrapRouterLogits;
-    public final FloatArray wrapRawRouterLogits;
     public final IntArray wrapSelectedExperts;
     public final FloatArray wrapRoutingWeights;
     public final FloatArray wrapExpertGate;
@@ -52,7 +51,6 @@ public class Qwen2MoEState extends Qwen2State {
         this.yTmp = ArrayFloatTensor.allocate(c.dim());
 
         this.wrapRouterLogits = new FloatArray(c.numberOfExperts());
-        this.wrapRawRouterLogits = new FloatArray(c.numberOfExperts());
         this.wrapSelectedExperts = new IntArray(c.numberOfExpertsUsed());
         this.wrapRoutingWeights = new FloatArray(c.numberOfExpertsUsed());
         this.wrapExpertGate = new FloatArray(c.moeHiddenDim());

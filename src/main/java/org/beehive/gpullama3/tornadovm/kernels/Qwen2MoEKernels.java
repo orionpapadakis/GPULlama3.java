@@ -11,15 +11,6 @@ import uk.ac.manchester.tornado.api.types.arrays.IntArray;
  */
 public final class Qwen2MoEKernels {
 
-    /** Copies raw router scores before softmax/top-K modifies its input buffer. */
-    public static void copyRouterLogits(KernelContext context, FloatArray source,
-                                        FloatArray destination, int numberOfExperts) {
-        int expert = context.globalIdx;
-        if (expert < numberOfExperts) {
-            destination.set(expert, source.get(expert));
-        }
-    }
-
     private static final int Q8_0_BLOCK_SIZE = 32;
     private static final int Q8_0_BLOCK_BYTES = 34;
 
