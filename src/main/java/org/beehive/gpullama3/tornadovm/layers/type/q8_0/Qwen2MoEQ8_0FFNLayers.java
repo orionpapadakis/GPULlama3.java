@@ -42,7 +42,8 @@ public final class Qwen2MoEQ8_0FFNLayers
     /** Sets the GPU worker grid for each task in each Transformer layer. */
     @Override
     public GridScheduler updateGridScheduler(GridScheduler scheduler) {
-        WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), moeState.localSize);
+        WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(
+                moeState.localSize, moeState.localSize);
 
         WorkerGrid qkvWorker = workerForRows(config.dim() + 2 * config.kvDim());
         WorkerGrid qkvBiasWorker = new WorkerGrid1D(config.dim());
@@ -135,15 +136,9 @@ public final class Qwen2MoEQ8_0FFNLayers
     /** Adds the normal Qwen2 attention tasks to this layer's TaskGraph. */
     private void configureAttention(TaskGraph layer, int layerIndex) {
         layer.task("attn_rms_reduce",
-                TransformerComputeKernelsLayered::reductionOneBlockWithLayer,
+                TransformerComputeKernelsLayered::reductionOneBlockWithLayerSingleGroup,
                 context, moeState.temp, moeState.wrapX,
                 config.dim(), config.rmsNormEps(), moeState.localSize);
-
-        if (shouldUseFinalNormalization()) {
-            layer.task("attn_rms_finalize",
-                    TransformerComputeKernelsLayered::reductionFinalNormalization,
-                    context, moeState.temp, config.dim(), config.rmsNormEps());
-        }
 
         layer.task("attn_rms_qkv_projection",
                 Qwen3Kernels::fusedRmsNormQKVMatmulQ8_0,
@@ -186,15 +181,9 @@ public final class Qwen2MoEQ8_0FFNLayers
      */
     private void configureRoutedExperts(TaskGraph layer, int layerIndex) {
         layer.task("ffn_rms_reduce",
-                TransformerComputeKernelsLayered::reductionOneBlockWithLayer,
+                TransformerComputeKernelsLayered::reductionOneBlockWithLayerSingleGroup,
                 context, moeState.tempFFN, moeState.wrapX,
                 config.dim(), config.rmsNormEps(), moeState.localSize);
-
-        if (shouldUseFinalNormalization()) {
-            layer.task("ffn_rms_finalize",
-                    TransformerComputeKernelsLayered::reductionFinalNormalization,
-                    context, moeState.tempFFN, config.dim(), config.rmsNormEps());
-        }
 
         layer.task("ffn_rms_apply",
                 TransformerComputeKernelsLayered::reductionOneBlock2WithLayer,
