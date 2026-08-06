@@ -64,7 +64,6 @@ public final class Qwen2MoEQ8_0FFNLayers
         WorkerGrid routerWorker = workerForRows(config.numberOfExperts());
         WorkerGrid topKWorker = new WorkerGrid1D(LOCAL_WORK_GROUP_SIZE_ALLOC);
         topKWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
-        WorkerGrid expertHiddenWorker = workerForRows(config.moeHiddenDim());
         // Fused routed-expert launch: the slot index is folded into the work-group id.
         WorkerGrid allExpertsHiddenWorker =
                 workerForRows(config.moeHiddenDim() * config.numberOfExpertsUsed());
@@ -205,14 +204,14 @@ public final class Qwen2MoEQ8_0FFNLayers
         // launches per layer rather than 8, and the residual is accumulated once instead of
         // four times.
         layer.task("routed_experts_gate_up",
-                Qwen2MoEKernels::fusedRoutedExpertsGateUpSwiGLUQ8_0All,
+                Qwen2MoEKernels::fusedRoutedExpertsGateUpSwiGLUQ8_0,
                 context, moeState.wrapXb, moeState.wrapSelectedExperts, config.numberOfExpertsUsed(),
                 weights.gateExpertsLayered[layerIndex].asByteArray(),
                 weights.upExpertsLayered[layerIndex].asByteArray(), moeState.wrapExpertGate,
                 config.dim(), config.moeHiddenDim(), config.numberOfExperts(), LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         layer.task("routed_experts_down",
-                Qwen2MoEKernels::routedExpertsDownProjectAndAccumulateQ8_0All,
+                Qwen2MoEKernels::routedExpertsDownProjectAndAccumulateQ8_0,
                 context, moeState.wrapExpertGate, moeState.wrapX,
                 moeState.wrapSelectedExperts, moeState.wrapRoutingWeights, config.numberOfExpertsUsed(),
                 weights.downExpertsLayered[layerIndex].asByteArray(),
