@@ -187,6 +187,166 @@ public final class Qwen2MoEKernels {
     }
 
     /**
+     * Gate/Up + SiLU for <b>all</b> routed slots in a single launch.
+     *
+     * <p>Functionally identical to calling {@link #fusedRoutedExpertGateUpSwiGLUQ8_0} once per
+     * slot; the slot index is folded into the work-group id instead, so top-K launches collapse
+     * into one. Each slot writes its own {@code moeHiddenDim}-sized window of
+     * {@code expertHidden}, so the slots never alias.
+     */
+    public static void fusedRoutedExpertsGateUpSwiGLUQ8_0All(
+            KernelContext context,
+            FloatArray input,
+            IntArray selectedExperts,
+            int expertsUsed,
+            ByteArray gateExperts,
+            ByteArray upExperts,
+            FloatArray expertHidden,
+            int dim,
+            int moeHiddenDim,
+            int numberOfExperts,
+            int localWorkGroupSize) {
+
+        int flatGroupId = context.groupIdx;
+        int localId = context.localIdx;
+
+        int slot = flatGroupId / moeHiddenDim;
+        int rowId = flatGroupId - slot * moeHiddenDim;
+
+        // A work-group whose slot or row falls outside the launch still has to reach the
+        // barriers below, so the guard only suppresses the memory accesses and the store.
+        boolean active = slot < expertsUsed && rowId < moeHiddenDim;
+        int expert = 0;
+        if (active) {
+            expert = selectedExperts.get(slot);
+            active = expert >= 0 && expert < numberOfExperts;
+        }
+
+        int blocksPerRow = (dim + Q8_0_BLOCK_SIZE - 1) / Q8_0_BLOCK_SIZE;
+        int rowBlockOffset = (expert * moeHiddenDim + rowId) * blocksPerRow;
+
+        float gatePartialSum = 0.0f;
+        float upPartialSum = 0.0f;
+        if (active) {
+            for (int column = localId; column < dim; column += localWorkGroupSize) {
+                int blockByteOffset =
+                        (rowBlockOffset + column / Q8_0_BLOCK_SIZE) * Q8_0_BLOCK_BYTES;
+                int quantOffset =
+                        blockByteOffset + 2 + column % Q8_0_BLOCK_SIZE;
+
+                float inputValue = input.get(column);
+                float gateScale = gateExperts.getHalfFloat(blockByteOffset).getFloat32();
+                float upScale = upExperts.getHalfFloat(blockByteOffset).getFloat32();
+
+                gatePartialSum += (gateExperts.get(quantOffset) * gateScale) * inputValue;
+                upPartialSum += (upExperts.get(quantOffset) * upScale) * inputValue;
+            }
+        }
+
+        float[] localSums = context.allocateFloatLocalArray(localWorkGroupSize);
+        localSums[localId] = gatePartialSum;
+        context.localBarrier();
+        for (int stride = localWorkGroupSize / 2; stride > 0; stride >>= 1) {
+            if (localId < stride) {
+                localSums[localId] += localSums[localId + stride];
+            }
+            context.localBarrier();
+        }
+        float gate = localSums[0];
+
+        localSums[localId] = upPartialSum;
+        context.localBarrier();
+        for (int stride = localWorkGroupSize / 2; stride > 0; stride >>= 1) {
+            if (localId < stride) {
+                localSums[localId] += localSums[localId + stride];
+            }
+            context.localBarrier();
+        }
+
+        if (localId == 0 && active) {
+            float up = localSums[0];
+            float siluGate = gate / (1.0f + TornadoMath.exp(-gate));
+            expertHidden.set(slot * moeHiddenDim + rowId, siluGate * up);
+        }
+    }
+
+    /**
+     * Down-projects <b>all</b> routed slots and accumulates them into the residual in one launch.
+     *
+     * <p>Beyond collapsing top-K launches into one, this also folds the per-slot partial sums
+     * before the reduction, so the work-group reduces once instead of K times and the residual is
+     * read-modify-written once instead of K times.
+     */
+    public static void routedExpertsDownProjectAndAccumulateQ8_0All(
+            KernelContext context,
+            FloatArray expertHidden,
+            FloatArray residual,
+            IntArray selectedExperts,
+            FloatArray routingWeights,
+            int expertsUsed,
+            ByteArray downExperts,
+            int dim,
+            int moeHiddenDim,
+            int numberOfExperts,
+            int localWorkGroupSize) {
+
+        int rowId = context.groupIdx;
+        int localId = context.localIdx;
+        boolean active = rowId < dim;
+
+        int blocksPerRow = (moeHiddenDim + Q8_0_BLOCK_SIZE - 1) / Q8_0_BLOCK_SIZE;
+        float[] localSums = context.allocateFloatLocalArray(localWorkGroupSize);
+
+        // Lane 0 carries the running residual across slots. Each slot is reduced with the same
+        // tree and folded in the same order as the per-slot kernels, so the result is bit-identical
+        // to launching them separately - only the launch count and the residual write change.
+        float running = 0.0f;
+        if (localId == 0 && active) {
+            running = residual.get(rowId);
+        }
+
+        for (int slot = 0; slot < expertsUsed; slot++) {
+            int expert = selectedExperts.get(slot);
+            boolean slotActive = active && expert >= 0 && expert < numberOfExperts;
+
+            float partialSum = 0.0f;
+            if (slotActive) {
+                int rowBlockOffset = (expert * dim + rowId) * blocksPerRow;
+                int hiddenBase = slot * moeHiddenDim;
+                for (int column = localId;
+                     column < moeHiddenDim;
+                     column += localWorkGroupSize) {
+                    int blockByteOffset =
+                            (rowBlockOffset + column / Q8_0_BLOCK_SIZE) * Q8_0_BLOCK_BYTES;
+                    int quantOffset = blockByteOffset + 2 + column % Q8_0_BLOCK_SIZE;
+
+                    float weight = downExperts.get(quantOffset)
+                            * downExperts.getHalfFloat(blockByteOffset).getFloat32();
+                    partialSum += weight * expertHidden.get(hiddenBase + column);
+                }
+            }
+
+            context.localBarrier();
+            localSums[localId] = partialSum;
+            context.localBarrier();
+            for (int stride = localWorkGroupSize / 2; stride > 0; stride >>= 1) {
+                if (localId < stride) {
+                    localSums[localId] += localSums[localId + stride];
+                }
+                context.localBarrier();
+            }
+
+            if (localId == 0 && slotActive) {
+                running += routingWeights.get(slot) * localSums[0];
+            }
+        }
+
+        if (localId == 0 && active) {
+            residual.set(rowId, running);
+        }
+    }
+
+    /**
      * Down-projects one selected expert and accumulates its routed contribution:
      * {@code residual += routingWeight[slot] * W_down[expert] * expertHidden}.
      */

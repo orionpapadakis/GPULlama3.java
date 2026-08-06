@@ -53,7 +53,7 @@ public class Qwen2MoEState extends Qwen2State {
         this.wrapRouterLogits = new FloatArray(c.numberOfExperts());
         this.wrapSelectedExperts = new IntArray(c.numberOfExpertsUsed());
         this.wrapRoutingWeights = new FloatArray(c.numberOfExpertsUsed());
-        this.wrapExpertGate = new FloatArray(c.moeHiddenDim());
+        this.wrapExpertGate = new FloatArray(c.moeHiddenDim() * c.numberOfExpertsUsed());
         this.wrapSharedGate = new FloatArray(c.sharedExpertHiddenDim());
         this.wrapSharedOutput = new FloatArray(c.dim());
     }

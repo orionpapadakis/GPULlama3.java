@@ -65,6 +65,9 @@ public final class Qwen2MoEQ8_0FFNLayers
         WorkerGrid topKWorker = new WorkerGrid1D(LOCAL_WORK_GROUP_SIZE_ALLOC);
         topKWorker.setLocalWork(LOCAL_WORK_GROUP_SIZE_ALLOC, 1, 1);
         WorkerGrid expertHiddenWorker = workerForRows(config.moeHiddenDim());
+        // Fused routed-expert launch: the slot index is folded into the work-group id.
+        WorkerGrid allExpertsHiddenWorker =
+                workerForRows(config.moeHiddenDim() * config.numberOfExpertsUsed());
         WorkerGrid sharedHiddenWorker = workerForRows(config.sharedExpertHiddenDim());
 
         for (int layer = 0; layer < config.numberOfLayers(); layer++) {
@@ -79,10 +82,8 @@ public final class Qwen2MoEQ8_0FFNLayers
             scheduler.addWorkerGrid(prefix + "ffn_rms_apply", dimElementWorker);
             scheduler.addWorkerGrid(prefix + "router_projection", routerWorker);
             scheduler.addWorkerGrid(prefix + "router_softmax_topk", topKWorker);
-            for (int slot = 0; slot < config.numberOfExpertsUsed(); slot++) {
-                scheduler.addWorkerGrid(prefix + "routed_expert_gate_up_" + slot, expertHiddenWorker);
-                scheduler.addWorkerGrid(prefix + "routed_expert_down_" + slot, dimWorker);
-            }
+            scheduler.addWorkerGrid(prefix + "routed_experts_gate_up", allExpertsHiddenWorker);
+            scheduler.addWorkerGrid(prefix + "routed_experts_down", dimWorker);
             scheduler.addWorkerGrid(prefix + "shared_expert_gate_up", sharedHiddenWorker);
             scheduler.addWorkerGrid(prefix + "shared_expert_down", dimWorker);
             scheduler.addWorkerGrid(prefix + "shared_expert_gate_and_accumulate", topKWorker);
@@ -200,21 +201,22 @@ public final class Qwen2MoEQ8_0FFNLayers
                 context, moeState.wrapRouterLogits, moeState.wrapSelectedExperts,
                 moeState.wrapRoutingWeights, config.numberOfExperts(), config.numberOfExpertsUsed());
 
-        for (int slot = 0; slot < config.numberOfExpertsUsed(); slot++) {
-            layer.task("routed_expert_gate_up_" + slot,
-                    Qwen2MoEKernels::fusedRoutedExpertGateUpSwiGLUQ8_0,
-                    context, moeState.wrapXb, moeState.wrapSelectedExperts, slot,
-                    weights.gateExpertsLayered[layerIndex].asByteArray(),
-                    weights.upExpertsLayered[layerIndex].asByteArray(), moeState.wrapExpertGate,
-                    config.dim(), config.moeHiddenDim(), config.numberOfExperts(), LOCAL_WORK_GROUP_SIZE_ALLOC);
+        // All routed slots in two launches instead of two per slot: at top-4 this is 2 kernel
+        // launches per layer rather than 8, and the residual is accumulated once instead of
+        // four times.
+        layer.task("routed_experts_gate_up",
+                Qwen2MoEKernels::fusedRoutedExpertsGateUpSwiGLUQ8_0All,
+                context, moeState.wrapXb, moeState.wrapSelectedExperts, config.numberOfExpertsUsed(),
+                weights.gateExpertsLayered[layerIndex].asByteArray(),
+                weights.upExpertsLayered[layerIndex].asByteArray(), moeState.wrapExpertGate,
+                config.dim(), config.moeHiddenDim(), config.numberOfExperts(), LOCAL_WORK_GROUP_SIZE_ALLOC);
 
-            layer.task("routed_expert_down_" + slot,
-                    Qwen2MoEKernels::routedExpertDownProjectAndAccumulateQ8_0,
-                    context, moeState.wrapExpertGate, moeState.wrapX,
-                    moeState.wrapSelectedExperts, moeState.wrapRoutingWeights, slot,
-                    weights.downExpertsLayered[layerIndex].asByteArray(),
-                    config.dim(), config.moeHiddenDim(), config.numberOfExperts(), LOCAL_WORK_GROUP_SIZE_ALLOC);
-        }
+        layer.task("routed_experts_down",
+                Qwen2MoEKernels::routedExpertsDownProjectAndAccumulateQ8_0All,
+                context, moeState.wrapExpertGate, moeState.wrapX,
+                moeState.wrapSelectedExperts, moeState.wrapRoutingWeights, config.numberOfExpertsUsed(),
+                weights.downExpertsLayered[layerIndex].asByteArray(),
+                config.dim(), config.moeHiddenDim(), config.numberOfExperts(), LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // The shared expert always runs; it does not depend on router top-K selection.
         layer.task("shared_expert_gate_up", Qwen2MoEKernels::sharedExpertGateUpSwiGLUQ8_0,
