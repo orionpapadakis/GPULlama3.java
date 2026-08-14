@@ -48,7 +48,6 @@ public class Qwen2MoEState extends Qwen2State {
     public final FloatArray wrapRoutingWeightsBatch;
     public final IntArray wrapGroupedAssignmentIds;
     public final IntArray wrapGroupedPositionByAssignment;
-    public final IntArray wrapExpertOffsets;
     public final FloatArray wrapGroupedExpertHidden;
     public final FloatArray wrapGroupedExpertDown;
     public final FloatArray wrapSharedHiddenBatch;
@@ -81,7 +80,6 @@ public class Qwen2MoEState extends Qwen2State {
             this.wrapRoutingWeightsBatch = new FloatArray(assignments);
             this.wrapGroupedAssignmentIds = new IntArray(assignments);
             this.wrapGroupedPositionByAssignment = new IntArray(assignments);
-            this.wrapExpertOffsets = new IntArray(c.numberOfExperts() + 1);
             this.wrapGroupedExpertHidden = new FloatArray(assignments * c.moeHiddenDim());
             this.wrapGroupedExpertDown = new FloatArray(assignments * c.dim());
             this.wrapSharedHiddenBatch = new FloatArray(gpuBatchSize * c.sharedExpertHiddenDim());
@@ -93,7 +91,6 @@ public class Qwen2MoEState extends Qwen2State {
             this.wrapRoutingWeightsBatch = null;
             this.wrapGroupedAssignmentIds = null;
             this.wrapGroupedPositionByAssignment = null;
-            this.wrapExpertOffsets = null;
             this.wrapGroupedExpertHidden = null;
             this.wrapGroupedExpertDown = null;
             this.wrapSharedHiddenBatch = null;

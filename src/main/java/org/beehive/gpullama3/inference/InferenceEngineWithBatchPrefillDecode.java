@@ -147,9 +147,7 @@ public final class InferenceEngineWithBatchPrefillDecode {
     // @formatter:on
 
     /**
-     * LLaMA batched GPU prefill token generation (GPU, Phase 4).
-     *
-     * <p>FP16 only; Q8_0 throws {@link UnsupportedOperationException}.</p>
+     * Batched GPU prefill followed by single-token decode.
      *
      * <p>Split loop:</p>
      * <ul>

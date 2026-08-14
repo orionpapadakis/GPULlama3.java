@@ -237,13 +237,12 @@ public final class Qwen2MoEBatchKernels {
         }
     }
 
-    /** Groups token-expert assignments by expert and records each expert's range. */
+    /** Groups token-expert assignments by expert. */
     public static void groupAssignmentsByExpert(
             KernelContext context,
             IntArray selectedExperts,
             IntArray groupedAssignmentIds,
             IntArray groupedPositionByAssignment,
-            IntArray expertOffsets,
             IntArray activeBatchSizeHolder,
             int numberOfExperts,
             int topK) {
@@ -256,30 +255,16 @@ public final class Qwen2MoEBatchKernels {
         int numberOfAssignments = activeBatchSizeHolder.get(0) * topK;
         int groupedPosition = 0;
 
-        // Visit each expert in expert-ID order.
         for (int expert = 0; expert < numberOfExperts; expert++) {
-            // Record where this expert's assignments begin.
-            expertOffsets.set(expert, groupedPosition);
-
-            // Find all active assignments that selected this expert.
             for (int assignment = 0; assignment < numberOfAssignments; assignment++) {
-
                 int selectedExpert = selectedExperts.get(assignment);
-
                 if (selectedExpert == expert) {
-                    // grouped position -> original assignment ID
                     groupedAssignmentIds.set(groupedPosition, assignment);
-
-                    // original assignment ID -> grouped position
                     groupedPositionByAssignment.set(assignment, groupedPosition);
-
                     groupedPosition++;
                 }
             }
         }
-
-        // Record the end of the final expert's assignment range.
-        expertOffsets.set(numberOfExperts, groupedPosition);
     }
 
     /** Computes routed Gate/Up projections in expert-grouped assignment order. */

@@ -114,7 +114,6 @@ public final class Qwen2MoEQ8_0LayersBatchPrefill
                     state.wrapRoutingWeightsBatch,
                     state.wrapGroupedAssignmentIds,
                     state.wrapGroupedPositionByAssignment,
-                    state.wrapExpertOffsets,
                     state.wrapGroupedExpertHidden,
                     state.wrapGroupedExpertDown,
                     state.wrapSharedHiddenBatch,
@@ -141,7 +140,6 @@ public final class Qwen2MoEQ8_0LayersBatchPrefill
                     state.wrapRoutingWeightsBatch,
                     state.wrapGroupedAssignmentIds,
                     state.wrapGroupedPositionByAssignment,
-                    state.wrapExpertOffsets,
                     state.wrapGroupedExpertHidden,
                     state.wrapGroupedExpertDown,
                     state.wrapSharedHiddenBatch,
@@ -319,7 +317,6 @@ public final class Qwen2MoEQ8_0LayersBatchPrefill
                 state.wrapSelectedExpertsBatch,
                 state.wrapGroupedAssignmentIds,
                 state.wrapGroupedPositionByAssignment,
-                state.wrapExpertOffsets,
                 state.activeBatchSizeHolder,
                 config.numberOfExperts(),
                 topK);

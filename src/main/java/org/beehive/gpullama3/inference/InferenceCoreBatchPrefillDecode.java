@@ -178,7 +178,7 @@ public final class InferenceCoreBatchPrefillDecode {
      * then delegates graph execution to the plan.</p>
      *
      * @param model
-     *     the LLaMA model
+     *     the model
      * @param state
      *     mutable inference state
      * @param tokens
@@ -234,7 +234,7 @@ public final class InferenceCoreBatchPrefillDecode {
      * graph execution to the plan.</p>
      *
      * @param model
-     *     the LLaMA model
+     *     the model
      * @param state
      *     mutable inference state
      * @param token
