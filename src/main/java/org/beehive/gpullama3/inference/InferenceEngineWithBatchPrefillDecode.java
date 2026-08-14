@@ -187,17 +187,30 @@ public final class InferenceEngineWithBatchPrefillDecode {
         int N = promptTokens.size();
 
         // ── Prefill ───────────────────────────────────────────────────────────
-        // Build the token sequence at positions [startPosition .. startPosition+N-1]:
-        //   position startPosition+0 : currentToken (BOS/previous token)
-        //   position startPosition+k : promptTokens[k-1]
-        int[] prefillSeq = new int[N];
-        prefillSeq[0] = currentToken;
-        for (int i = 1; i < N; i++) {
-            prefillSeq[i] = promptTokens.get(i - 1);
+        // Qwen's regular path forwards promptTokens[0] directly at position 0.
+        // Keep the final prompt token for the B1 decode graph, which produces the
+        // first generation logits without duplicating the ChatML start token.
+        boolean qwen2MoE = model.getModelType()
+                == org.beehive.gpullama3.model.ModelType.QWEN_2_MOE;
+        int prefillTokenCount = qwen2MoE ? Math.max(0, N - 1) : N;
+        int[] prefillSeq = new int[prefillTokenCount];
+        if (qwen2MoE) {
+            for (int i = 0; i < prefillTokenCount; i++) {
+                prefillSeq[i] = promptTokens.get(i);
+            }
+        } else {
+            prefillSeq[0] = currentToken;
+            for (int i = 1; i < N; i++) {
+                prefillSeq[i] = promptTokens.get(i - 1);
+            }
         }
 
-        for (int chunkStart = 0; chunkStart < N && pos + chunkStart < actualMaxTokens; chunkStart += batchSize) {
-            int chunkEnd = Math.min(Math.min(chunkStart + batchSize, N), actualMaxTokens - pos);
+        for (int chunkStart = 0;
+                chunkStart < prefillTokenCount && pos + chunkStart < actualMaxTokens;
+                chunkStart += batchSize) {
+            int chunkEnd = Math.min(
+                    Math.min(chunkStart + batchSize, prefillTokenCount),
+                    actualMaxTokens - pos);
             int chunkSize = chunkEnd - chunkStart;
             int[] chunk = Arrays.copyOfRange(prefillSeq, chunkStart, chunkEnd);
 
@@ -213,12 +226,15 @@ public final class InferenceEngineWithBatchPrefillDecode {
         }
 
         currentToken = promptTokens.get(N - 1);
-        pos = startPosition + N;
+        pos = startPosition + (qwen2MoE ? N - 1 : N);
         state.latestToken = currentToken;
         long decodeStartNanos = System.nanoTime();
+        int generatedTokenBudget = qwen2MoE
+                ? Math.max(0, actualMaxTokens - N)
+                : Integer.MAX_VALUE;
 
         // ── Decode ────────────────────────────────────────────────────────────
-        while (pos < actualMaxTokens) {
+        while (pos < actualMaxTokens && generatedTokens.size() < generatedTokenBudget) {
             var logits = InferenceCoreBatchPrefillDecode.forwardTornadoVMDecode(model, state, currentToken, pos, plan);
             int nextToken = sampler.sampleToken(logits);
 

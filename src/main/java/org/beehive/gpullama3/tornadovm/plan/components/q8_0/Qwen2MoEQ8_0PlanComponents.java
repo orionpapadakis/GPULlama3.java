@@ -7,15 +7,21 @@ import org.beehive.gpullama3.model.qwen2.Qwen2MoEConfiguration;
 import org.beehive.gpullama3.tornadovm.layers.AbstractLogitsTaskGraph;
 import org.beehive.gpullama3.tornadovm.layers.Activation;
 import org.beehive.gpullama3.tornadovm.layers.ActivationTaskGraph;
+import org.beehive.gpullama3.tornadovm.layers.BatchPrefillTransformerLayerTaskGraphs;
 import org.beehive.gpullama3.tornadovm.layers.TransformerLayerTaskGraphs;
 import org.beehive.gpullama3.tornadovm.layers.type.q8_0.LogitsQ8_0Layer;
 import org.beehive.gpullama3.tornadovm.layers.type.q8_0.Qwen2MoEQ8_0FFNLayers;
-import org.beehive.gpullama3.tornadovm.plan.components.SingleTokenForwardPlanComponents;
+import org.beehive.gpullama3.tornadovm.layers.type.q8_0.decode.LogitsQ8_0LayerDecode;
+import org.beehive.gpullama3.tornadovm.layers.type.q8_0.decode.Qwen2MoEQ8_0FFNLayersDecode;
+import org.beehive.gpullama3.tornadovm.layers.type.q8_0.prefill.Qwen2MoEQ8_0LayersBatchPrefill;
+import org.beehive.gpullama3.tornadovm.plan.components.BatchPrefillDecodeForwardPlanComponents;
+import org.beehive.gpullama3.tornadovm.plan.components.activation.BatchDecodeActivation;
+import org.beehive.gpullama3.tornadovm.plan.components.activation.BatchPrefillActivation;
 import org.beehive.gpullama3.tornadovm.scheduling.SchedulerDetectionService;
 import org.beehive.gpullama3.tornadovm.scheduling.SchedulerType;
 
-/** Assembles the single-token Q8_0 GPU components for Qwen2-MoE. */
-public final class Qwen2MoEQ8_0PlanComponents implements SingleTokenForwardPlanComponents {
+/** Assembles the single-token and batch-prefill Q8_0 GPU components for Qwen2-MoE. */
+public final class Qwen2MoEQ8_0PlanComponents implements BatchPrefillDecodeForwardPlanComponents {
 
     private final Qwen2MoEState state;
     private final Qwen2MoETornadoWeights weights;
@@ -35,12 +41,49 @@ public final class Qwen2MoEQ8_0PlanComponents implements SingleTokenForwardPlanC
     }
 
     @Override
+    public ActivationTaskGraph prefillDecodeActivation() {
+        return new Activation("decodeActivation", state, weights, config);
+    }
+
+    @Override
+    public ActivationTaskGraph batchPrefillActivation(int batchSize) {
+        return new BatchPrefillActivation(state, config, batchSize, true);
+    }
+
+    @Override
+    public ActivationTaskGraph batchDecodeActivation(String lastBatchLayerId) {
+        return new BatchDecodeActivation(state, config, lastBatchLayerId, true);
+    }
+
+    @Override
     public TransformerLayerTaskGraphs singleTokenTransformerLayers() {
         return new Qwen2MoEQ8_0FFNLayers("qwen2MoEFFN", state, weights, config, schedulerType);
     }
 
     @Override
+    public TransformerLayerTaskGraphs prefillDecodeTransformerLayers() {
+        return new Qwen2MoEQ8_0FFNLayers("decode", state, weights, config, schedulerType);
+    }
+
+    @Override
+    public TransformerLayerTaskGraphs batchDecodeTransformerLayers() {
+        return new Qwen2MoEQ8_0FFNLayersDecode("decode", state, weights, config, schedulerType);
+    }
+
+    @Override
+    public BatchPrefillTransformerLayerTaskGraphs batchPrefillTransformerLayers(int batchSize) {
+        return new Qwen2MoEQ8_0LayersBatchPrefill(state, weights, config, batchSize);
+    }
+
+    @Override
     public AbstractLogitsTaskGraph singleTokenLogits(String previousGraphId) {
-        return new LogitsQ8_0Layer("logits", state, weights, config, previousGraphId, schedulerType);
+        return new LogitsQ8_0Layer(
+                "logits", state, weights, config, previousGraphId, schedulerType);
+    }
+
+    @Override
+    public AbstractLogitsTaskGraph decodeLogits(String previousGraphId) {
+        return new LogitsQ8_0LayerDecode(
+                "logits", state, weights, config, previousGraphId, schedulerType);
     }
 }
