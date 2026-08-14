@@ -77,13 +77,11 @@ public final class Qwen2MoEQ8_0PlanComponents implements BatchPrefillDecodeForwa
 
     @Override
     public AbstractLogitsTaskGraph singleTokenLogits(String previousGraphId) {
-        return new LogitsQ8_0Layer(
-                "logits", state, weights, config, previousGraphId, schedulerType);
+        return new LogitsQ8_0Layer("logits", state, weights, config, previousGraphId, schedulerType);
     }
 
     @Override
     public AbstractLogitsTaskGraph decodeLogits(String previousGraphId) {
-        return new LogitsQ8_0LayerDecode(
-                "logits", state, weights, config, previousGraphId, schedulerType);
+        return new LogitsQ8_0LayerDecode("logits", state, weights, config, previousGraphId, schedulerType);
     }
 }

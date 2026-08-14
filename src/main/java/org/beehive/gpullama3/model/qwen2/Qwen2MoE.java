@@ -1,7 +1,5 @@
 package org.beehive.gpullama3.model.qwen2;
 
-import static org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan.WITH_PREFILL_DECODE;
-
 import org.beehive.gpullama3.inference.InferenceCore;
 import org.beehive.gpullama3.inference.InferenceEngine;
 import org.beehive.gpullama3.inference.InferenceEngineWithBatchPrefillDecode;
@@ -20,15 +18,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
+import static org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan.WITH_PREFILL_DECODE;
+
 public class Qwen2MoE extends AbstractModel {
 
     Qwen2MoEConfiguration configuration;
 
-    public Qwen2MoE(
-            Qwen2MoEConfiguration configuration,
-            Tokenizer tokenizer,
-            Weights weights,
-            ChatFormat chatFormat) {
+    public Qwen2MoE(Qwen2MoEConfiguration configuration, Tokenizer tokenizer, Weights weights, ChatFormat chatFormat) {
         super(tokenizer, weights, chatFormat, null);
         this.configuration = configuration;
     }
@@ -50,16 +46,14 @@ public class Qwen2MoE extends AbstractModel {
     @Override
     public State createNewState() {
         State state = new Qwen2MoEState(configuration(), -1);
-        state.latestToken =
-                tokenizer.getSpecialTokens().get(chatFormat.chatTokens().tStartHeader());
+        state.latestToken = tokenizer.getSpecialTokens().get(chatFormat.chatTokens().tStartHeader());
         return state;
     }
 
     @Override
     public State createNewState(int batchsize) {
         State state = new Qwen2MoEState(configuration(), batchsize);
-        state.latestToken =
-                tokenizer.getSpecialTokens().get(chatFormat.chatTokens().tStartHeader());
+        state.latestToken = tokenizer.getSpecialTokens().get(chatFormat.chatTokens().tStartHeader());
         return state;
     }
 
@@ -88,65 +82,23 @@ public class Qwen2MoE extends AbstractModel {
     }
 
     @Override
-    public List<Integer> generateTokens(
-            State state,
-            int startPosition,
-            List<Integer> promptTokens,
-            Set<Integer> stopTokens,
-            int maxTokens,
-            Sampler sampler,
-            boolean echo,
+    public List<Integer> generateTokens(State state, int startPosition, List<Integer> promptTokens, Set<Integer> stopTokens, int maxTokens, Sampler sampler, boolean echo,
             IntConsumer onTokenGenerated) {
-        return InferenceEngine.generateTokensQwen3(
-                this,
-                state,
-                startPosition,
-                promptTokens,
-                stopTokens,
-                maxTokens,
-                sampler,
-                echo,
-                onTokenGenerated);
+        return InferenceEngine.generateTokensQwen3(this, state, startPosition, promptTokens, stopTokens, maxTokens, sampler, echo, onTokenGenerated);
     }
 
     @Override
-    public List<Integer> generateTokensGPU(
-            State state,
-            int startPosition,
-            List<Integer> promptTokens,
-            Set<Integer> stopTokens,
-            int maxTokens,
-            Sampler sampler,
-            boolean echo,
-            IntConsumer onTokenGenerated,
-            TornadoVMMasterPlan tornadoVMPlan) {
+    public List<Integer> generateTokensGPU(State state, int startPosition, List<Integer> promptTokens, Set<Integer> stopTokens, int maxTokens, Sampler sampler, boolean echo,
+            IntConsumer onTokenGenerated, TornadoVMMasterPlan tornadoVMPlan) {
         if (WITH_PREFILL_DECODE && TornadoVMMasterPlan.PREFILL_BATCH_SIZE > 1) {
             return InferenceEngineWithBatchPrefillDecode.generateTokensGPULlama(
-                    this,
-                    state,
-                    startPosition,
-                    promptTokens,
-                    stopTokens,
-                    maxTokens,
-                    sampler,
-                    echo,
-                    onTokenGenerated,
-                    tornadoVMPlan);
+                    this, state, startPosition, promptTokens, stopTokens, maxTokens,
+                    sampler, echo, onTokenGenerated, tornadoVMPlan);
         }
         if (WITH_PREFILL_DECODE) {
-            throw new UnsupportedOperationException(
-                    "Prefill/decode on GPU not yet implemented for Qwen2-MoE");
+            throw new UnsupportedOperationException("Prefill/decode on GPU not yet implemented for Qwen2-MoE");
         }
-        return InferenceEngine.generateTokensGPUQwen3(
-                this,
-                state,
-                startPosition,
-                promptTokens,
-                stopTokens,
-                maxTokens,
-                sampler,
-                echo,
-                onTokenGenerated,
-                tornadoVMPlan);
+        return InferenceEngine.generateTokensGPUQwen3(this, state, startPosition, promptTokens,
+                stopTokens, maxTokens, sampler, echo, onTokenGenerated, tornadoVMPlan);
     }
 }

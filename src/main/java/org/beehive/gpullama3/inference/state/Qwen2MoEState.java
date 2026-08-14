@@ -4,7 +4,6 @@ import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.qwen2.Qwen2MoEConfiguration;
 import org.beehive.gpullama3.tensor.standard.ArrayFloatTensor;
 import org.beehive.gpullama3.tensor.standard.FloatTensor;
-
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.IntArray;
@@ -121,21 +120,17 @@ public class Qwen2MoEState extends Qwen2State {
         fields.att = ArrayFloatTensor.allocate(config.numberOfHeads(), config.contextLength());
         fields.logits = ArrayFloatTensor.allocate(config.vocabularySize());
 
-        fields.keyCache =
-                Stream.generate(() -> ArrayFloatTensor.allocate(config.contextLength(), nEmbdGqa))
-                        .limit(config.numberOfLayers())
-                        .toArray(FloatTensor[]::new);
-        fields.valueCache =
-                Stream.generate(() -> ArrayFloatTensor.allocate(config.contextLength(), nEmbdGqa))
-                        .limit(config.numberOfLayers())
-                        .toArray(FloatTensor[]::new);
+        fields.keyCache = Stream.generate(() -> ArrayFloatTensor.allocate(config.contextLength(), nEmbdGqa))
+                .limit(config.numberOfLayers())
+                .toArray(FloatTensor[]::new);
+        fields.valueCache = Stream.generate(() -> ArrayFloatTensor.allocate(config.contextLength(), nEmbdGqa))
+                .limit(config.numberOfLayers())
+                .toArray(FloatTensor[]::new);
 
         switch (config.quantization()) {
             case "FP16" -> fields.createActivationFP16(config.dim());
             case "Q8_0" -> fields.createActivationQ8_0(config.dim());
-            default ->
-                    throw new UnsupportedOperationException(
-                            "Unsupported quantization format: " + config.quantization());
+            default -> throw new UnsupportedOperationException("Unsupported quantization format: " + config.quantization());
         }
         fields.wrapX = new FloatArray(config.dim());
         fields.wrapXb = new FloatArray(config.dim());
@@ -149,10 +144,8 @@ public class Qwen2MoEState extends Qwen2State {
         fields.wrapK = new FloatArray(config.kvDim());
         fields.wrapV = new FloatArray(config.kvDim());
 
-        fields.wrapKeyCache =
-                new FloatArray(config.contextLength() * nEmbdGqa * config.numberOfLayers());
-        fields.wrapValueCache =
-                new FloatArray(config.contextLength() * nEmbdGqa * config.numberOfLayers());
+        fields.wrapKeyCache = new FloatArray(config.contextLength() * nEmbdGqa * config.numberOfLayers());
+        fields.wrapValueCache = new FloatArray(config.contextLength() * nEmbdGqa * config.numberOfLayers());
         fields.wrapValueCache.init(0.f);
         fields.wrapKeyCache.init(0.f);
         fields.wrapAtt = new FloatArray(config.numberOfHeads() * config.contextLength());
@@ -160,12 +153,9 @@ public class Qwen2MoEState extends Qwen2State {
 
         // State invokes this override before the Qwen2State constructor body runs,
         // so use the Qwen2 work-group size directly instead of State.localSize.
-        fields.temp =
-                new FloatArray(1 + ((config.dim() + QWEN2_LOCAL_SIZE - 1) / QWEN2_LOCAL_SIZE));
-        fields.tempFFN =
-                new FloatArray(1 + ((config.dim() + QWEN2_LOCAL_SIZE - 1) / QWEN2_LOCAL_SIZE));
-        fields.tempLogits =
-                new FloatArray(1 + ((config.dim() + QWEN2_LOCAL_SIZE - 1) / QWEN2_LOCAL_SIZE));
+        fields.temp = new FloatArray(1 + ((config.dim() + QWEN2_LOCAL_SIZE - 1) / QWEN2_LOCAL_SIZE));
+        fields.tempFFN = new FloatArray(1 + ((config.dim() + QWEN2_LOCAL_SIZE - 1) / QWEN2_LOCAL_SIZE));
+        fields.tempLogits = new FloatArray(1 + ((config.dim() + QWEN2_LOCAL_SIZE - 1) / QWEN2_LOCAL_SIZE));
 
         return fields;
     }

@@ -190,8 +190,7 @@ public final class InferenceEngineWithBatchPrefillDecode {
         // Qwen's regular path forwards promptTokens[0] directly at position 0.
         // Keep the final prompt token for the B1 decode graph, which produces the
         // first generation logits without duplicating the ChatML start token.
-        boolean qwen2MoE = model.getModelType()
-                == org.beehive.gpullama3.model.ModelType.QWEN_2_MOE;
+        boolean qwen2MoE = model.getModelType() == org.beehive.gpullama3.model.ModelType.QWEN_2_MOE;
         int prefillTokenCount = qwen2MoE ? Math.max(0, N - 1) : N;
         int[] prefillSeq = new int[prefillTokenCount];
         if (qwen2MoE) {
@@ -205,12 +204,8 @@ public final class InferenceEngineWithBatchPrefillDecode {
             }
         }
 
-        for (int chunkStart = 0;
-                chunkStart < prefillTokenCount && pos + chunkStart < actualMaxTokens;
-                chunkStart += batchSize) {
-            int chunkEnd = Math.min(
-                    Math.min(chunkStart + batchSize, prefillTokenCount),
-                    actualMaxTokens - pos);
+        for (int chunkStart = 0; chunkStart < prefillTokenCount && pos + chunkStart < actualMaxTokens; chunkStart += batchSize) {
+            int chunkEnd = Math.min(Math.min(chunkStart + batchSize, prefillTokenCount), actualMaxTokens - pos);
             int chunkSize = chunkEnd - chunkStart;
             int[] chunk = Arrays.copyOfRange(prefillSeq, chunkStart, chunkEnd);
 
@@ -229,9 +224,7 @@ public final class InferenceEngineWithBatchPrefillDecode {
         pos = startPosition + (qwen2MoE ? N - 1 : N);
         state.latestToken = currentToken;
         long decodeStartNanos = System.nanoTime();
-        int generatedTokenBudget = qwen2MoE
-                ? Math.max(0, actualMaxTokens - N)
-                : Integer.MAX_VALUE;
+        int generatedTokenBudget = qwen2MoE ? Math.max(0, actualMaxTokens - N) : Integer.MAX_VALUE;
 
         // ── Decode ────────────────────────────────────────────────────────────
         while (pos < actualMaxTokens && generatedTokens.size() < generatedTokenBudget) {
