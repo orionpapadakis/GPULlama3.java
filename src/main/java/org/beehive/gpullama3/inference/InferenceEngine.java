@@ -166,6 +166,7 @@ public final class InferenceEngine {
 
         // Storage for generated tokens
         List<Integer> generatedTokens = new ArrayList<>();
+        int generatedTokenBudget = Math.max(0, maxTokens - startPosition - promptTokens.size());
 
         // Initialize token variables
         int currentToken = state.latestToken; // BOS?
@@ -188,8 +189,11 @@ public final class InferenceEngine {
                 if (echo) {
                     System.err.print(Tokenizer.replaceControlCharacters(model.tokenizer().decode(List.of(nextToken))));
                 }
-                // We have reached the last prompt token and computed the first response-token.
-                position++; // The current logit belongs to the next position
+                // The last prompt token produced the first response-token logits.
+                // The for-loop advances to the next sequence position.
+                if (generatedTokenBudget == 0) {
+                    break;
+                }
             } else {
                 // Mark the start of actual generation (after prompt processing)
                 if (inferenceStartNanos == 0) {
@@ -216,7 +220,7 @@ public final class InferenceEngine {
             }
 
             // Check for stop condition
-            if (stopTokens.contains(nextToken)) {
+            if (generatedTokens.size() >= generatedTokenBudget || stopTokens.contains(nextToken)) {
                 break;
             }
 
@@ -393,6 +397,7 @@ public final class InferenceEngine {
         // prompt is longer than the token budget (actualMaxTokens), the difference is
         // negative and would throw IllegalArgumentException("Illegal Capacity").
         List<Integer> generatedTokens = new ArrayList<>(Math.max(0, Math.min(256, actualMaxTokens - promptTokens.size()))); // Conservative estimate
+        int generatedTokenBudget = Math.max(0, actualMaxTokens - startPosition - promptTokens.size());
 
         // Initialize token variables
         int currentToken = state.latestToken; // BOS?
@@ -428,8 +433,11 @@ public final class InferenceEngine {
                 if (echo) {
                     System.err.print(Tokenizer.replaceControlCharacters(model.tokenizer().decode(List.of(nextToken))));
                 }
-                // We have reached the last prompt token and computed the first response-token.
-                position++; // The current logit belongs to the next position
+                // The last prompt token produced the first response-token logits.
+                // The for-loop advances to the next sequence position.
+                if (generatedTokenBudget == 0) {
+                    break;
+                }
             } else {
                 // Mark the start of actual generation (after prompt processing)
                 if (inferenceStartNanos == 0) {
@@ -456,7 +464,7 @@ public final class InferenceEngine {
             }
 
             // Check for stop condition
-            if (stopTokens.contains(nextToken)) {
+            if (generatedTokens.size() >= generatedTokenBudget || stopTokens.contains(nextToken)) {
                 break;
             }
 

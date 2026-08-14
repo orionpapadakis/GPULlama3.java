@@ -224,7 +224,7 @@ public final class InferenceEngineWithBatchPrefillDecode {
         pos = startPosition + (qwen2MoE ? N - 1 : N);
         state.latestToken = currentToken;
         long decodeStartNanos = System.nanoTime();
-        int generatedTokenBudget = qwen2MoE ? Math.max(0, actualMaxTokens - N) : Integer.MAX_VALUE;
+        int generatedTokenBudget = Math.max(0, actualMaxTokens - startPosition - N);
 
         // ── Decode ────────────────────────────────────────────────────────────
         while (pos < actualMaxTokens && generatedTokens.size() < generatedTokenBudget) {
