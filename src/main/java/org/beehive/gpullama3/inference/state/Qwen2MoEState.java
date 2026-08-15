@@ -40,6 +40,19 @@ public class Qwen2MoEState extends Qwen2State {
     public final FloatArray wrapSharedGate;
     public final FloatArray wrapSharedOutput;
 
+    // TornadoVM buffers for the batch-prefill MoE path.
+    // Their shapes use the configured maximum batch size so TaskGraphs stay fixed.
+    public final FloatArray wrapRouterLogitsBatch;
+    public final IntArray activeBatchSizeHolder;
+    public final IntArray wrapSelectedExpertsBatch;
+    public final FloatArray wrapRoutingWeightsBatch;
+    public final IntArray wrapGroupedAssignmentIds;
+    public final IntArray wrapGroupedPositionByAssignment;
+    public final FloatArray wrapGroupedExpertHidden;
+    public final FloatArray wrapGroupedExpertDown;
+    public final FloatArray wrapSharedHiddenBatch;
+    public final FloatArray wrapSharedWeightBatch;
+
     public Qwen2MoEState(Configuration config, int batchsize) {
         super(config, batchsize);
         Qwen2MoEConfiguration c = (Qwen2MoEConfiguration) config;
@@ -56,6 +69,33 @@ public class Qwen2MoEState extends Qwen2State {
         this.wrapExpertGate = new FloatArray(c.moeHiddenDim() * c.numberOfExpertsUsed());
         this.wrapSharedGate = new FloatArray(c.sharedExpertHiddenDim());
         this.wrapSharedOutput = new FloatArray(c.dim());
+
+        int gpuBatchSize = Integer.getInteger("llama.prefillBatchSize", 1);
+        if (gpuBatchSize > 1) {
+            int assignments = gpuBatchSize * c.numberOfExpertsUsed();
+            this.wrapRouterLogitsBatch = new FloatArray(gpuBatchSize * c.numberOfExperts());
+            this.activeBatchSizeHolder = new IntArray(1);
+            this.activeBatchSizeHolder.init(gpuBatchSize);
+            this.wrapSelectedExpertsBatch = new IntArray(assignments);
+            this.wrapRoutingWeightsBatch = new FloatArray(assignments);
+            this.wrapGroupedAssignmentIds = new IntArray(assignments);
+            this.wrapGroupedPositionByAssignment = new IntArray(assignments);
+            this.wrapGroupedExpertHidden = new FloatArray(assignments * c.moeHiddenDim());
+            this.wrapGroupedExpertDown = new FloatArray(assignments * c.dim());
+            this.wrapSharedHiddenBatch = new FloatArray(gpuBatchSize * c.sharedExpertHiddenDim());
+            this.wrapSharedWeightBatch = new FloatArray(gpuBatchSize);
+        } else {
+            this.wrapRouterLogitsBatch = null;
+            this.activeBatchSizeHolder = null;
+            this.wrapSelectedExpertsBatch = null;
+            this.wrapRoutingWeightsBatch = null;
+            this.wrapGroupedAssignmentIds = null;
+            this.wrapGroupedPositionByAssignment = null;
+            this.wrapGroupedExpertHidden = null;
+            this.wrapGroupedExpertDown = null;
+            this.wrapSharedHiddenBatch = null;
+            this.wrapSharedWeightBatch = null;
+        }
     }
 
     @Override

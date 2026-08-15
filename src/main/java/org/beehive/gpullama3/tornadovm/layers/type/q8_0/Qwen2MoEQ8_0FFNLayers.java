@@ -24,10 +24,10 @@ import uk.ac.manchester.tornado.api.enums.DataTransferMode;
  * routed-expert pipeline: normalize, route, choose top-K experts, execute each
  * selected expert, and accumulate its weighted output into {@code wrapX}.</p>
  */
-public final class Qwen2MoEQ8_0FFNLayers
+public class Qwen2MoEQ8_0FFNLayers
         extends AbstractTransformerLayerTaskGraphs<Qwen2MoETornadoWeights, Qwen2MoEConfiguration> {
 
-    private final Qwen2MoEState moeState;
+    protected final Qwen2MoEState moeState;
 
     public Qwen2MoEQ8_0FFNLayers(String taskGraphName,
                                   Qwen2MoEState state,
@@ -105,9 +105,29 @@ public final class Qwen2MoEQ8_0FFNLayers
     protected TaskGraph createFFNLayerTaskGraph(int layerIndex) {
         TaskGraph layer = new TaskGraph("layer_" + layerIndex);
         // Reuse wrapX produced by the previous TaskGraph on the GPU.
-        layer.consumeFromDevice(moeState.wrapX);
-        // Upload this layer's read-only weights from CPU to GPU on the first execution.
-        layer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
+        String predecessor = predecessorGraphName(layerIndex);
+        if (predecessor == null) {
+            layer.consumeFromDevice(moeState.wrapX);
+        } else {
+            layer.consumeFromDevice(predecessor, moeState.wrapX);
+        }
+        layer = configureLayerWeights(layer, layerIndex);
+        layer = configureLayerDataTransfers(layer, layerIndex);
+
+        configureAttention(layer, layerIndex);
+        configureRoutedExperts(layer, layerIndex);
+        layer.persistOnDevice(moeState.wrapX, moeState.wrapKeyCache, moeState.wrapValueCache);
+        return layer;
+    }
+
+    /** Returns an explicit predecessor for plans that connect multiple graph chains. */
+    protected String predecessorGraphName(int layerIndex) {
+        return null;
+    }
+
+    /** Uploads this layer's read-only weights on its first execution. */
+    protected TaskGraph configureLayerWeights(TaskGraph layer, int layerIndex) {
+        return layer.transferToDevice(DataTransferMode.FIRST_EXECUTION,
                 weights.rms_att_weightLayered[layerIndex].asFloatArray(),
                 weights.wqLayered[layerIndex].asByteArray(),
                 weights.wkLayered[layerIndex].asByteArray(),
@@ -125,12 +145,6 @@ public final class Qwen2MoEQ8_0FFNLayers
                 weights.sharedUpLayered[layerIndex].asByteArray(),
                 weights.sharedDownLayered[layerIndex].asByteArray(),
                 weights.sharedGateInputLayered[layerIndex].asFloatArray());
-        layer = configureLayerDataTransfers(layer, layerIndex);
-
-        configureAttention(layer, layerIndex);
-        configureRoutedExperts(layer, layerIndex);
-        layer.persistOnDevice(moeState.wrapX);
-        return layer;
     }
 
     /** Adds the normal Qwen2 attention tasks to this layer's TaskGraph. */
