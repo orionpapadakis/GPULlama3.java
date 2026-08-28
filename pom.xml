@@ -39,7 +39,11 @@
         <properties>
             <!-- CI-friendly version: resolved by flatten-maven-plugin at build time -->
             <revision>1.0.0</revision>
-            <tornadovm.base.version>5.0.0</tornadovm.base.version>
+            <!-- Floor is >= 5.2.0: the packed-half2 split-KV attention below needs
+                 KernelContext.allocateHalf2LocalArray, which 5.0.0 does not have. 5.2.0 is the
+                 newest release published to Maven Central for both the -jdk21 and -jdk25
+                 suffixes (5.1.1 and 5.2.1 are not published for either). -->
+            <tornadovm.base.version>5.2.0</tornadovm.base.version>
             <jdk.version.suffix>-jdk21</jdk.version.suffix>
             <!-- CUDA backend is only available after 5.0.0 TornadoVM version -->
             <tornadovm.version>${tornadovm.base.version}${jdk.version.suffix}</tornadovm.version>

@@ -35,6 +35,9 @@ import java.util.function.IntConsumer;
  */
 public final class InferenceEngine {
 
+    /** Benchmarking aid: keep decoding past the stop token so every run generates the same token count. */
+    private static final boolean IGNORE_EOS = Boolean.getBoolean("llama.bench.ignoreEos");
+
     private InferenceEngine() {
         //prevent instantiation
     }
@@ -364,7 +367,7 @@ public final class InferenceEngine {
                 generatedTokens.add(nextToken);
 
                 // Check stop condition
-                if (stopTokens.contains(nextToken)) {
+                if (!IGNORE_EOS && stopTokens.contains(nextToken)) {
                     break;
                 }
             }
@@ -464,7 +467,9 @@ public final class InferenceEngine {
             }
 
             // Check for stop condition
-            if (generatedTokens.size() >= generatedTokenBudget || stopTokens.contains(nextToken)) {
+            // The budget is a hard limit and is never bypassed; only the stop token is, so that
+            // an ignore-EOS benchmark run still terminates — on the budget instead of on EOS.
+            if (generatedTokens.size() >= generatedTokenBudget || (!IGNORE_EOS && stopTokens.contains(nextToken))) {
                 break;
             }
 
