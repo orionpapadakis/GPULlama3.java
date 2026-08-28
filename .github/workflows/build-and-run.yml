@@ -520,7 +520,13 @@ jobs:
           # itself during model init, overwriting whatever we pass as a bare JVM flag. On Metal
           # that 4GB budget isn't enough even for Llama-3.2-1B in batch-prefill-decode mode
           # (TornadoOutOfMemoryException), so override the actual Quarkus config property instead.
+          # --add-modules jdk.incubator.vector: FloatTensor's static initializer reads
+          # VectorShape, so without it every request dies with
+          # NoClassDefFoundError: jdk/incubator/vector/VectorShape and the endpoint 500s.
+          # The tornado argfile does not supply it; every other run in this workflow passes
+          # it explicitly.
           java  @"$TORNADOVM_HOME/tornado-argfile" \
+                --add-modules jdk.incubator.vector \
                 -Dquarkus.langchain4j.gpu-llama3.chat-model.device-memory=8GB \
                 -Dquarkus.http.port=$QUARKUS_PORT \
                 -jar target/quarkus-app/quarkus-run.jar > "$APP_LOG" 2>&1 &
