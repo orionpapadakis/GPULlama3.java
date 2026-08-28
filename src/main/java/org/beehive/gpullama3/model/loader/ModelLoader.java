@@ -45,6 +45,12 @@ public abstract class ModelLoader {
     }
 
     private static ModelType detectModelType(Map<String, Object> metadata) {
+        // Architecture key is authoritative (set by llama.cpp conversion) and doesn't
+        // depend on how the model happens to be named, unlike general.name below.
+        if ("qwen2moe".equals(metadata.get("general.architecture"))) {
+            return ModelType.QWEN_2_MOE;
+        }
+
         String name = (String) metadata.get("general.name");
 
         // Check by name first
@@ -274,10 +280,30 @@ public abstract class ModelLoader {
      */
     public static void copyEmbeddingRow(GGMLTensorEntry entry, long rowIndex, int rowSize, FloatTensor dest, int destOffset) {
         GGMLType type = entry.ggmlType();
+        MemorySegment segment = entry.memorySegment();
+
+        // Q8_0 stores 32 int8 weights behind one FP16 scale, so a row is addressed per block
+        // rather than per element. Gemma4's per_layer_token_embd is Q8_0 in a Q8_0 file, and the
+        // CPU path reads it through here, so without this the whole family fails to run on CPU
+        // with "only supports unblocked (per-element) types".
+        if (type == GGMLType.Q8_0) {
+            final int blockSize = GGMLType.Q8_0.getBlockSize();  // 32 weights per block
+            final int typeSize = GGMLType.Q8_0.getTypeSize();    // 2-byte scale + 32 bytes
+            long firstElement = rowIndex * rowSize;
+            for (int i = 0; i < rowSize; i++) {
+                long element = firstElement + i;
+                long blockOffset = (element / blockSize) * typeSize;
+                int withinBlock = (int) (element % blockSize);
+                float scale = Float.float16ToFloat(segment.get(ValueLayout.JAVA_SHORT_UNALIGNED, blockOffset));
+                byte quant = segment.get(ValueLayout.JAVA_BYTE, blockOffset + Short.BYTES + withinBlock);
+                dest.setFloat(destOffset + i, scale * quant);
+            }
+            return;
+        }
+
         if (type.getBlockSize() != 1) {
             throw new UnsupportedOperationException("copyEmbeddingRow only supports unblocked (per-element) types, got " + type);
         }
-        MemorySegment segment = entry.memorySegment();
         long elementBytes = type.getTypeSize();
         long rowByteOffset = rowIndex * rowSize * elementBytes;
         for (int i = 0; i < rowSize; i++) {
