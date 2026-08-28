@@ -91,7 +91,12 @@ jobs:
       - name: Build Quarkus LangChain4j
         run: |
           cd ${{ github.workspace }}/quarkus-langchain4j
-          sed -i 's/<gpu-llama3\.version>.*<\/gpu-llama3\.version>/<gpu-llama3.version>'$GPULLAMA3_VERSION'<\/gpu-llama3.version>/' pom.xml
+          # Not `sed -i`: this job is not pinned to a platform, and BSD sed (macOS) reads
+          # the next argument as a backup suffix while GNU sed (Linux) does not, so the
+          # in-place form fails on whichever runner happens to pick the job up.
+          tmp=$(mktemp)
+          sed "s|<gpu-llama3\.version>.*</gpu-llama3\.version>|<gpu-llama3.version>${GPULLAMA3_VERSION}</gpu-llama3.version>|" pom.xml > "$tmp"
+          mv "$tmp" pom.xml
           # -Dtornado activates the TornadoVM profile; -am builds only the gpu-llama3 module + deps
           mvn clean install -pl integration-tests/gpu-llama3 -am -DskipTests -Dtornado
 
