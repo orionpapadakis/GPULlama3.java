@@ -300,7 +300,8 @@ jobs:
         #   TornadoInternalError: unimplemented: address origin unimplemented: ...calc.Mul
         #   at CUDAAddressLowering.lower (tornado.drivers.cuda 5.2.1-jdk21-dev)
         # A TornadoVM CUDA address-lowering gap on the Q8_0 tensor-core batch-prefill
-        # kernel, not a change in this repository. Drop the guard once it is fixed.
+        # kernel (gemmMMAQKVQ8), not a change in this repository. Reproduced on develop
+        # 7fcd11b10 and reported as beehive-lab/TornadoVM#1057. Drop the guard once it is fixed.
         if: matrix.backend.name != 'cuda'
         env:
           JAVA_TOOL_OPTIONS: >-
@@ -347,7 +348,8 @@ jobs:
           metrics_file: ${{ runner.temp }}/metrics-${{ matrix.backend.name }}-qwen3-0-6b-q8-prefill-decode.json
 
       - name: Q8 - Run Qwen3-0.6B-Q8_0.gguf - Batch-Prefill-Decode
-        # Same CUDA address-lowering gap as the Llama Q8_0 batch-prefill step above.
+        # Same CUDA address-lowering gap as the Llama Q8_0 batch-prefill step above
+        # (beehive-lab/TornadoVM#1057).
         if: matrix.backend.name != 'cuda'
         uses: ./.github/actions/run-inference
         with:
