@@ -7,6 +7,7 @@ import org.beehive.gpullama3.model.Configuration;
 import org.beehive.gpullama3.model.Model;
 import org.beehive.gpullama3.tokenizer.Tokenizer;
 import org.beehive.gpullama3.tornadovm.TornadoVMMasterPlan;
+import org.beehive.gpullama3.tornadovm.layers.type.fp16.LogitsFP16Layer;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
 
 import java.io.ByteArrayOutputStream;
@@ -39,6 +40,19 @@ public final class InferenceEngine {
 
     private InferenceEngine() {
         //prevent instantiation
+    }
+
+    /**
+     * Greedy next-token pick for the GPU FP16 path. With {@code -Dllama.deviceSample=true}
+     * the argmax already ran on the device and the token id sits in {@code state.sampledToken};
+     * read it directly (the full logits row never left the GPU). Otherwise fall back to the
+     * host sampler over the transferred logits.
+     */
+    private static int sampleTokenGpu(State state, Sampler sampler, Object logits) {
+        if (LogitsFP16Layer.DEVICE_SAMPLE) {
+            return state.sampledToken.get(0);
+        }
+        return sampler.sampleToken(logits);
     }
 
     /**
@@ -155,6 +169,7 @@ public final class InferenceEngine {
 
         // Storage for generated tokens
         List<Integer> generatedTokens = new ArrayList<>();
+        int generatedTokenBudget = Math.max(0, maxTokens - startPosition - promptTokens.size());
 
         // Initialize token variables
         int currentToken = state.latestToken; // BOS?
@@ -177,8 +192,11 @@ public final class InferenceEngine {
                 if (echo) {
                     System.err.print(Tokenizer.replaceControlCharacters(model.tokenizer().decode(List.of(nextToken))));
                 }
-                // We have reached the last prompt token and computed the first response-token.
-                position++; // The current logit belongs to the next position
+                // The last prompt token produced the first response-token logits.
+                // The for-loop advances to the next sequence position.
+                if (generatedTokenBudget == 0) {
+                    break;
+                }
             } else {
                 // Mark the start of actual generation (after prompt processing)
                 if (inferenceStartNanos == 0) {
@@ -205,7 +223,7 @@ public final class InferenceEngine {
             }
 
             // Check for stop condition
-            if (stopTokens.contains(nextToken)) {
+            if (generatedTokens.size() >= generatedTokenBudget || stopTokens.contains(nextToken)) {
                 break;
             }
 
@@ -288,8 +306,10 @@ public final class InferenceEngine {
         // Pre-validate the max tokens to avoid checking in the loop
         int actualMaxTokens = Math.min(maxTokens > 0 ? maxTokens : model.configuration().contextLength(), model.configuration().contextLength());
 
-        // Preallocate with expected capacity to avoid resizing
-        List<Integer> generatedTokens = new ArrayList<>(Math.min(256, actualMaxTokens - promptTokens.size())); // Conservative estimate
+        // Preallocate with expected capacity to avoid resizing. Clamp at 0: when the
+        // prompt is longer than the token budget (actualMaxTokens), the difference is
+        // negative and would throw IllegalArgumentException("Illegal Capacity").
+        List<Integer> generatedTokens = new ArrayList<>(Math.max(0, Math.min(256, actualMaxTokens - promptTokens.size()))); // Conservative estimate
 
         // === Token Generation Loop ===
         int currentToken = state.latestToken;
@@ -331,7 +351,7 @@ public final class InferenceEngine {
                 }
 
                 // Sample next token - use GPU sampling if available
-                nextToken = sampler.sampleToken(logits);
+                nextToken = sampleTokenGpu(state, sampler, logits);
 
                 // Add token consumer support
                 if (onTokenGenerated != null) {
@@ -376,8 +396,11 @@ public final class InferenceEngine {
         // Pre-validate the max tokens to avoid checking in the loop
         int actualMaxTokens = Math.min(maxTokens > 0 ? maxTokens : model.configuration().contextLength(), model.configuration().contextLength());
 
-        // Preallocate with expected capacity to avoid resizing
-        List<Integer> generatedTokens = new ArrayList<>(Math.min(256, actualMaxTokens - promptTokens.size())); // Conservative estimate
+        // Preallocate with expected capacity to avoid resizing. Clamp at 0: when the
+        // prompt is longer than the token budget (actualMaxTokens), the difference is
+        // negative and would throw IllegalArgumentException("Illegal Capacity").
+        List<Integer> generatedTokens = new ArrayList<>(Math.max(0, Math.min(256, actualMaxTokens - promptTokens.size()))); // Conservative estimate
+        int generatedTokenBudget = Math.max(0, actualMaxTokens - startPosition - promptTokens.size());
 
         // Initialize token variables
         int currentToken = state.latestToken; // BOS?
@@ -413,8 +436,11 @@ public final class InferenceEngine {
                 if (echo) {
                     System.err.print(Tokenizer.replaceControlCharacters(model.tokenizer().decode(List.of(nextToken))));
                 }
-                // We have reached the last prompt token and computed the first response-token.
-                position++; // The current logit belongs to the next position
+                // The last prompt token produced the first response-token logits.
+                // The for-loop advances to the next sequence position.
+                if (generatedTokenBudget == 0) {
+                    break;
+                }
             } else {
                 // Mark the start of actual generation (after prompt processing)
                 if (inferenceStartNanos == 0) {
@@ -425,7 +451,7 @@ public final class InferenceEngine {
             }
 
             // Sample the next token
-            nextToken = sampler.sampleToken(state.wrapLogits);
+            nextToken = sampleTokenGpu(state, sampler, state.wrapLogits);
 
             // Output the token if echo is enabled
             if (echo) {
@@ -441,7 +467,9 @@ public final class InferenceEngine {
             }
 
             // Check for stop condition
-            if (!IGNORE_EOS && stopTokens.contains(nextToken)) {
+            // The budget is a hard limit and is never bypassed; only the stop token is, so that
+            // an ignore-EOS benchmark run still terminates — on the budget instead of on EOS.
+            if (generatedTokens.size() >= generatedTokenBudget || (!IGNORE_EOS && stopTokens.contains(nextToken))) {
                 break;
             }
 

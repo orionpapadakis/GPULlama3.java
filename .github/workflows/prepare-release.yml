@@ -75,12 +75,62 @@ jobs:
 
       - name: Update README.md
         run: |
-          if [ -f "README.md" ]; then
-            # Update version in Maven dependency examples (handles plain X.Y.Z and X.Y.Z-jdkNN suffixes)
-            sed -i 's|<version>[0-9]\+\.[0-9]\+\.[0-9]\+</version>|<version>${{ env.VERSION }}</version>|g' README.md
-            sed -i 's|<version>[0-9]\+\.[0-9]\+\.[0-9]\+-jdk[0-9]\+</version>|<version>${{ env.VERSION }}-jdk25</version>|g' README.md
-            echo "✅ Updated README.md"
+          README="README.md"
+          START_MARKER="<!-- DEPENDENCY-SNIPPETS:START -->"
+          END_MARKER="<!-- DEPENDENCY-SNIPPETS:END -->"
+          VERSION="${{ env.VERSION }}"
+
+          if [ ! -f "$README" ]; then
+            echo "⚠️  $README not found, skipping"
+            exit 0
           fi
+
+          if ! grep -qF "$START_MARKER" "$README" || ! grep -qF "$END_MARKER" "$README"; then
+            echo "❌ Could not find $START_MARKER / $END_MARKER markers in $README"
+            exit 1
+          fi
+
+          SNIPPET_FILE="${{ runner.temp }}/dependency_snippet.md"
+          cat > "$SNIPPET_FILE" <<EOF
+          **JDK 21** (\`jdk21\` profile, auto-activates for JDK \`[21,25)\`):
+          \`\`\`xml
+          <dependency>
+              <groupId>io.github.beehive-lab</groupId>
+              <artifactId>gpu-llama3</artifactId>
+              <version>${VERSION}-jdk21</version>
+          </dependency>
+          \`\`\`
+
+          **JDK 25** (\`jdk25\` profile, auto-activates for JDK \`[25.0.2,)\`):
+          \`\`\`xml
+          <dependency>
+              <groupId>io.github.beehive-lab</groupId>
+              <artifactId>gpu-llama3</artifactId>
+              <version>${VERSION}-jdk25</version>
+          </dependency>
+          \`\`\`
+
+          ### 📦 Gradle
+
+          **JDK 21**:
+          \`\`\`groovy
+          implementation 'io.github.beehive-lab:gpu-llama3:${VERSION}-jdk21'
+          \`\`\`
+
+          **JDK 25**:
+          \`\`\`groovy
+          implementation 'io.github.beehive-lab:gpu-llama3:${VERSION}-jdk25'
+          \`\`\`
+          EOF
+
+          awk -v start="$START_MARKER" -v end="$END_MARKER" -v snippet_file="$SNIPPET_FILE" '
+            $0 == start { print; while ((getline line < snippet_file) > 0) print line; skip=1; next }
+            $0 == end   { skip=0 }
+            !skip { print }
+          ' "$README" > "${{ runner.temp }}/README.new.md"
+          mv "${{ runner.temp }}/README.new.md" "$README"
+
+          echo "✅ Updated README.md dependency snippets to ${VERSION}"
 
       - name: Update CITATION.cff
         run: |

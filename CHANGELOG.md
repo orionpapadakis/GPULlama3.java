@@ -2,10 +2,12 @@
 
 All notable changes to GPULlama3.java will be documented in this file.
 
-## [0.5.0] - 2026-06-24
+## [1.0.0] - 2026-07-28
 
 ### Features
 
+- Auto-detect TornadoVM backend in llama-tornado / llamaTornado ([#137](https://github.com/beehive-lab/GPULlama3.java/pull/137))
+- Add TornadoVM CUDA backend support and tensor-core (MMA) accelerated batch prefill (FP16 & Q8_0, Llama & Qwen3) ([#127](https://github.com/beehive-lab/GPULlama3.java/pull/127))
 - Add prefill-decode and batch-prefill-decode for Qwen3 (FP16 and Q8_0) ([#122](https://github.com/beehive-lab/GPULlama3.java/pull/122))
 - Refactor GPU backend planner ([#117](https://github.com/beehive-lab/GPULlama3.java/pull/117))
 - Several fixes and improvements for CI ([#115](https://github.com/beehive-lab/GPULlama3.java/pull/115))
@@ -16,6 +18,13 @@ All notable changes to GPULlama3.java will be documented in this file.
 
 ### Other Changes
 
+- Fix IllegalArgumentException (negative ArrayList capacity) on prompts longer than max-tokens ([#128](https://github.com/beehive-lab/GPULlama3.java/pull/128))
+- On-device greedy sampling (-Dllama.deviceSample): GPU argmax, keep logits device-side (~500x less D2H) ([#134](https://github.com/beehive-lab/GPULlama3.java/pull/134))
+- Fix Qwen3 FP16 garbage on CUDA backend: cross-workgroup race in RMS-norm reduction ([#132](https://github.com/beehive-lab/GPULlama3.java/pull/132))
+- Docs: modernize README — position as JVM-native LLM inference & serving engine ([#136](https://github.com/beehive-lab/GPULlama3.java/pull/136))
+- Add llama-bench-style benchmark: llama-tornado --bench (pp/tg/pg matrix, avg±stddev t/s, md/csv/json) ([#133](https://github.com/beehive-lab/GPULlama3.java/pull/133))
+- OpenAI-compatible server (llama-tornado --server): /v1/chat/completions + /v1/completions, streaming, zero-dep ([#135](https://github.com/beehive-lab/GPULlama3.java/pull/135))
+- Release 0.5.0 ([#125](https://github.com/beehive-lab/GPULlama3.java/pull/125))
 - Qwen3 decode: split-KV attention + backend-aware warp GEMV (FP16 & Q8_0) ([#123](https://github.com/beehive-lab/GPULlama3.java/pull/123))
 - Introduce tool calling support ([#116](https://github.com/beehive-lab/GPULlama3.java/pull/116))
 - Cleanup of presentation materials ([#121](https://github.com/beehive-lab/GPULlama3.java/pull/121))

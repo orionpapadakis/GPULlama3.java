@@ -1,6 +1,7 @@
 package org.beehive.gpullama3.inference;
 
 import org.beehive.gpullama3.auxiliary.Parallel;
+import org.beehive.gpullama3.inference.state.Qwen2MoEState;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.standard.StandardWeights;
 import org.beehive.gpullama3.inference.weights.tornado.TornadoWeights;
@@ -177,7 +178,7 @@ public final class InferenceCoreBatchPrefillDecode {
      * then delegates graph execution to the plan.</p>
      *
      * @param model
-     *     the LLaMA model
+     *     the model
      * @param state
      *     mutable inference state
      * @param tokens
@@ -194,6 +195,9 @@ public final class InferenceCoreBatchPrefillDecode {
         final TornadoWeights weights = (TornadoWeights) model.weights();
 
         state.batchStartPosHolder.set(0, startPos);
+        if (state instanceof Qwen2MoEState moeState && moeState.activeBatchSizeHolder != null) {
+            moeState.activeBatchSizeHolder.set(0, chunkSize);
+        }
 
         switch (weights.getWeightType()) {
             case F16 -> {
@@ -230,7 +234,7 @@ public final class InferenceCoreBatchPrefillDecode {
      * graph execution to the plan.</p>
      *
      * @param model
-     *     the LLaMA model
+     *     the model
      * @param state
      *     mutable inference state
      * @param token

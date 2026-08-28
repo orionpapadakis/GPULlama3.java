@@ -82,6 +82,9 @@ public abstract class State {
     public final HalfFloatArray wrapKeyCacheFP16;   // Optional half-precision key cache (see USE_FP16_KV); null unless enabled.
     public final HalfFloatArray wrapValueCacheFP16; // Optional half-precision value cache (see USE_FP16_KV); null unless enabled.
     public final IntArray positionHolder;
+    // On-device greedy sampling: the GPU argmax kernel writes the sampled token id here
+    // (element 0), so only 1 int crosses to the host instead of the full vocab logits row.
+    public final IntArray sampledToken = new IntArray(1);
 
     public TornadoNativeArray embeddingX;
 
