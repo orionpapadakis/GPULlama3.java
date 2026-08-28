@@ -347,6 +347,8 @@ jobs:
           metrics_file: ${{ runner.temp }}/metrics-${{ matrix.backend.name }}-qwen3-0-6b-q8-prefill-decode.json
 
       - name: Q8 - Run Qwen3-0.6B-Q8_0.gguf - Batch-Prefill-Decode
+        # Same CUDA address-lowering gap as the Llama Q8_0 batch-prefill step above.
+        if: matrix.backend.name != 'cuda'
         uses: ./.github/actions/run-inference
         with:
           backend: ${{ matrix.backend.name }}
