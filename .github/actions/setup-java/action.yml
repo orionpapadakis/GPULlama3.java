@@ -36,7 +36,9 @@ runs:
         fi
         echo "Using $SDK_BASH ($("$SDK_BASH" -c 'echo $BASH_VERSION')) for SDKMAN."
 
-        "$SDK_BASH" -euo pipefail -c '
+        # No `set -u` here: sdkman-init.sh reads unset variables (SDKMAN_CANDIDATES_API and
+        # others), so nounset turns its own initialization into an error.
+        "$SDK_BASH" -e -o pipefail -c '
           source "$HOME/.sdkman/bin/sdkman-init.sh"
           if ! sdk list java | grep -q "$1"; then
             sdk install java "$1"
