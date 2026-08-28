@@ -12,11 +12,44 @@ runs:
     - name: Set up Java with SDKMAN
       shell: bash
       run: |
-        source "$HOME/.sdkman/bin/sdkman-init.sh"
-        if ! sdk list java | grep -q "${{ inputs.java_version }}"; then
-          sdk install java "${{ inputs.java_version }}"
+        set -euo pipefail
+        VERSION='${{ inputs.java_version }}'
+        CANDIDATE="$HOME/.sdkman/candidates/java/$VERSION"
+
+        # SDKMAN's helpers use bash 4+ parameter expansion (${var^^} in
+        # sdkman-path-helpers.sh). The Linux runners have bash 5 as /bin/bash and are
+        # fine; macOS ships bash 3.2, which is what `shell: bash` resolves to there, so
+        # sourcing sdkman-init.sh fails with "bad substitution". Pick a bash >= 4
+        # explicitly instead of relying on whichever one `shell: bash` found.
+        SDK_BASH=""
+        for c in "$(command -v bash || true)" /opt/homebrew/bin/bash /usr/local/bin/bash /bin/bash; do
+          [ -n "$c" ] && [ -x "$c" ] || continue
+          if [ "$("$c" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null || echo 0)" -ge 4 ]; then
+            SDK_BASH="$c"
+            break
+          fi
+        done
+        if [ -z "$SDK_BASH" ]; then
+          echo "::error::SDKMAN requires bash >= 4 and none was found." \
+               "On macOS the system bash is 3.2 — install a newer one (brew install bash)."
+          exit 1
         fi
-        sdk use java "${{ inputs.java_version }}"
-        echo "JAVA_HOME=$HOME/.sdkman/candidates/java/${{ inputs.java_version }}" >> $GITHUB_ENV
-        echo "$HOME/.sdkman/candidates/java/${{ inputs.java_version }}/bin" >> $GITHUB_PATH
-        java -version
+        echo "Using $SDK_BASH ($("$SDK_BASH" -c 'echo $BASH_VERSION')) for SDKMAN."
+
+        "$SDK_BASH" -euo pipefail -c '
+          source "$HOME/.sdkman/bin/sdkman-init.sh"
+          if ! sdk list java | grep -q "$1"; then
+            sdk install java "$1"
+          fi
+          sdk use java "$1"
+        ' _ "$VERSION"
+
+        # sdk use only affects that subshell, as it did the previous shell here; these two
+        # exports are what actually carry the JDK into the following steps.
+        if [ ! -x "$CANDIDATE/bin/java" ]; then
+          echo "::error::Expected a JDK at $CANDIDATE after SDKMAN setup, but found none."
+          exit 1
+        fi
+        echo "JAVA_HOME=$CANDIDATE" >> "$GITHUB_ENV"
+        echo "$CANDIDATE/bin" >> "$GITHUB_PATH"
+        "$CANDIDATE/bin/java" -version
