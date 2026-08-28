@@ -31,7 +31,7 @@ jobs:
           # ./mvnw -T12C -Pspotless spotless:check
 
   # Build: TornadoVM → GPULlama3 → Quarkus LangChain4j
-  # max-parallel: 1 ensures the opencl, ptx and cuda variants run sequentially so
+  # max-parallel: 1 ensures the opencl and cuda variants run sequentially so
   # there are no workspace conflicts between matrix jobs.
   build:
     if: github.repository == 'beehive-lab/GPULlama3.java'
@@ -44,7 +44,6 @@ jobs:
       matrix:
         backend:
           - name: opencl
-          - name: ptx
           - name: cuda
 
     steps:
@@ -75,7 +74,7 @@ jobs:
           fi
           echo "TornadoVM Maven version: $TORNADO_VERSION"
           # Strip any pre-existing -SNAPSHOT suffix before appending, making this step idempotent
-          # across sequential matrix variants (ptx runs after opencl on the same workspace).
+          # across sequential matrix variants (cuda runs after opencl on the same workspace).
           BASE_VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout | sed 's/-SNAPSHOT$//')
           GPULLAMA3_VERSION="${BASE_VERSION}-SNAPSHOT"
           echo "GPULlama3 version: $GPULLAMA3_VERSION"
@@ -106,7 +105,6 @@ jobs:
       matrix:
         backend:
           - name: opencl
-          - name: ptx
           - name: cuda
 
     steps:
@@ -162,30 +160,6 @@ jobs:
           metrics_file: ${{ runner.temp }}/metrics-${{ matrix.backend.name }}-llama-1b-f16-batch-prefill-decode.json
 
       # PTX-only: CUDA-graph variants
-      - name: PTX - FP16 - Run Llama-3.2-1B-Instruct-F16.gguf - Prefill-Decode-CUDA-Graphs
-        if: matrix.backend.name == 'ptx'
-        uses: ./.github/actions/run-inference
-        with:
-          backend: ${{ matrix.backend.name }}
-          model_file: Llama-3.2-1B-Instruct-F16.gguf
-          model: Llama-3.2-1B-Instruct
-          quantization: F16
-          configuration: prefill-decode-cuda-graphs
-          flags: --with-prefill-decode --cuda-graphs
-          metrics_file: ${{ runner.temp }}/metrics-ptx-llama-1b-f16-prefill-decode-cuda-graphs.json
-
-      - name: PTX - FP16 - Run Llama-3.2-1B-Instruct-F16.gguf - Batch-Prefill-Decode-CUDA-Graphs
-        if: matrix.backend.name == 'ptx'
-        uses: ./.github/actions/run-inference
-        with:
-          backend: ${{ matrix.backend.name }}
-          model_file: Llama-3.2-1B-Instruct-F16.gguf
-          model: Llama-3.2-1B-Instruct
-          quantization: F16
-          configuration: batch-prefill-decode-cuda-graphs
-          flags: --with-prefill-decode --batch-prefill-size 32 --cuda-graphs
-          metrics_file: ${{ runner.temp }}/metrics-ptx-llama-1b-f16-batch-prefill-decode-cuda-graphs.json
-
       - name: FP16 - Run Qwen3-0.6B-f16.gguf
         uses: ./.github/actions/run-inference
         with:
@@ -219,30 +193,6 @@ jobs:
           metrics_file: ${{ runner.temp }}/metrics-${{ matrix.backend.name }}-qwen3-0.6b-f16-batch-prefill-decode.json
 
       # PTX-only: CUDA-graph variants
-      - name: PTX - FP16 - Run Qwen3-0.6B-f16.gguf - Prefill-Decode-CUDA-Graphs
-        if: matrix.backend.name == 'ptx'
-        uses: ./.github/actions/run-inference
-        with:
-          backend: ${{ matrix.backend.name }}
-          model_file: Qwen3-0.6B-f16.gguf
-          model: Qwen3-0.6B
-          quantization: F16
-          configuration: prefill-decode-cuda-graphs
-          flags: --with-prefill-decode --cuda-graphs
-          metrics_file: ${{ runner.temp }}/metrics-ptx-qwen3-0.6b-f16-prefill-decode-cuda-graphs.json
-
-      - name: PTX - FP16 - Run Qwen3-0.6B-f16.gguf - Batch-Prefill-Decode-CUDA-Graphs
-        if: matrix.backend.name == 'ptx'
-        uses: ./.github/actions/run-inference
-        with:
-          backend: ${{ matrix.backend.name }}
-          model_file: Qwen3-0.6B-f16.gguf
-          model: Qwen3-0.6B
-          quantization: F16
-          configuration: batch-prefill-decode-cuda-graphs
-          flags: --with-prefill-decode --batch-prefill-size 32 --cuda-graphs
-          metrics_file: ${{ runner.temp }}/metrics-ptx-qwen3-0.6b-f16-batch-prefill-decode-cuda-graphs.json
-
       - name: FP16 - Run Mistral-7B-Instruct-v0.3.fp16.gguf
         uses: ./.github/actions/run-inference
         with:
@@ -352,58 +302,6 @@ jobs:
             prompt="Say hello"
 
       # ── PTX-only: CUDA-graph variants ────────────────────────────────────────
-      - name: PTX - Q8 - Run Llama-3.2-1B-Instruct-Q8_0.gguf - Prefill-Decode-CUDA-Graphs
-        if: matrix.backend.name == 'ptx'
-        env:
-          JAVA_TOOL_OPTIONS: >-
-            -Dllama.metrics.format=json
-            -Dllama.metrics.output=file
-            -Dllama.metrics.file=${{ runner.temp }}/metrics-ptx-llama-1b-q8-prefill-decode-cuda-graphs.json
-        run: |
-          cd ${{ github.workspace }}
-          export PATH="$TORNADOVM_HOME/bin:$JAVA_HOME/bin:$PATH"
-          ./llama-tornado --gpu \
-            --model $MODELS_DIR/Llama-3.2-1B-Instruct-Q8_0.gguf \
-            --prompt "Say hello" \
-            --with-prefill-decode \
-            --cuda-graphs
-          python3 scripts/write_metrics_sidecar.py \
-            --out "${{ runner.temp }}/metrics-ptx-llama-1b-q8-prefill-decode-cuda-graphs.meta.json" \
-            backend=ptx \
-            task=llama-inference \
-            model_file=Llama-3.2-1B-Instruct-Q8_0.gguf \
-            model=Llama-3.2-1B-Instruct \
-            quantization=Q8_0 \
-            configuration=prefill-decode-cuda-graphs \
-            "flags=--with-prefill-decode --cuda-graphs" \
-            prompt="Say hello"
-
-      - name: PTX - Q8 - Run Llama-3.2-1B-Instruct-Q8_0.gguf - Batch-Prefill-Decode-CUDA-Graphs
-        if: matrix.backend.name == 'ptx'
-        env:
-          JAVA_TOOL_OPTIONS: >-
-            -Dllama.metrics.format=json
-            -Dllama.metrics.output=file
-            -Dllama.metrics.file=${{ runner.temp }}/metrics-ptx-llama-1b-q8-batch-prefill-decode-cuda-graphs.json
-        run: |
-          cd ${{ github.workspace }}
-          export PATH="$TORNADOVM_HOME/bin:$JAVA_HOME/bin:$PATH"
-          ./llama-tornado --gpu \
-            --model $MODELS_DIR/Llama-3.2-1B-Instruct-Q8_0.gguf \
-            --prompt "Say hello" \
-            --with-prefill-decode --batch-prefill-size 32 \
-            --cuda-graphs
-          python3 scripts/write_metrics_sidecar.py \
-            --out "${{ runner.temp }}/metrics-ptx-llama-1b-q8-batch-prefill-decode-cuda-graphs.meta.json" \
-            backend=ptx \
-            task=llama-inference \
-            model_file=Llama-3.2-1B-Instruct-Q8_0.gguf \
-            model=Llama-3.2-1B-Instruct \
-            quantization=Q8_0 \
-            configuration=batch-prefill-decode-cuda-graphs \
-            "flags=--with-prefill-decode --batch-prefill-size 32 --cuda-graphs" \
-            prompt="Say hello"
-
       - name: Q8 - Run Qwen3-0.6B-Q8_0.gguf
         uses: ./.github/actions/run-inference
         with:
@@ -437,30 +335,6 @@ jobs:
           metrics_file: ${{ runner.temp }}/metrics-${{ matrix.backend.name }}-qwen3-0-6b-q8-batch-prefill-decode.json
 
       # PTX-only: CUDA-graph variants
-      - name: PTX - Q8 - Run Qwen3-0.6B-Q8_0.gguf - Prefill-Decode-CUDA-Graphs
-        if: matrix.backend.name == 'ptx'
-        uses: ./.github/actions/run-inference
-        with:
-          backend: ${{ matrix.backend.name }}
-          model_file: Qwen3-0.6B-Q8_0.gguf
-          model: Qwen3-0.6B
-          quantization: Q8_0
-          configuration: prefill-decode-cuda-graphs
-          flags: --with-prefill-decode --cuda-graphs
-          metrics_file: ${{ runner.temp }}/metrics-ptx-qwen3-0-6b-q8-prefill-decode-cuda-graphs.json
-
-      - name: PTX - Q8 - Run Qwen3-0.6B-Q8_0.gguf - Batch-Prefill-Decode-CUDA-Graphs
-        if: matrix.backend.name == 'ptx'
-        uses: ./.github/actions/run-inference
-        with:
-          backend: ${{ matrix.backend.name }}
-          model_file: Qwen3-0.6B-Q8_0.gguf
-          model: Qwen3-0.6B
-          quantization: Q8_0
-          configuration: batch-prefill-decode-cuda-graphs
-          flags: --with-prefill-decode --batch-prefill-size 32 --cuda-graphs
-          metrics_file: ${{ runner.temp }}/metrics-ptx-qwen3-0-6b-q8-batch-prefill-decode-cuda-graphs.json
-
       - name: Q8 - Run Phi-3-mini-4k-instruct-Q8_0.gguf
         uses: ./.github/actions/run-inference
         with:
@@ -531,7 +405,6 @@ jobs:
       matrix:
         backend:
           - name: opencl
-          - name: ptx
           - name: cuda
 
     steps:
