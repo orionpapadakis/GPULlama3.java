@@ -1,6 +1,7 @@
 package org.beehive.gpullama3.tornadovm.layers.type.fp16;
 
 import org.beehive.gpullama3.inference.state.Qwen3State;
+import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.inference.weights.tornado.Qwen3TornadoWeights;
 import org.beehive.gpullama3.model.qwen3.Qwen3Configuration;
 import org.beehive.gpullama3.tornadovm.kernels.Qwen3Kernels;
@@ -34,9 +35,11 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
     private final int nEmbdHead;
     private final int nEmbdGqa;
     private final int gqa;
-    // Decode attention is always split-KV (flash-decoding): it beats the previous optv2/online kernels
-    // unconditionally and is correct on every backend. Splits per head: see Qwen3State.SPLIT_KV.
-    private final int attentionSplits = Qwen3State.SPLIT_KV;
+    // Decode attention is split-KV (flash-decoding) on every backend except Metal, where TornadoVM
+    // fails to JIT the multi-workgroup split-KV kernel; Metal falls back to the single-workgroup-per-head
+    // online-softmax kernel instead (see SchedulerDetectionService.isMetalBackend). Splits per head: see Qwen3State.SPLIT_KV.
+    private final boolean isMetalBackend = SchedulerDetectionService.isMetalBackend();
+    private final int attentionSplits = isMetalBackend ? 1 : Qwen3State.SPLIT_KV;
     // GEMV reduction strategy: 32-lane warp-shuffle on PTX/CUDA, shared-memory trees elsewhere. Warp is
     // faster but the OpenCL backend miscompiles simdShuffleDown, so it is auto-selected by backend.
     private final boolean useWarpMatmul = SchedulerDetectionService.isWarpShuffleSupported();
@@ -59,6 +62,8 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
     @Override
     public GridScheduler updateGridScheduler(GridScheduler gridScheduler) {
         WorkerGrid rmsNormWorker = WorkerGridFactory.createRmsNormWorker(config.dim(), state.localSize);
+        // Single-workgroup grid for the race-free NVIDIA-path RMS reduction (global == local).
+        WorkerGrid rmsSingleGroupWorker = WorkerGridFactory.createRmsNormWorker(state.localSize, state.localSize);
         WorkerGrid ropeWorker = WorkerGridFactory.createRoPEWorker(config.numberOfHeads(), nEmbdHead);
         // Split-KV attention launches nHeads*nSplits workgroups (one per head-split) followed by a combine
         // pass over nHeads workgroups.
@@ -85,15 +90,19 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
         // Map workers to tasks for each layer (in task execution order)
         for (int i = 0; i < config.numberOfLayers(); i++) {
             // === Attention Block ===
-            gridScheduler.addWorkerGrid("layer_" + i + ".attn_rms_reduce", rmsNormWorker);
+            gridScheduler.addWorkerGrid("layer_" + i + ".attn_rms_reduce",
+                    shouldUseFinalNormalization() ? rmsNormWorker : rmsSingleGroupWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".attn_rms_qkv_projection", fusedQKVWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".qk_rmsnorm", qkRmsNormWorker);
             gridScheduler.addWorkerGrid("layer_" + i + ".rope_and_kv_cache", ropeWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".attention", parallelAttentionWorker);
-            gridScheduler.addWorkerGrid("layer_" + i + ".attention_combine", attentionCombineWorker);
+            gridScheduler.addWorkerGrid("layer_" + i + ".attention", isMetalBackend ? attentionCombineWorker : parallelAttentionWorker);
+            if (!isMetalBackend) {
+                gridScheduler.addWorkerGrid("layer_" + i + ".attention_combine", attentionCombineWorker);
+            }
             gridScheduler.addWorkerGrid("layer_" + i + ".attn_output_proj", matmul1Worker);
             // === FFN Block ===
-            gridScheduler.addWorkerGrid("layer_" + i + ".ffn_rms_reduce", rmsNormWorker);
+            gridScheduler.addWorkerGrid("layer_" + i + ".ffn_rms_reduce",
+                    shouldUseFinalNormalization() ? rmsNormWorker : rmsSingleGroupWorker);
             if (shouldUseFinalNormalization()) {
                 gridScheduler.addWorkerGrid("layer_" + i + ".ffn_rms_finalize", rmsNormWorker);
             }
@@ -230,6 +239,18 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
         // ═══════════════════════════════════════════════════════════════════════
 
         // RMS Normalization - compute scale factor
+        if (!shouldUseFinalNormalization()) {
+            // NVIDIA path: single-workgroup reduction. The multi-workgroup kernel relies on a
+            // racy cross-workgroup combine (no finalize task on this path) — see kernel javadoc.
+            unifiedLayer.task("attn_rms_reduce",
+                    TransformerComputeKernelsLayered::reductionOneBlockWithLayerSingleGroup,
+                    context,
+                    qwen3State.temp,
+                    qwen3State.wrapX,
+                    config.dim(),
+                    config.rmsNormEps(),
+                    qwen3State.localSize);
+        } else
         unifiedLayer.task("attn_rms_reduce",
                 TransformerComputeKernelsLayered::reductionOneBlockWithLayer,
                 context,
@@ -294,47 +315,105 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
                 config.rmsNormEps());    // epsilon
 
         // Fused RoPE Rotation + KV Cache Write
-        unifiedLayer.task("rope_and_kv_cache",
-                Qwen3Kernels::ropeRotationWithCacheCopy,
-                context,
-                qwen3State.positionHolder,    // current position
-                qwen3State.wrapQ,             // Q vectors (in/out, rotated)
-                qwen3State.wrapK,             // K vectors (in/out, rotated)
-                qwen3State.wrapV,             // V vectors (in only)
-                qwen3State.wrapKeyCache,      // key cache (out)
-                qwen3State.wrapValueCache,    // value cache (out)
-                config.numberOfKeyValueHeads(),   // nHeadKv
-                nEmbdHead,                    // head dimension
-                nEmbdGqa,                     // kvDim
-                layerIndex,                   // layer index for cache offset
-                config.contextLength()); // max sequence length
+        if (useFp16KVCache()) {
+            unifiedLayer.task("rope_and_kv_cache",
+                    Qwen3Kernels::ropeRotationWithCacheCopyFP16,
+                    context,
+                    qwen3State.positionHolder,        // current position
+                    qwen3State.wrapQ,                 // Q vectors (in/out, rotated)
+                    qwen3State.wrapK,                 // K vectors (in/out, rotated)
+                    qwen3State.wrapV,                 // V vectors (in only)
+                    qwen3State.wrapKeyCacheFP16,      // key cache (out, FP16)
+                    qwen3State.wrapValueCacheFP16,    // value cache (out, FP16)
+                    config.numberOfKeyValueHeads(),   // nHeadKv
+                    nEmbdHead,                    // head dimension
+                    nEmbdGqa,                     // kvDim
+                    layerIndex,                   // layer index for cache offset
+                    config.contextLength()); // max sequence length
+        } else {
+            unifiedLayer.task("rope_and_kv_cache",
+                    Qwen3Kernels::ropeRotationWithCacheCopy,
+                    context,
+                    qwen3State.positionHolder,    // current position
+                    qwen3State.wrapQ,             // Q vectors (in/out, rotated)
+                    qwen3State.wrapK,             // K vectors (in/out, rotated)
+                    qwen3State.wrapV,             // V vectors (in only)
+                    qwen3State.wrapKeyCache,      // key cache (out)
+                    qwen3State.wrapValueCache,    // value cache (out)
+                    config.numberOfKeyValueHeads(),   // nHeadKv
+                    nEmbdHead,                    // head dimension
+                    nEmbdGqa,                     // kvDim
+                    layerIndex,                   // layer index for cache offset
+                    config.contextLength()); // max sequence length
+        }
 
-        // Split-KV (flash-decoding) attention.
-        // Phase 1: split each head's KV range across attentionSplits workgroups; partials -> wrapAttSplit.
-        unifiedLayer.task("attention",
-                TransformerComputeKernelsLayered::processHeadsFlashAttentionSplitKV,
-                context,
-                qwen3State.wrapQ,             // query vectors
-                qwen3State.wrapKeyCache,      // key cache
-                qwen3State.wrapValueCache,    // value cache
-                qwen3State.wrapAttSplit,      // scratch: per-head split partials (compact layout)
-                config.numberOfHeads(),  // nHeads
-                nEmbdHead,                    // headSize
-                nEmbdGqa,                     // kvDim
-                gqa,                          // kvMul (nHeads / nHeadKv)
-                qwen3State.positionHolder,    // position
-                layerIndex,                   // layer index
-                config.contextLength(),  // context length
-                attentionSplits);             // number of KV splits per head
-        // Phase 2: combine the per-head split partials into the final attention output -> wrapXb.
-        unifiedLayer.task("attention_combine",
-                TransformerComputeKernelsLayered::combineSplitKVAttention,
-                context,
-                qwen3State.wrapAttSplit,      // scratch: per-head split partials (compact layout)
-                qwen3State.wrapXb,            // output: attention result
-                config.numberOfHeads(),  // nHeads
-                nEmbdHead,                    // headSize
-                attentionSplits);             // number of KV splits per head
+        if (isMetalBackend) {
+            // Metal cannot JIT the multi-workgroup split-KV kernel, so use the
+            // single-workgroup-per-head online-softmax kernel, which writes wrapXb directly and
+            // needs no combine phase. It reads the FP32 KV cache, so it is not compatible with
+            // the FP16 KV cache; useFp16KVCache() below is therefore only consulted off Metal.
+            unifiedLayer.task("attention",
+                    TransformerComputeKernelsLayered::processHeadsFlashAttention,
+                    context,
+                    qwen3State.wrapQ,             // query vectors
+                    qwen3State.wrapKeyCache,      // key cache
+                    qwen3State.wrapValueCache,    // value cache
+                    qwen3State.wrapXb,            // output: attention result
+                    config.numberOfHeads(),  // nHeads
+                    nEmbdHead,                    // headSize
+                    nEmbdGqa,                     // kvDim
+                    gqa,                          // kvMul (nHeads / nHeadKv)
+                    qwen3State.positionHolder,    // position
+                    layerIndex,                   // layer index
+                    config.contextLength());  // context length
+        } else {
+            // Split-KV (flash-decoding) attention.
+            // Phase 1: split each head's KV range across attentionSplits workgroups; partials -> wrapAttSplit.
+            if (useFp16KVCache()) {
+                unifiedLayer.task("attention",
+                        State.ATTENTION_DEEP_HALF2
+                                ? TransformerComputeKernelsLayered::processHeadsFlashAttentionSplitKVFP16Packed
+                                : TransformerComputeKernelsLayered::processHeadsFlashAttentionSplitKVFP16,
+                        context,
+                        qwen3State.wrapQ,                 // query vectors
+                        qwen3State.wrapKeyCacheFP16,      // key cache (FP16)
+                        qwen3State.wrapValueCacheFP16,    // value cache (FP16)
+                        qwen3State.wrapAttSplit,      // scratch: per-head split partials (compact layout)
+                        config.numberOfHeads(),  // nHeads
+                        nEmbdHead,                    // headSize
+                        nEmbdGqa,                     // kvDim
+                        gqa,                          // kvMul (nHeads / nHeadKv)
+                        qwen3State.positionHolder,    // position
+                        layerIndex,                   // layer index
+                        config.contextLength(),  // context length
+                        attentionSplits);             // number of KV splits per head
+            } else {
+                unifiedLayer.task("attention",
+                        TransformerComputeKernelsLayered::processHeadsFlashAttentionSplitKV,
+                        context,
+                        qwen3State.wrapQ,             // query vectors
+                        qwen3State.wrapKeyCache,      // key cache
+                        qwen3State.wrapValueCache,    // value cache
+                        qwen3State.wrapAttSplit,      // scratch: per-head split partials (compact layout)
+                        config.numberOfHeads(),  // nHeads
+                        nEmbdHead,                    // headSize
+                        nEmbdGqa,                     // kvDim
+                        gqa,                          // kvMul (nHeads / nHeadKv)
+                        qwen3State.positionHolder,    // position
+                        layerIndex,                   // layer index
+                        config.contextLength(),  // context length
+                        attentionSplits);             // number of KV splits per head
+            }
+            // Phase 2: combine the per-head split partials into the final attention output -> wrapXb.
+            unifiedLayer.task("attention_combine",
+                    TransformerComputeKernelsLayered::combineSplitKVAttention,
+                    context,
+                    qwen3State.wrapAttSplit,      // scratch: per-head split partials (compact layout)
+                    qwen3State.wrapXb,            // output: attention result
+                    config.numberOfHeads(),  // nHeads
+                    nEmbdHead,                    // headSize
+                    attentionSplits);             // number of KV splits per head
+        }
 
         // Output Projection with Residual
         if (useWarpMatmul) {
@@ -361,6 +440,17 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
         // ═══════════════════════════════════════════════════════════════════════
 
         // RMS Normalization - compute scale factor
+        if (!shouldUseFinalNormalization()) {
+            // NVIDIA path: single-workgroup reduction (race-free) — see attn_rms_reduce.
+            unifiedLayer.task("ffn_rms_reduce",
+                    TransformerComputeKernelsLayered::reductionOneBlockWithLayerSingleGroup,
+                    context,
+                    qwen3State.tempFFN,
+                    qwen3State.wrapX,
+                    config.dim(),
+                    config.rmsNormEps(),
+                    qwen3State.localSize);
+        } else
         unifiedLayer.task("ffn_rms_reduce",
                 TransformerComputeKernelsLayered::reductionOneBlockWithLayer,
                 context,
@@ -425,7 +515,11 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
                     config.dim(),            // output dim
                     LOCAL_WORK_GROUP_SIZE_ALLOC);
         }
-        unifiedLayer.persistOnDevice(qwen3State.wrapX, qwen3State.wrapKeyCache, qwen3State.wrapValueCache);
+        if (useFp16KVCache()) {
+            unifiedLayer.persistOnDevice(qwen3State.wrapX, qwen3State.wrapKeyCacheFP16, qwen3State.wrapValueCacheFP16);
+        } else {
+            unifiedLayer.persistOnDevice(qwen3State.wrapX, qwen3State.wrapKeyCache, qwen3State.wrapValueCache);
+        }
 
         return unifiedLayer;
     }
@@ -450,6 +544,8 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
      * Configure data transfers for first and subsequent layers
      */
     protected TaskGraph configureLayerDataTransfers(TaskGraph unifiedLayer, int layerIndex) {
+        Object keyCache = useFp16KVCache() ? qwen3State.wrapKeyCacheFP16 : qwen3State.wrapKeyCache;
+        Object valueCache = useFp16KVCache() ? qwen3State.wrapValueCacheFP16 : qwen3State.wrapValueCache;
         if (layerIndex == 0) {
             // First layer: Transfer temporary buffers and QKV state every execution
             unifiedLayer.transferToDevice(DataTransferMode.EVERY_EXECUTION, qwen3State.positionHolder);
@@ -458,7 +554,7 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
             unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION, //
                     context, qwen3State.wrapXb, qwen3State.wrapXb2,  //
                     qwen3State.wrapQ, qwen3State.wrapK, qwen3State.wrapV, //
-                    qwen3State.wrapKeyCache, qwen3State.wrapValueCache,  //
+                    keyCache, valueCache,  //
                     qwen3State.wrapAtt, qwen3State.wrapHb );
             unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION, qwen3State.wrapAttSplit);
         } else {
@@ -469,8 +565,8 @@ public class Qwen3FP16FFNLayers extends AbstractTransformerLayerTaskGraphs<Qwen3
             String pred = "layer_" + (layerIndex - 1);
             unifiedLayer.consumeFromDevice(pred, context, qwen3State.wrapXb, qwen3State.wrapXb2, //
                     qwen3State.wrapQ, qwen3State.wrapK,  //
-                    qwen3State.wrapV, qwen3State.wrapKeyCache, //
-                    qwen3State.wrapValueCache, qwen3State.wrapAtt, //
+                    qwen3State.wrapV, keyCache, //
+                    valueCache, qwen3State.wrapAtt, //
                     qwen3State.wrapHb, qwen3State.positionHolder); //
             unifiedLayer.consumeFromDevice(pred, qwen3State.wrapAttSplit);
         }

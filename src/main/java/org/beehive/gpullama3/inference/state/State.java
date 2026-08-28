@@ -27,6 +27,27 @@ import uk.ac.manchester.tornado.api.types.arrays.IntArray;
  */
 public abstract class State {
 
+    /**
+     * When set ({@code -Dllama.kvcache.fp16=true}), model states that support it additionally
+     * allocate half-precision KV caches, and the NVIDIA decode path reads/writes those instead of
+     * the FP32 ones (halving KV bandwidth; accumulation stays FP32).
+     */
+    public static final boolean USE_FP16_KV = Boolean.getBoolean("llama.kvcache.fp16");
+
+    /**
+     * Evaluation aid: with the FP16 KV cache active, read it with scalar half loads instead of
+     * packed half2 loads ({@code -Dllama.kvcache.fp16.scalar=true}) to isolate the packed-load gain.
+     */
+    public static final boolean FP16_KV_SCALAR = Boolean.getBoolean("llama.kvcache.fp16.scalar");
+
+    /**
+     * With the FP16 KV cache and split-KV attention active, keep the K·Q score accumulation packed
+     * ({@code -Dllama.attention.deepHalf2=true}): Q is staged once per workgroup as a __half2
+     * local-memory tile and each K pair is consumed with a single __hfma2, converting to FP32 only
+     * once per row (llama.cpp fattn-vec style) instead of per pair.
+     */
+    public static final boolean ATTENTION_DEEP_HALF2 = Boolean.getBoolean("llama.attention.deepHalf2");
+
     // current wave of activations
     public final FloatTensor x;         // activation at current time stamp (dim,)
     public final FloatTensor xb;        // same, but inside a residual branch (dim,)
@@ -58,7 +79,12 @@ public abstract class State {
     public final FloatArray wrapAtt;        // FloatArray wrapper for the attention scores, optimized for TornadoVM.
     public final FloatArray wrapKeyCache;   // FloatArray wrapper for the key cache, optimized for TornadoVM.
     public final FloatArray wrapValueCache; // FloatArray wrapper for the value cache, optimized for TornadoVM.
+    public final HalfFloatArray wrapKeyCacheFP16;   // Optional half-precision key cache (see USE_FP16_KV); null unless enabled.
+    public final HalfFloatArray wrapValueCacheFP16; // Optional half-precision value cache (see USE_FP16_KV); null unless enabled.
     public final IntArray positionHolder;
+    // On-device greedy sampling: the GPU argmax kernel writes the sampled token id here
+    // (element 0), so only 1 int crosses to the host instead of the full vocab logits row.
+    public final IntArray sampledToken = new IntArray(1);
 
     public TornadoNativeArray embeddingX;
 
@@ -85,6 +111,16 @@ public abstract class State {
     public final FloatArray attnScaleBatch;         // B        (per-token RMS scale, attn)
     public final FloatArray ffnScaleBatch;          // B        (per-token RMS scale, FFN)
     public final IntArray batchStartPosHolder;      // 1      (start position of chunk)
+    public final HalfFloatArray normedXFFNFP16;
+    public final FloatArray ffnGateResult;
+    public final FloatArray ffnUpResult;
+    public final HalfFloatArray xbFP16Batch;
+    public final HalfFloatArray attnOutFP16;
+    public final FloatArray woOut;
+    public final HalfFloatArray wrapHbFP16Batch;
+    public final FloatArray w2Out;
+    public final FloatArray qkvResultBatch;       // B × (dim + 2*kvDim), packed [q|k|v] rows
+    public final FloatArray gateUpResultBatch;    // B × 2*hiddenDim, packed [gate|up] rows
 
     protected State(Configuration config, int batchsize) {
         this.batchsize = batchsize;
@@ -125,6 +161,8 @@ public abstract class State {
         // dim vs kvdim
         this.wrapKeyCache = fields.wrapKeyCache;
         this.wrapValueCache = fields.wrapValueCache;
+        this.wrapKeyCacheFP16 = fields.wrapKeyCacheFP16;
+        this.wrapValueCacheFP16 = fields.wrapValueCacheFP16;
         this.wrapAtt = fields.wrapAtt;
         this.positionHolder = fields.positionHolder;
 
@@ -135,11 +173,16 @@ public abstract class State {
 
         int gpuBatchSize = Integer.getInteger("llama.prefillBatchSize", 1);
         if (gpuBatchSize > 1) {
+            // The tensor-core GEMM kernels operate on full 128-row M tiles
+            // (BM = 128). Pad the GEMM-adjacent activation buffers so any
+            // batch size launches whole tiles; rows >= gpuBatchSize hold
+            // garbage and are never read by the non-GEMM kernels.
+            int paddedGpuBatch = (gpuBatchSize + 127) & ~127;
             int qDim  = batchQDim(config);
             int kvDim = batchKvDim(config);
             this.embeddingXBatch = new HalfFloatArray(gpuBatchSize * config.dim());
             this.wrapXBatch = new FloatArray(gpuBatchSize * config.dim());
-            this.wrapXbFP16Batch = new HalfFloatArray(gpuBatchSize * config.dim());
+            this.wrapXbFP16Batch = new HalfFloatArray(paddedGpuBatch * config.dim());
             this.wrapQBatch = new FloatArray(gpuBatchSize * qDim);
             this.wrapKBatch = new FloatArray(gpuBatchSize * kvDim);
             this.wrapVBatch = new FloatArray(gpuBatchSize * kvDim);
@@ -148,6 +191,17 @@ public abstract class State {
             this.attnScaleBatch = new FloatArray(gpuBatchSize);
             this.ffnScaleBatch = new FloatArray(gpuBatchSize);
             this.batchStartPosHolder = new IntArray(1);
+            this.normedXFFNFP16 = new HalfFloatArray(paddedGpuBatch * config.dim());
+            this.ffnGateResult  = new FloatArray(gpuBatchSize * config.hiddenDim());
+            this.ffnUpResult    = new FloatArray(gpuBatchSize * config.hiddenDim());
+
+            this.xbFP16Batch = new HalfFloatArray(gpuBatchSize * config.dim());
+            this.attnOutFP16 = new HalfFloatArray(paddedGpuBatch * qDim);   // qDim == dim for Llama; qDim = nHeads*headDim for Qwen3
+            this.woOut = new FloatArray(paddedGpuBatch * config.dim());
+            this.wrapHbFP16Batch = new HalfFloatArray(paddedGpuBatch * config.hiddenDim());
+            this.w2Out = new FloatArray(paddedGpuBatch * config.dim());
+            this.qkvResultBatch = new FloatArray(paddedGpuBatch * (qDim + 2 * kvDim));
+            this.gateUpResultBatch = new FloatArray(paddedGpuBatch * 2 * config.hiddenDim());
         } else {
             this.embeddingXBatch = null;
             this.wrapXBatch = null;
@@ -160,6 +214,16 @@ public abstract class State {
             this.attnScaleBatch = null;
             this.ffnScaleBatch = null;
             this.batchStartPosHolder = null;
+            this.normedXFFNFP16 = null;
+            this.ffnGateResult  = null;
+            this.ffnUpResult    = null;
+            this.xbFP16Batch = null;
+            this.attnOutFP16 = null;
+            this.woOut = null;
+            this.wrapHbFP16Batch = null;
+            this.w2Out = null;
+            this.qkvResultBatch = null;
+            this.gateUpResultBatch = null;
         }
     }
 
@@ -182,6 +246,7 @@ public abstract class State {
         public FloatTensor[] keyCache, valueCache;
         public FloatArray wrapX, wrapXb, wrapXb2, wrapHb, wrapHb2, wrapLogits;
         public FloatArray wrapQ, wrapK, wrapV, wrapAtt, wrapKeyCache, wrapValueCache;
+        public HalfFloatArray wrapKeyCacheFP16, wrapValueCacheFP16;
         public IntArray positionHolder;
         public FloatArray temp, tempFFN, tempLogits;
         public TornadoNativeArray embeddingX;
