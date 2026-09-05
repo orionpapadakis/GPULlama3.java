@@ -21,6 +21,10 @@ inputs:
     description: 'Extra CLI flags passed to llama-tornado (omit for standard run)'
     required: false
     default: ''
+  timeout_minutes:
+    description: 'Per-row wall clock. A row that hangs must not consume the whole job.'
+    required: false
+    default: '15'
   metrics_file:
     description: 'Absolute path for the output metrics JSON file'
     required: true
@@ -74,13 +78,31 @@ runs:
         RUN_LOG="$(mktemp)"
 
         # Backend (opencl/cuda/metal) is auto-detected from $TORNADOVM_HOME/etc/tornado.backend
+        # Bounded, and bounded in Python rather than with `timeout`, which stock macOS does
+        # not ship. A row that hangs used to consume the entire job: the Metal leg was
+        # cancelled at its wall clock every time, so that backend produced no results table
+        # at all even though the rows before the hang had passed. 124 is the conventional
+        # exit code for a timeout.
         set +e
-        ./llama-tornado --gpu \
+        python3 - "$RUN_LOG" ${{ inputs.timeout_minutes }} \
+          ./llama-tornado --gpu \
           --model $MODELS_DIR/${{ inputs.model_file }} \
           --prompt "${{ inputs.prompt }}" \
           -n ${{ inputs.max_tokens }} \
           --seed ${{ inputs.seed }} \
-          ${{ inputs.flags }} > "$RUN_LOG" 2>&1
+          ${{ inputs.flags }} <<'RUNNER'
+        import subprocess, sys
+        log, minutes, cmd = sys.argv[1], float(sys.argv[2]), sys.argv[3:]
+        with open(log, "wb") as out:
+            p = subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT)
+            try:
+                sys.exit(p.wait(timeout=minutes * 60))
+            except subprocess.TimeoutExpired:
+                p.kill()
+                p.wait()
+                out.write(("\nrow timed out after %s minutes\n" % sys.argv[2]).encode())
+                sys.exit(124)
+        RUNNER
         RC=$?
         set -e
         cat "$RUN_LOG"
@@ -95,6 +117,9 @@ runs:
           # the kernel or the null buffer.
           SIGNATURE=$(grep -m1 -E "Exception in thread|Unable to build sketch|TornadoInternalError|OutOfMemory" "$RUN_LOG" \
             | tr -d '\000' | cut -c1-400)
+          if [ "$RC" -eq 124 ]; then
+            SIGNATURE="timed out after ${{ inputs.timeout_minutes }} minutes"
+          fi
           if [ -z "$SIGNATURE" ]; then
             SIGNATURE="exit $RC with no recognizable failure line"
           fi
