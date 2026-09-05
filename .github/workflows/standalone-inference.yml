@@ -14,6 +14,11 @@ on:
         description: 'macOS or Linux, as the self-hosted runner label'
         required: true
         type: string
+      timeout_minutes:
+        description: 'Job wall clock. The matrix is 22 rows and its cost is per machine.'
+        required: false
+        default: 40
+        type: number
 
 env:
   JAVA_VERSION: 21.0.2-open
@@ -22,7 +27,7 @@ env:
 jobs:
   run:
     runs-on: ${{ fromJSON(format('["self-hosted","{0}"]', inputs.runner_os)) }}
-    timeout-minutes: 40
+    timeout-minutes: ${{ inputs.timeout_minutes }}
 
     steps:
       - name: Checkout GPULlama3
