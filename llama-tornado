@@ -285,6 +285,11 @@ class LlamaRunner:
             # supplies -m, use those verbatim (don't also prepend --model → duplicate rows).
             extra = args.bench_args.split() if args.bench_args else []
             bench_args = extra if ("-m" in extra or "--model" in extra) else ["-m", args.model_path] + extra
+            # Without --gpu the benchmark measures the host forward pass; say so explicitly, or it
+            # builds an accelerator plan and reports a GPU backend for a run the user asked to be
+            # on the CPU.
+            if not args.use_gpu and "--cpu" not in bench_args:
+                bench_args = bench_args + ["--cpu"]
             return cmd + bench_args
         llama_args = [
             "-m",

@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import org.beehive.gpullama3.Options;
+import org.beehive.gpullama3.backend.cpu.CpuForwardPasses;
 import org.beehive.gpullama3.backend.tornado.TornadoVMMasterPlan;
 import org.beehive.gpullama3.backend.tornado.TornadoVMMasterPlanBatchPrefillDecode;
 import org.beehive.gpullama3.backend.tornado.bench.SyntheticKernelBench;
+import org.beehive.gpullama3.inference.ForwardPass;
 import org.beehive.gpullama3.inference.state.State;
 import org.beehive.gpullama3.model.Model;
 
@@ -78,7 +80,16 @@ public class LlamaBench {
             double[] samples) {}
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("llama.enableTornadoVM", "true");
+        // --cpu is pre-scanned with -b: llama.enableTornadoVM is read once at class init, and
+        // setting it unconditionally is what made every run report a GPU backend, CPU included.
+        boolean cpu = false;
+        for (String a : args) {
+            if (a.equals("--cpu")) {
+                cpu = true;
+            }
+        }
+        final boolean onCpu = cpu;
+        System.setProperty("llama.enableTornadoVM", cpu ? "false" : "true");
 
         // Pre-scan -b: the batched-prefill plan + state buffers are gated on these system
         // properties, read once at class-init — set BEFORE any TornadoVM/State class loads.
@@ -87,6 +98,10 @@ public class LlamaBench {
             if (args[i].equals("-b") || args[i].equals("--batch-size")) {
                 batch = Integer.parseInt(args[i + 1]);
             }
+        }
+        if (batch > 1 && cpu) {
+            System.err.println("[bench] -b is a GPU batched-prefill option; ignoring it on --cpu");
+            batch = 1;
         }
         if (batch > 1) {
             System.setProperty("llama.withPrefillDecode", "true");
@@ -130,6 +145,7 @@ public class LlamaBench {
                 case "-o", "--output" -> out = args[++i];
                 case "-oe", "--output-err" -> outErr = args[++i];
                 case "--delay" -> delay = Integer.parseInt(args[++i]);
+                case "--cpu" -> {} // consumed in pre-scan
                 case "--no-warmup" -> warmup = false;
                 case "--synthetic" -> synthetic = true;
                 case "--synthetic-seq" -> syntheticSeq = Integer.parseInt(args[++i]);
@@ -144,7 +160,7 @@ public class LlamaBench {
         }
         if (models.isEmpty()) {
             System.err.println(
-                    "usage: LlamaBench -m model.gguf [-m model2.gguf] [-p 512] [-n 128] [-pg 512,128] [-d 0] [-r 5] [-o md|csv|json|jsonl|sql] [-oe fmt] [--delay s] [--no-warmup]"
+                    "usage: LlamaBench -m model.gguf [-m model2.gguf] [-p 512] [-n 128] [-pg 512,128] [-d 0] [-r 5] [--cpu] [-o md|csv|json|jsonl|sql] [-oe fmt] [--delay s] [--no-warmup]"
                             + " | LlamaBench --synthetic [-b B] [--synthetic-seq N] [-o md|csv]");
             System.exit(1);
         }
@@ -176,7 +192,7 @@ public class LlamaBench {
         List<Result> results = new ArrayList<>();
         for (String modelPath : models) {
             try {
-                results.addAll(benchModel(modelPath, tests, reps, warmup, delay, batchSize));
+                results.addAll(benchModel(modelPath, tests, reps, warmup, delay, batchSize, onCpu));
             } catch (Throwable e) {
                 System.err.printf(
                         Locale.ROOT,
@@ -206,24 +222,38 @@ public class LlamaBench {
     }
 
     static List<Result> benchModel(
-            String modelPath, List<TestSpec> tests, int reps, boolean warmup, int delay, int batch)
+            String modelPath,
+            List<TestSpec> tests,
+            int reps,
+            boolean warmup,
+            int delay,
+            int batch,
+            boolean cpu)
             throws Exception {
         Path path = Paths.get(modelPath);
         int maxCtx = tests.stream().mapToInt(t -> t.depth() + t.tokens()).max().orElse(1024) + 8;
         Options options =
                 new Options(
                         path, "bench", null, null, false, 0.0f, 1.0f, 42, maxCtx, false, false,
-                        true, batch > 1, batch);
+                        !cpu, batch > 1, batch);
         Model model = loadModel(options);
         State state = model.createNewState();
-        TornadoVMMasterPlan plan = TornadoVMMasterPlan.initializeTornadoVMPlan(state, model);
+        // No plan on the CPU path: the host forward pass is the thing being measured, and building
+        // one would both fail without an accelerator and misreport the backend.
+        TornadoVMMasterPlan plan =
+                cpu ? null : TornadoVMMasterPlan.initializeTornadoVMPlan(state, model);
+        ForwardPass hostForward =
+                cpu ? CpuForwardPasses.forArchitecture(model.architectureId()) : null;
 
         int vocab = model.configuration().vocabularySize();
         String name = path.getFileName().toString().replaceAll("\\.gguf$", "");
         String quant = model.configuration().quantization();
         double sizeGiB = Files.size(path) / (1024.0 * 1024.0 * 1024.0);
         double paramsB = estimateParamsB(Files.size(path), quant);
-        String backend = System.getProperty("tornado.backend.name", "TornadoVM " + backendName());
+        String backend =
+                cpu
+                        ? "CPU"
+                        : System.getProperty("tornado.backend.name", "TornadoVM " + backendName());
 
         // Deterministic synthetic token stream (llama-bench uses random ids too).
         Random rng = new Random(42);
@@ -239,11 +269,11 @@ public class LlamaBench {
                 Thread.sleep(delay * 1000L);
             }
             if (warmup) {
-                runTest(model, state, plan, toks, t, batch); // untimed
+                runTest(model, state, plan, hostForward, toks, t, batch); // untimed
             }
             double[] samples = new double[reps];
             for (int r = 0; r < reps; r++) {
-                samples[r] = runTest(model, state, plan, toks, t, batch);
+                samples[r] = runTest(model, state, plan, hostForward, toks, t, batch);
             }
             double avg = 0;
             for (double s : samples) {
@@ -268,7 +298,9 @@ public class LlamaBench {
                     avg,
                     stddev);
         }
-        plan.freeTornadoExecutionPlan();
+        if (plan != null) {
+            plan.freeTornadoExecutionPlan();
+        }
         return results;
     }
 
@@ -282,18 +314,26 @@ public class LlamaBench {
      * {@code -b}) — while generation tokens (nGen) stay single-token decode. Returns tokens/s.
      */
     static double runTest(
-            Model model, State state, TornadoVMMasterPlan plan, int[] toks, TestSpec t, int batch) {
+            Model model,
+            State state,
+            TornadoVMMasterPlan plan,
+            ForwardPass hostForward,
+            int[] toks,
+            TestSpec t,
+            int batch) {
         // Untimed depth prefill.
-        prefill(model, state, plan, toks, 0, t.depth(), batch);
+        prefill(model, state, plan, hostForward, toks, 0, t.depth(), batch);
 
         int base = t.depth();
         long t0 = System.nanoTime();
         // Prompt processing: batched-prefill chunks when batch>1, else single-token.
-        prefill(model, state, plan, toks, base, t.nPrompt(), batch);
+        prefill(model, state, plan, hostForward, toks, base, t.nPrompt(), batch);
         // Generation: always single-token decode over the growing KV cache.
         for (int i = 0; i < t.nGen(); i++) {
             int pos = base + t.nPrompt() + i;
-            if (batch > 1) {
+            if (hostForward != null) {
+                hostForward.forward(model, state, toks[pos], pos);
+            } else if (batch > 1) {
                 org.beehive.gpullama3.backend.tornado.TornadoBatchPrefillPass.decode(
                         model, state, toks[pos], pos, (TornadoVMMasterPlanBatchPrefillDecode) plan);
             } else {
@@ -312,6 +352,7 @@ public class LlamaBench {
             Model model,
             State state,
             TornadoVMMasterPlan plan,
+            ForwardPass hostForward,
             int[] toks,
             int start,
             int count,
@@ -319,7 +360,11 @@ public class LlamaBench {
         if (count <= 0) {
             return;
         }
-        if (batch > 1) {
+        if (hostForward != null) {
+            for (int i = 0; i < count; i++) {
+                hostForward.forward(model, state, toks[start + i], start + i);
+            }
+        } else if (batch > 1) {
             var bp = (TornadoVMMasterPlanBatchPrefillDecode) plan;
             for (int off = 0; off < count; off += batch) {
                 int chunkSize = Math.min(batch, count - off);
