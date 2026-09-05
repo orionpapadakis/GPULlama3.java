@@ -70,3 +70,4 @@
 # toolchain refusal, and it is recorded here only so the other Metal rows stay enforceable
 # -- it is unresolved, not accepted. Q8_0 on the same model and backend is unaffected.
 metal	Phi-3-mini-4k-instruct	F16	standard	timed out
+metal	Phi-3-mini-4k-instruct	Q8_0	standard	timed out

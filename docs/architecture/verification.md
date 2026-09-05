@@ -181,11 +181,25 @@ than a regression. **Do not claim numerical parity on OpenCL.**
 `CompiledProgramIdentityAccelTest` cannot observe there. A capture-path gap, not a
 numerical one.
 
-**Phi-3-mini F16 on Metal does not complete.** Observed twice in CI: the run reaches the
-accelerator, emits a few tokens and then makes no further progress. It is a hang with no
-diagnostic rather than a toolchain refusal, and it is unresolved. Q8_0 on the same model and
-backend is unaffected. It is recorded in the expectations table so that one hanging row
-cannot go on erasing the other twenty-one — each row now runs under its own budget.
+**Phi-3-mini on Metal does not complete, in either representation.** The run reaches the
+accelerator, emits a few tokens and then makes no further progress. A hang with no
+diagnostic rather than a toolchain refusal, and unresolved. Both rows are in the
+expectations table so that one hanging row cannot go on erasing the rest — each row now runs
+under its own budget.
+
+**Qwen2.5-1.5B Q8_0 on Metal produces wrong output.** It resolves the backend, reports a
+real execution path, exits 0 at a normal throughput, and generates a stream of backticks
+instead of an answer. This is a correctness defect, not a recorded limitation, and it is
+deliberately *not* in the expectations table: the assertion step refuses to let a
+`WRONG-OUTPUT` row be silenced, so the Metal leg stays red until it is fixed.
+
+It was invisible until now. Every previous Metal run was cancelled at the job wall clock
+before the assertion step ran, so that backend had never produced a results table at all —
+which is why an output check that exists, on a backend that runs, had never once been
+applied there. Qwen2.5 F16 passes on the same machine, as do both Qwen3 representations, so
+the shape resembles the earlier Qwen FP16 Metal defect: capability-gated kernel selection
+choosing a reduction that is wrong on that device. Confirming that needs the Mac; nothing
+here claims to have reproduced it from Linux.
 
 **Batched prefill on Metal, and Q8_0 batched prefill on CUDA.** TornadoVM toolchain gaps,
 with named causes, in [`models-and-backends.md`](models-and-backends.md).

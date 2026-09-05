@@ -132,5 +132,8 @@ they cost real time otherwise:
 Qwen2 and Qwen3 in F16 once produced fluent-looking token salad on Metal, in every
 execution mode, while exiting 0 and reporting normal throughput; the cause was
 capability-gated kernel selection, and the fix routes them to the verified SIMD32 kernels.
-The reason it survived so long is recorded in [`verification.md`](verification.md), because
-the lesson is about how it was measured rather than about Metal.
+
+**Qwen2.5 Q8_0 on Metal is still wrong** in the same way — correct backend, real execution
+path, exit code 0, and backticks instead of an answer. It is an open defect, not a recorded
+limitation. Both are in [`verification.md`](verification.md), because the lesson is about
+how they were measured rather than about Metal.
