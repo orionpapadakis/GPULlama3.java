@@ -1865,6 +1865,98 @@ public final class TransformerBatchPrefillKernels {
     // (32 | K), and each staged pair reads exactly one scale per column.
 
     /**
+     * The IEEE half-precision bit pattern of {@code v}, round-to-nearest-even, computed with plain
+     * arithmetic.
+     *
+     * <p>Deliberately not {@code new HalfFloat(v).getHalfFloatValue()}. That is what the PTX
+     * backend cannot lower inside the tensor-core kernels below — "unimplemented: address origin
+     * unimplemented: ...calc.MulNode" in {@code CUDAAddressLowering.lower} — which is why Q8_0
+     * batched prefill failed on CUDA while the same kernels compiled elsewhere. The constructor
+     * lowers fine in the simpler kernels that store straight into a {@code HalfFloatArray}; here
+     * its result is read back as a short and packed into a register pair, and the object does not
+     * escape-analyse away.
+     *
+     * <p>Only what a dequantized Q8_0 weight can be is handled: finite values, including subnormals
+     * and zero. Infinities and NaNs are not, because a block scale times an int8 is neither.
+     * Negative zero comes back as positive zero — distinguishing it needs a reciprocal in the inner
+     * loop to buy a value no Q8_0 product produces, and the two are interchangeable in the GEMM.
+     * Overflow beyond the half-precision range saturates to the largest finite half rather than
+     * producing an infinity, which no Q8_0 weight reaches in practice.
+     */
+    static int fp16BitsOf(float v) {
+        int sign = 0;
+        float a = v;
+        if (a < 0.0f) {
+            sign = 0x8000;
+            a = -a;
+        }
+        if (a < 2.9802322E-8f) { // below half the smallest subnormal: rounds to zero
+            return sign;
+        }
+        if (a >= 65520.0f) { // rounds above the largest finite half
+            return sign | 0x7BFF;
+        }
+        // Binary search for the unbiased exponent e with 2^e <= a < 2^(e+1), over the range a
+        // subnormal-to-max half can occupy. Fixed comparisons rather than a loop: a data-dependent
+        // loop compiles but is far slower on the device, and this sits in the inner K-loop.
+        int e = -24;
+        float p = 5.9604645E-8f; // 2^-24
+        if (a >= p * 4294967296.0f) { // 2^32
+            e += 32;
+            p *= 4294967296.0f;
+        }
+        if (a >= p * 65536.0f) {
+            e += 16;
+            p *= 65536.0f;
+        }
+        if (a >= p * 256.0f) {
+            e += 8;
+            p *= 256.0f;
+        }
+        if (a >= p * 16.0f) {
+            e += 4;
+            p *= 16.0f;
+        }
+        if (a >= p * 4.0f) {
+            e += 2;
+            p *= 4.0f;
+        }
+        if (a >= p * 2.0f) {
+            e += 1;
+            p *= 2.0f;
+        }
+        // Scale so that the value to round is an integer count of half-precision steps: normals
+        // carry an implicit leading 1 and 10 stored mantissa bits, subnormals a fixed 2^-24 step.
+        float scaled;
+        if (e < -14) {
+            scaled = a * 16777216.0f; // a / 2^-24
+        } else {
+            scaled = a / p * 1024.0f;
+        }
+        int unit = (int) scaled;
+        float frac = scaled - unit;
+        if (frac > 0.5f) {
+            unit++;
+        } else if (frac == 0.5f && (unit & 1) != 0) {
+            unit++; // ties to even
+        }
+        if (e < -14) {
+            return sign | unit; // subnormal, or the carry into the smallest normal, which the
+            // encoding already places correctly
+        }
+        int mantissa = unit - 1024;
+        int exponent = e + 15;
+        if (mantissa == 1024) { // rounding carried into the next binade
+            mantissa = 0;
+            exponent++;
+        }
+        if (exponent >= 31) {
+            return sign | 0x7BFF;
+        }
+        return sign | (exponent << 10) | mantissa;
+    }
+
+    /**
      * Dequantizes and packs two vertically-adjacent (col, col+1) Q8_0 weight elements at depth k
      * into one int of two FP16 values, matching the bTile layout expected by mmaLoadB. Leaf helper;
      * inlined by the JIT.
@@ -1876,8 +1968,8 @@ public final class TransformerBatchPrefillKernels {
         int off1 = off0 + blocksPerRow * 34; // column col+1, same k-block
         float v0 = w.getHalfFloat(off0).getFloat32() * w.get(off0 + 2 + kIn);
         float v1 = w.getHalfFloat(off1).getFloat32() * w.get(off1 + 2 + kIn);
-        int lo = new HalfFloat(v0).getHalfFloatValue() & 0xFFFF;
-        int hi = new HalfFloat(v1).getHalfFloatValue() & 0xFFFF;
+        int lo = fp16BitsOf(v0);
+        int hi = fp16BitsOf(v1);
         return lo | (hi << 16);
     }
 
