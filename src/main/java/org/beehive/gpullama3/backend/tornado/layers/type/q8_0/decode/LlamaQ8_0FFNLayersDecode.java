@@ -78,5 +78,16 @@ public class LlamaQ8_0FFNLayersDecode extends LlamaQ8_0FFNLayers {
         }
         return layer;
     }
+
     // @formatter:on
+
+    /**
+     * This class builds the decode half of a batched prefill/decode plan, where the matching {@code
+     * batchPrefillLayer_<i>} graph has already uploaded this layer's weights and always runs first,
+     * so the decode graph binds that copy instead of a second one.
+     */
+    @Override
+    protected String weightSourceGraphName(int layerIndex) {
+        return "batchPrefillLayer_" + layerIndex;
+    }
 }

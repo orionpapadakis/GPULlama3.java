@@ -213,22 +213,28 @@ public class Qwen3FP16FFNLayers
         } else {
             unifiedLayer.consumeFromDevice(state.workspace.wrapX);
         }
-        unifiedLayer.transferToDevice(
-                DataTransferMode.FIRST_EXECUTION,
-                // Attention weights
-                weights.rms_att_weightLayered[layerIndex].asFloatArray(), // RMS norm weights
-                weights.wqLayered[layerIndex].asHalfFloatArray(), // Q projection
-                weights.wkLayered[layerIndex].asHalfFloatArray(), // K projection
-                weights.wvLayered[layerIndex].asHalfFloatArray(), // V projection
-                weights.woLayered[layerIndex].asHalfFloatArray(), // Output projection
-                // Qwen3-specific Q/K norm weights
-                weights.rms_att_KNormLayered[layerIndex].asFloatArray(), // K RMSNorm weights
-                weights.rms_att_QNormLayered[layerIndex].asFloatArray(), // Q RMSNorm weights
-                // FFN weights
-                weights.rms_ffn_weightLayered[layerIndex].asFloatArray(), // FFN RMS norm weights
-                weights.w1Layered[layerIndex].asHalfFloatArray(), // FFN gate
-                weights.w2Layered[layerIndex].asHalfFloatArray(), // FFN down
-                weights.w3Layered[layerIndex].asHalfFloatArray()); // FFN up
+        Object[] layerWeights = {
+            // Attention weights
+            weights.rms_att_weightLayered[layerIndex].asFloatArray(), // RMS norm weights
+            weights.wqLayered[layerIndex].asHalfFloatArray(), // Q projection
+            weights.wkLayered[layerIndex].asHalfFloatArray(), // K projection
+            weights.wvLayered[layerIndex].asHalfFloatArray(), // V projection
+            weights.woLayered[layerIndex].asHalfFloatArray(), // Output projection
+            // Qwen3-specific Q/K norm weights
+            weights.rms_att_KNormLayered[layerIndex].asFloatArray(), // K RMSNorm weights
+            weights.rms_att_QNormLayered[layerIndex].asFloatArray(), // Q RMSNorm weights
+            // FFN weights
+            weights.rms_ffn_weightLayered[layerIndex].asFloatArray(), // FFN RMS norm weights
+            weights.w1Layered[layerIndex].asHalfFloatArray(), // FFN gate
+            weights.w2Layered[layerIndex].asHalfFloatArray(), // FFN down
+            weights.w3Layered[layerIndex].asHalfFloatArray() // FFN up
+        };
+        String weightSrc = weightSourceGraphName(layerIndex);
+        if (weightSrc != null) {
+            unifiedLayer.consumeFromDevice(weightSrc, layerWeights);
+        } else {
+            unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION, layerWeights);
+        }
         unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -633,6 +639,18 @@ public class Qwen3FP16FFNLayers
         }
         return unifiedLayer;
     }
+
     // @formatter:on
 
+    /**
+     * The graph that has already uploaded this layer's weights, or {@code null} to upload them
+     * here.
+     *
+     * <p>A weight array bound with {@code transferToDevice} in two task graphs of one execution
+     * plan gets a device buffer in each, so the pool has to hold the whole model twice. See {@code
+     * LlamaFP16FFNLayers.weightSourceGraphName} for the full note.
+     */
+    protected String weightSourceGraphName(int layerIndex) {
+        return null;
+    }
 }

@@ -42,6 +42,16 @@ public class LlamaFP16FFNLayersDecode extends LlamaFP16FFNLayers {
         return (layerIndex == 0) ? "decodeActivation" : "layer_" + (layerIndex - 1);
     }
 
+    /**
+     * This class builds the decode half of a batched prefill/decode plan, where the matching {@code
+     * batchPrefillLayer_<i>} graph has already uploaded this layer's weights and always runs first,
+     * so the decode graph binds that copy instead of a second one.
+     */
+    @Override
+    protected String weightSourceGraphName(int layerIndex) {
+        return "batchPrefillLayer_" + layerIndex;
+    }
+
     @Override
     protected TaskGraph configureLayerDataTransfers(TaskGraph layer, int layerIndex) {
         LlamaState llamaState = (LlamaState) state;

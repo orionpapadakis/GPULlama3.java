@@ -77,18 +77,24 @@ public class LlamaQ8_0FFNLayers
         } else {
             unifiedLayer.consumeFromDevice(state.workspace.wrapX);
         }
-        unifiedLayer.transferToDevice(
-                DataTransferMode.FIRST_EXECUTION,
-                // Copy-in weights per layer for batched-layered layout (Q8 format)
-                weights.rms_att_weightLayered[layerIndex].asFloatArray(),
-                weights.wqLayered[layerIndex].asByteArray(),
-                weights.wkLayered[layerIndex].asByteArray(),
-                weights.wvLayered[layerIndex].asByteArray(),
-                weights.woLayered[layerIndex].asByteArray(),
-                weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
-                weights.w1Layered[layerIndex].asByteArray(),
-                weights.w2Layered[layerIndex].asByteArray(),
-                weights.w3Layered[layerIndex].asByteArray());
+        Object[] layerWeights = {
+            // Copy-in weights per layer for batched-layered layout (Q8 format)
+            weights.rms_att_weightLayered[layerIndex].asFloatArray(),
+            weights.wqLayered[layerIndex].asByteArray(),
+            weights.wkLayered[layerIndex].asByteArray(),
+            weights.wvLayered[layerIndex].asByteArray(),
+            weights.woLayered[layerIndex].asByteArray(),
+            weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
+            weights.w1Layered[layerIndex].asByteArray(),
+            weights.w2Layered[layerIndex].asByteArray(),
+            weights.w3Layered[layerIndex].asByteArray()
+        };
+        String weightSrc = weightSourceGraphName(layerIndex);
+        if (weightSrc != null) {
+            unifiedLayer.consumeFromDevice(weightSrc, layerWeights);
+        } else {
+            unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION, layerWeights);
+        }
         unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
 
         // === Attention Block ===
@@ -381,5 +387,18 @@ public class LlamaQ8_0FFNLayers
                     state.kvBlockStride);
         }
     }
+
     // @formatter:on
+
+    /**
+     * The graph that has already uploaded this layer's weights, or {@code null} to upload them
+     * here.
+     *
+     * <p>A weight array bound with {@code transferToDevice} in two task graphs of one execution
+     * plan gets a device buffer in each, so the pool has to hold the whole model twice. See {@code
+     * LlamaFP16FFNLayers.weightSourceGraphName} for the full note.
+     */
+    protected String weightSourceGraphName(int layerIndex) {
+        return null;
+    }
 }

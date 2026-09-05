@@ -196,17 +196,23 @@ public class LlamaFP16FFNLayers
         } else {
             unifiedLayer.consumeFromDevice(state.workspace.wrapX);
         }
-        unifiedLayer.transferToDevice(
-                DataTransferMode.FIRST_EXECUTION,
-                weights.rms_att_weightLayered[layerIndex].asFloatArray(),
-                weights.wqLayered[layerIndex].asHalfFloatArray(),
-                weights.wkLayered[layerIndex].asHalfFloatArray(),
-                weights.wvLayered[layerIndex].asHalfFloatArray(),
-                weights.woLayered[layerIndex].asHalfFloatArray(),
-                weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
-                weights.w1Layered[layerIndex].asHalfFloatArray(),
-                weights.w2Layered[layerIndex].asHalfFloatArray(),
-                weights.w3Layered[layerIndex].asHalfFloatArray());
+        Object[] layerWeights = {
+            weights.rms_att_weightLayered[layerIndex].asFloatArray(),
+            weights.wqLayered[layerIndex].asHalfFloatArray(),
+            weights.wkLayered[layerIndex].asHalfFloatArray(),
+            weights.wvLayered[layerIndex].asHalfFloatArray(),
+            weights.woLayered[layerIndex].asHalfFloatArray(),
+            weights.rms_ffn_weightLayered[layerIndex].asFloatArray(),
+            weights.w1Layered[layerIndex].asHalfFloatArray(),
+            weights.w2Layered[layerIndex].asHalfFloatArray(),
+            weights.w3Layered[layerIndex].asHalfFloatArray()
+        };
+        String weightSrc = weightSourceGraphName(layerIndex);
+        if (weightSrc != null) {
+            unifiedLayer.consumeFromDevice(weightSrc, layerWeights);
+        } else {
+            unifiedLayer.transferToDevice(DataTransferMode.FIRST_EXECUTION, layerWeights);
+        }
         unifiedLayer = configureLayerDataTransfers(unifiedLayer, layerIndex);
 
         // === Attention Block ===
@@ -453,6 +459,25 @@ public class LlamaFP16FFNLayers
         }
 
         return unifiedLayer;
+    }
+
+    /**
+     * The graph that has already uploaded this layer's weights, or {@code null} to upload them
+     * here.
+     *
+     * <p>A weight array bound with {@code transferToDevice} in two task graphs of one execution
+     * plan gets a device buffer in each, so the pool has to hold the whole model twice. That is
+     * what put batched prefill/decode at roughly 2x the weights on the device and left 8B FP16
+     * models unable to allocate on a 24GB card while the same model ran in standard mode. The
+     * batched decode graphs consume the copy their layer's prefill graph already uploaded, the way
+     * they already consume the KV cache and the block table.
+     *
+     * <p>Only override this where the named graph is guaranteed to be in the same execution plan
+     * and to have run first. Decode-only plans have no prefill graph to consume from and must keep
+     * uploading.
+     */
+    protected String weightSourceGraphName(int layerIndex) {
+        return null;
     }
 
     /**
