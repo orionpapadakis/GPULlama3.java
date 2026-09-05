@@ -181,6 +181,12 @@ than a regression. **Do not claim numerical parity on OpenCL.**
 `CompiledProgramIdentityAccelTest` cannot observe there. A capture-path gap, not a
 numerical one.
 
+**Phi-3-mini F16 on Metal does not complete.** Observed twice in CI: the run reaches the
+accelerator, emits a few tokens and then makes no further progress. It is a hang with no
+diagnostic rather than a toolchain refusal, and it is unresolved. Q8_0 on the same model and
+backend is unaffected. It is recorded in the expectations table so that one hanging row
+cannot go on erasing the other twenty-one — each row now runs under its own budget.
+
 **Batched prefill on Metal, and Q8_0 batched prefill on CUDA.** TornadoVM toolchain gaps,
 with named causes, in [`models-and-backends.md`](models-and-backends.md).
 

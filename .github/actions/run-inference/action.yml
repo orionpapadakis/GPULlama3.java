@@ -115,8 +115,11 @@ runs:
           # Record *why* it failed, so the expectations table can require a specific cause rather
           # than tolerating any failure. First interesting line wins; that is the one that names
           # the kernel or the null buffer.
+          # `|| true`: with no matching line grep returns 1, `pipefail` propagates it and
+          # `bash -e` kills the step before the row is recorded -- so a failure with no
+          # recognizable exception line, such as a timeout, produced no row at all.
           SIGNATURE=$(grep -m1 -E "Exception in thread|Unable to build sketch|TornadoInternalError|OutOfMemory" "$RUN_LOG" \
-            | tr -d '\000' | cut -c1-400)
+            | tr -d '\000' | cut -c1-400 || true)
           if [ "$RC" -eq 124 ]; then
             SIGNATURE="timed out after ${{ inputs.timeout_minutes }} minutes"
           fi

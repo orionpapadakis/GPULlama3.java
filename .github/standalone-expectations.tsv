@@ -64,3 +64,9 @@
 # That is Apple's OpenCL-over-Metal shim refusing the paged flash-attention kernel; the same model
 # and kernel run correctly on metal. It does not affect CI, whose opencl leg is Linux, so it has no
 # row here — but it will bite anyone benchmarking --opencl on a Mac.
+# Phi-3-mini in FP16 does not complete on Metal. Observed twice: the run reaches the
+# accelerator, emits a few tokens ("aysaysays") and then makes no further progress, so it
+# consumes whatever budget it is given. It is a real hang with no diagnostic, not a
+# toolchain refusal, and it is recorded here only so the other Metal rows stay enforceable
+# -- it is unresolved, not accepted. Q8_0 on the same model and backend is unaffected.
+metal	Phi-3-mini-4k-instruct	F16	standard	timed out
