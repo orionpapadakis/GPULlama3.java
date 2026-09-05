@@ -117,9 +117,7 @@ public class ThreePhaseModeAccelTest {
         }
     }
 
-    /**
-     * FP16's bounds, copied from {@code CpuGpuParityAccelTest} so the criterion is the same one.
-     */
+    /** FP16's bounds, copied from {@code CpuGpuParity} so the criterion is the same one. */
     private static final double ATOL = 1.5e-2;
 
     private static final double RTOL = 1e-2;

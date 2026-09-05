@@ -65,6 +65,7 @@ scattered through the layer builders.
 
 | Capability | Meaning |
 | --- | --- |
+| `PACKED_HALF2_MATH` | packed FP16 pair arithmetic holds CPU parity here |
 | `WARP_SHUFFLE` | warp-level shuffle reductions |
 | `SUBGROUP_SHUFFLE_32` | 32-wide subgroup shuffle (Metal's SIMD32 reductions) |
 | `TENSOR_CORE_MMA` | tensor-core MMA kernels, which exist only on CUDA |
@@ -75,6 +76,12 @@ A capability that is withheld is withheld deliberately and is a divergence, not 
 `SPLIT_KV_ATTENTION` is not granted to Metal, whose driver refuses to JIT
 `processHeadsFlashAttentionSplitKV`, and `TENSOR_CORE_MMA` is CUDA-only because the MMA
 kernels do not exist elsewhere — the non-MMA sibling is what the other backends run.
+
+`PACKED_HALF2_MATH` is withheld on OpenCL. Packed FP16 arithmetic rounds each product to
+FP16 before the FP32 accumulator sees it, once per term; over a 2048-term projection row
+that loss is systematic rather than cancelling, and on OpenCL it was large enough to fail
+CPU parity for the Llama-shaped FP16 QKV projection while the identical kernel held on CUDA.
+Where the capability is withheld, the projection widens each pair before multiplying.
 
 ## What each backend supports
 

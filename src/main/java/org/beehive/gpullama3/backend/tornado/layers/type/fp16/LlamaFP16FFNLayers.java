@@ -46,6 +46,12 @@ public class LlamaFP16FFNLayers
     private final boolean useSimd32Reduction =
             SchedulerDetectionService.isSubgroupShuffle32Supported();
 
+    /**
+     * Whether the packed FP16 multiply is accurate enough here to keep CPU parity. Where it is not,
+     * the QKV projection widens each pair before multiplying instead.
+     */
+    private final boolean packedHalf2Math = SchedulerDetectionService.isPackedHalf2MathSupported();
+
     private final LlamaState llamaState;
 
     public LlamaFP16FFNLayers(
@@ -255,7 +261,9 @@ public class LlamaFP16FFNLayers
         } else {
             unifiedLayer.task(
                     "qkv_projection",
-                    TransformerComputeKernelsLayered::fusedQKVMatmulX,
+                    packedHalf2Math
+                            ? TransformerComputeKernelsLayered::fusedQKVMatmulX
+                            : TransformerComputeKernelsLayered::fusedQKVMatmulXFp32Products,
                     context,
                     state.workspace.wrapXbFP16, // input (FP32)
                     state.workspace.wrapQ, // output Q

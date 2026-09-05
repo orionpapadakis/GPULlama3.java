@@ -130,6 +130,13 @@ public final class TornadoDevices {
         if (type == TornadoVMBackendType.METAL) {
             capabilities.add(DeviceCapability.SUBGROUP_SHUFFLE_32);
         }
+        // Withheld on OpenCL only: the packed FP16 multiply rounds every product to FP16 before
+        // it is accumulated, and on OpenCL that costs enough accuracy for the Llama-shaped FP16
+        // QKV projection to fail CPU parity. The identical kernel holds parity on CUDA, so this
+        // is a device property, not a kernel defect, and every other backend keeps the fast path.
+        if (type != TornadoVMBackendType.OPENCL) {
+            capabilities.add(DeviceCapability.PACKED_HALF2_MATH);
+        }
         return DeviceCapabilities.of(capabilities);
     }
 

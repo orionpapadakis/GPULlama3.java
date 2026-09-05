@@ -826,6 +826,94 @@ public class TransformerComputeKernelsLayered {
     }
 
     /**
+     * {@link #fusedQKVMatmulX} with the products taken in FP32 instead of packed FP16.
+     *
+     * <p>Identical structure and identical work decomposition; the only difference is that each
+     * FP16 pair is widened before it is multiplied, rather than multiplied by {@code __hmul2} and
+     * widened afterwards. That rounds every product to FP16 before it reaches the FP32 accumulator,
+     * once per term, and over a 2048-term row the loss is systematic rather than cancelling.
+     *
+     * <p>Selected where {@code DeviceCapability.PACKED_HALF2_MATH} is withheld. It is measurably
+     * more accurate everywhere; it is not the default because the packed form is faster where it
+     * has been shown to hold parity.
+     */
+    public static void fusedQKVMatmulXFp32Products(
+            KernelContext context,
+            HalfFloatArray x,
+            FloatArray q,
+            FloatArray k,
+            FloatArray v,
+            HalfFloatArray wq,
+            HalfFloatArray wk,
+            HalfFloatArray wv,
+            int dim,
+            int kvDim,
+            int localWorkGroupSize) {
+
+        int rowId = context.groupIdx;
+        int localId = context.localIdx;
+
+        float[] localSum = context.allocateFloatLocalArray(localWorkGroupSize);
+
+        if (rowId < dim) {
+            int rowOffset = rowId * dim;
+            float partialSum = 0.0f;
+            for (int j = localId; j < dim; j += localWorkGroupSize) {
+                partialSum += wq.get(rowOffset + j).getFloat32() * x.get(j).getFloat32();
+            }
+            localSum[localId] = partialSum;
+            context.localBarrier();
+            for (int stride = localWorkGroupSize / 2; stride > 0; stride >>= 1) {
+                if (localId < stride) {
+                    localSum[localId] += localSum[localId + stride];
+                }
+                context.localBarrier();
+            }
+            if (localId == 0) {
+                q.set(rowId, localSum[0]);
+            }
+
+        } else if (rowId < dim + kvDim) {
+            int kRow = rowId - dim;
+            int rowOffset = kRow * dim;
+            float partialSum = 0.0f;
+            for (int j = localId; j < dim; j += localWorkGroupSize) {
+                partialSum += wk.get(rowOffset + j).getFloat32() * x.get(j).getFloat32();
+            }
+            localSum[localId] = partialSum;
+            context.localBarrier();
+            for (int stride = localWorkGroupSize / 2; stride > 0; stride >>= 1) {
+                if (localId < stride) {
+                    localSum[localId] += localSum[localId + stride];
+                }
+                context.localBarrier();
+            }
+            if (localId == 0) {
+                k.set(kRow, localSum[0]);
+            }
+
+        } else if (rowId < dim + 2 * kvDim) {
+            int vRow = rowId - dim - kvDim;
+            int rowOffset = vRow * dim;
+            float partialSum = 0.0f;
+            for (int j = localId; j < dim; j += localWorkGroupSize) {
+                partialSum += wv.get(rowOffset + j).getFloat32() * x.get(j).getFloat32();
+            }
+            localSum[localId] = partialSum;
+            context.localBarrier();
+            for (int stride = localWorkGroupSize / 2; stride > 0; stride >>= 1) {
+                if (localId < stride) {
+                    localSum[localId] += localSum[localId + stride];
+                }
+                context.localBarrier();
+            }
+            if (localId == 0) {
+                v.set(vRow, localSum[0]);
+            }
+        }
+    }
+
+    /**
      * PTX/Metal SIMD variant of fusedQKVMatmulX for LLaMA FP16 decode. It assumes the existing
      * decode worker shape: one 32-lane workgroup per Q/K/V output row.
      */

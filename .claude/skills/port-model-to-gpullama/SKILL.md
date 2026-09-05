@@ -168,9 +168,11 @@ A synthetic fixture proves the decomposition. Only a real one proves the port.
   of passing.
 - **Deterministic CPU reference.** Generate on the CPU path, twice, and confirm the two
   agree before comparing anything to them.
-- **CPU/accelerator parity.** Add the family to `CpuGpuParityAccelTest`. This is the gate
-  that matters: the CPU is the reference, and it is the only comparison that can see a
-  defect which moves the whole GPU.
+- **CPU/accelerator parity.** Add a `<Family>CpuGpuParityAccelTest` extending `CpuGpuParity`,
+  with a case per representation. One class per family, because surefire forks per class and
+  a class that loads every fixture exhausts the device partway through. This is the gate that
+  matters: the CPU is the reference, and it is the only comparison that can see a defect which
+  moves the whole GPU.
 - **Legacy versus lowered**, where both exist. Bit identity where the paths are meant to be
   identical; the parity bounds where they are not. This is a *supplementary* check, never
   the primary one.

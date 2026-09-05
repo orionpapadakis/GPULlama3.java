@@ -26,6 +26,11 @@ public class GraniteFP16FFNLayers
     private final boolean useSimd32QkvFusion =
             SchedulerDetectionService.isSubgroupShuffle32Supported();
 
+    /**
+     * @see LlamaFP16FFNLayers#packedHalf2Math
+     */
+    private final boolean packedHalf2Math = SchedulerDetectionService.isPackedHalf2MathSupported();
+
     public GraniteFP16FFNLayers(
             String taskGraph,
             State state,
@@ -193,7 +198,9 @@ public class GraniteFP16FFNLayers
         } else {
             unifiedLayer.task(
                     "qkv_projection",
-                    TransformerComputeKernelsLayered::fusedQKVMatmulX,
+                    packedHalf2Math
+                            ? TransformerComputeKernelsLayered::fusedQKVMatmulX
+                            : TransformerComputeKernelsLayered::fusedQKVMatmulXFp32Products,
                     context,
                     state.workspace.wrapXbFP16, // input (FP32)
                     state.workspace.wrapQ, // output Q

@@ -76,6 +76,20 @@ public final class ParityProfile {
             top10Overlap += overlap(ref, got, 10);
         }
 
+        // The scale of the reference itself, so an absolute bound can be read as a fraction of
+        // it. Families differ by orders of magnitude here -- Granite multiplies its logits by
+        // its logit_scale -- and an absolute atol calibrated on one does not transfer.
+        double sqAll = 0;
+        long counted = 0;
+        for (float[] ref : cpu.rows) {
+            for (float v : ref) {
+                sqAll += (double) v * v;
+                counted++;
+            }
+        }
+        double refRms = Math.sqrt(sqAll / counted);
+        System.out.printf("  refRms=%.6g  maxAbs/refRms=%.3g%n", refRms, maxAbs / refRms);
+
         Arrays.sort(allAbs);
         System.out.printf("%s rows=%d vocab=%d%n", label, rows, vocab);
         System.out.printf(

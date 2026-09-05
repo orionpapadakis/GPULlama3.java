@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.beehive.gpullama3.golden.GoldenFixture.Fixture;
-import org.junit.Test;
 
 /**
  * Runs the same fixture and prompt through the CPU path and the GPU path and compares the logits.
@@ -37,11 +36,17 @@ import org.junit.Test;
  * <p><b>Thresholds are measured, not assumed</b>, and are per quantization: the FP16 GPU path
  * stores its normalized activations as FP16 while the CPU path keeps FP32, so its floor is set by
  * that format, whereas the Q8_0 path keeps FP32 activations and tracks the CPU far more closely.
- * The values below come from {@code golden/ParityProfile} on the pinned tuple and sit roughly 2×
- * above the observed worst case: FP16 max abs error 7.1e-3, relL2 6.3e-4, min cosine 0.9999998;
- * Q8_0 max abs error 4.4e-5, relL2 5.8e-6, cosine 1.0 to eight decimals. Re-derive them with that
- * tool if the tuple, the prompt or the compared-token count changes; do not widen them to make a
- * failing run pass.
+ * They come from {@code golden/ParityProfile} on the pinned tuple and sit roughly 2× above the
+ * observed worst case. Re-derive them with that tool if the tuple, the prompt or the compared-token
+ * count changes; do not widen them to make a failing run pass.
+ *
+ * <p><b>The two absolute-scale bounds are fractions of the reference's own RMS.</b> A constant
+ * {@code atol} does not transfer between families: Granite-3.2-2B's logits have an RMS of 233
+ * against Llama-3.2-1B's 2.92, because Granite multiplies its logits by its {@code logit_scale}. A
+ * constant calibrated on Llama leaves nearly every Llama element inside {@code atol} and tested
+ * only absolutely, while putting nearly every Granite element outside it and tested only relatively
+ * — so the same code reads as clean on one family and broken on the other. Normalising holds every
+ * family to one standard, and it *tightens* the gate for the families whose logits are small.
  *
  * <p>The FP16 bounds were 5-20x looser until the CPU reference stopped flushing denormal FP16
  * weights to zero. Most of what this gate used to tolerate was error on the reference side, not the
@@ -51,65 +56,32 @@ import org.junit.Test;
  * autoregressive, so the first near-tie that tips differently sends the two paths into different
  * contexts and every later row compares unrelated states. Forcing the GPU along the CPU's tokens
  * keeps the KV state identical at every compared position.
+ *
+ * <p><b>One family per subclass, and therefore per JVM.</b> Device memory a closed session frees
+ * returns to TornadoVM's buffer provider but not to the driver, so a class that loads every fixture
+ * exhausts the device partway through and the failures land on whichever model happened to run late
+ * rather than on whichever one is wrong. Surefire forks per class, so the split is what makes each
+ * result attributable.
  */
-public class CpuGpuParityAccelTest {
+abstract class CpuGpuParity {
 
     /**
      * Per-configuration bounds. {@code atol} dominates for the vast majority of logits, which sit
      * near zero; {@code rtol} is what keeps the bound honest on the few large ones.
      */
-    private record Bounds(
-            double atol,
+    record Bounds(
+            double atolPerRms,
             double rtol,
-            double maxAbsCeiling,
+            double ceilingPerRms,
             double relL2,
             double minCosine,
             double violationFraction,
             double decisionGap) {}
 
-    private static final Bounds FP16 = new Bounds(1.5e-2, 1e-2, 2e-2, 2e-3, 0.99999, 1e-4, 0.5);
-    private static final Bounds Q8_0 = new Bounds(5e-4, 1e-2, 1e-3, 1e-4, 0.999999, 1e-4, 0.5);
+    static final Bounds FP16 = new Bounds(5e-3, 1e-2, 8e-3, 2e-3, 0.99999, 1e-4, 0.5);
+    static final Bounds Q8_0 = new Bounds(1.7e-4, 1e-2, 3.4e-4, 1e-4, 0.999999, 1e-4, 0.5);
 
-    @Test
-    public void llama3_2_1b_q8_0_cpuGpuParity() throws Exception {
-        assertParity(Fixture.LLAMA_3_2_1B_Q8_0, Q8_0);
-    }
-
-    @Test
-    public void llama3_2_1b_f16_cpuGpuParity() throws Exception {
-        assertParity(Fixture.LLAMA_3_2_1B_F16, FP16);
-    }
-
-    // ── Qwen FP16, against CPU ───────────────────────────────────────────────────────────────────
-    //
-    // These exist because the Qwen FP16 families produced numerically wrong logits on Metal —
-    // fluent
-    // token salad, exit code 0, throughput reported as normal — and nothing in the suite caught it.
-    // LoweredQwen{2,3}ParityAccelTest passed throughout, because it compares the lowered GPU path
-    // against the legacy GPU path: both were equally wrong, so they agreed. A GPU-vs-GPU comparison
-    // cannot see a defect that moves the whole GPU. Only a CPU reference can, which is what this
-    // class does and why the coverage belongs here.
-    //
-    // The Q8_0 cases are the positive control: they were correct throughout, and they must keep
-    // passing to show a failure above is FP16-specific rather than a general Qwen or device fault.
-    // Bounds are the shared FP16/Q8_0 records above, unchanged.
-
-    @Test
-    public void qwen3_0_6b_f16_cpuGpuParity() throws Exception {
-        assertParity(Fixture.QWEN3_0_6B_F16, FP16);
-    }
-
-    @Test
-    public void qwen3_0_6b_q8_0_cpuGpuParity() throws Exception {
-        assertParity(Fixture.QWEN3_0_6B_Q8_0, Q8_0);
-    }
-
-    @Test
-    public void qwen2_5_0_5b_f16_cpuGpuParity() throws Exception {
-        assertParity(Fixture.QWEN2_5_0_5B_F16, FP16);
-    }
-
-    private void assertParity(Fixture fixture, Bounds bounds) throws Exception {
+    void assertParity(Fixture fixture, Bounds bounds) throws Exception {
         Path model = GoldenFixture.locate(fixture);
         if (model == null) {
             System.out.println(
@@ -125,6 +97,21 @@ public class CpuGpuParityAccelTest {
         GoldenCapture.Result gpu = GoldenCapture.capture(model, true, cpu.tokenIds);
 
         assertEquals("compared row count", cpu.rows.size(), gpu.rows.size());
+
+        // The two absolute-scale bounds are fractions of the reference's own RMS, not constants.
+        // Families differ by two orders of magnitude here -- Granite-3.2-2B's logits have an RMS
+        // of 233 against Llama-3.2-1B's 2.92, because Granite multiplies them by its logit_scale
+        // -- so a constant atol tests one family relatively and the other not at all, and reads
+        // as a defect in whichever family happens to have the larger logits. Normalised, the
+        // measured worst-case error sits in one narrow band across every family on the pinned
+        // tuple: Granite 0.0035, Llama 0.0026, Qwen3 0.0019, Phi-3 0.0009. The bounds below are
+        // roughly 2x that band, which is the same margin the constants used to carry for Llama.
+        double refRms = rms(cpu.rows);
+        double atol = bounds.atolPerRms() * refRms;
+        double maxAbsCeiling = bounds.ceilingPerRms() * refRms;
+        System.out.printf(
+                "  reference RMS %.4g -> atol %.4g, max-abs ceiling %.4g%n",
+                refRms, atol, maxAbsCeiling);
 
         long elements = 0;
         long violations = 0;
@@ -153,7 +140,7 @@ public class CpuGpuParityAccelTest {
             double dot = 0;
             for (int i = 0; i < ref.length; i++) {
                 double d = Math.abs((double) ref[i] - (double) got[i]);
-                double tol = bounds.atol() + bounds.rtol() * Math.abs((double) ref[i]);
+                double tol = atol + bounds.rtol() * Math.abs((double) ref[i]);
                 if (d > tol) {
                     violations++;
                 }
@@ -213,7 +200,7 @@ public class CpuGpuParityAccelTest {
                 maxRatio);
         System.out.printf(
                 "[PARITY]   maxAbs=%.6g (row %d, token %d; ceiling %.6g)%n",
-                maxAbs, maxAbsRow, maxAbsIndex, bounds.maxAbsCeiling());
+                maxAbs, maxAbsRow, maxAbsIndex, maxAbsCeiling);
         System.out.printf(
                 "[PARITY]   worst relL2=%.6g (row %d; bound %.6g)  minCosine=%.8f (bound %.8f)%n",
                 worstRelL2, worstRelL2Row, bounds.relL2(), minCosine, bounds.minCosine());
@@ -230,7 +217,7 @@ public class CpuGpuParityAccelTest {
                         elements,
                         100.0 * violations / elements,
                         100.0 * bounds.violationFraction(),
-                        bounds.atol(),
+                        atol,
                         bounds.rtol(),
                         maxRatio),
                 violations <= bounds.violationFraction() * elements);
@@ -238,12 +225,8 @@ public class CpuGpuParityAccelTest {
         assertTrue(
                 String.format(
                         "%s: max |cpu-gpu|=%.6g exceeds the ceiling %.6g (row %d, token %d)",
-                        fixture.quantization,
-                        maxAbs,
-                        bounds.maxAbsCeiling(),
-                        maxAbsRow,
-                        maxAbsIndex),
-                maxAbs <= bounds.maxAbsCeiling());
+                        fixture.quantization, maxAbs, maxAbsCeiling, maxAbsRow, maxAbsIndex),
+                maxAbs <= maxAbsCeiling);
 
         assertTrue(
                 String.format(
@@ -266,6 +249,19 @@ public class CpuGpuParityAccelTest {
     }
 
     /** Number of shared entries between the two top-k sets. */
+    /** RMS of the whole reference, which is the scale the absolute bounds are expressed in. */
+    private static double rms(java.util.List<float[]> rows) {
+        double sq = 0;
+        long n = 0;
+        for (float[] row : rows) {
+            for (float v : row) {
+                sq += (double) v * v;
+                n++;
+            }
+        }
+        return Math.sqrt(sq / n);
+    }
+
     private static int overlap(float[] a, float[] b, int k) {
         int[] ta = topK(a, k);
         int[] tb = topK(b, k);

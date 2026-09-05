@@ -10,7 +10,7 @@ import org.beehive.gpullama3.golden.GoldenFixture.Fixture;
 import org.junit.Test;
 
 /**
- * {@code GoldenLogitsAccelTest} and {@code CpuGpuParityAccelTest} build their plan through {@code
+ * {@code GoldenLogitsAccelTest} and {@code CpuGpuParity} build their plan through {@code
  * GoldenCapture}, which called {@code TornadoVMMasterPlan.initializeTornadoVMPlan} directly — so
  * they never reached the selection branch, and setting the opt-in would have changed nothing while
  * appearing to. {@code GoldenCapture} now routes through the lowering when it applies, and <b>every
@@ -19,7 +19,7 @@ import org.junit.Test;
  */
 public class LoweredGoldenParityAccelTest {
 
-    /** Bounds copied from {@code CpuGpuParityAccelTest} so the criterion is the same one. */
+    /** Bounds copied from {@code CpuGpuParity} so the criterion is the same one. */
     private static final double F16_ATOL = 1.5e-2;
 
     private static final double F16_RTOL = 1e-2;

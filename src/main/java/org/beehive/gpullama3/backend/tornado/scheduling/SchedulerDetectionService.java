@@ -25,6 +25,11 @@ public class SchedulerDetectionService {
      * question). Where this is false, the fused QKV projection uses the shared-memory reduction
      * kernel instead ({@code fusedQKVMatmulX}), which works everywhere.
      */
+    /** Whether packed FP16 pair arithmetic holds CPU parity here. */
+    public static boolean isPackedHalf2MathSupported() {
+        return TornadoDevices.current().capabilities().supports(DeviceCapability.PACKED_HALF2_MATH);
+    }
+
     public static boolean isSubgroupShuffle32Supported() {
         return TornadoDevices.current()
                 .capabilities()

@@ -87,14 +87,15 @@ Same fixture, same prompt, CPU as the reference. Per-element tolerance
 `|got − ref| ≤ 1e-2 · Σ|wᵢaᵢ| + 1e-3`, with `atol=1.5e-2` and `rtol=1e-2`, and a budget on
 the fraction of elements allowed to violate it. NaN or Inf on either side fails.
 
-Coverage: Llama F16 and Q8_0, Qwen3 F16 and Q8_0, Qwen2.5 F16. The Qwen rows exist because
-the lowered-versus-legacy parity tests could not see a defect that moved both.
+Coverage is every family with a fixture, in every representation it ships: Llama, Qwen3,
+Qwen2.5, Granite and Phi-3 in F16 and Q8_0, and Mistral in Q8_0. One class per family, so
+surefire forks a JVM per family — device memory a closed session frees goes back to
+TornadoVM's buffer provider but not to the driver, so a single class covering everything
+exhausts the device partway through and the failures land on whichever model ran late rather
+than whichever one is wrong.
 
-**Granite, Phi-3, Mistral, DeepSeek-R1-Distill-Qwen and Devstral are not in this suite.**
-They have CPU operation-equivalence unit tests, fixtures and standalone CI rows, so their
-decomposition is pinned and they are known to generate; what is not gated is their GPU
-output against the CPU reference. A family whose GPU path is claimed and whose parity is not
-gated is not numerically verified, and this is the honest statement of which those are.
+DeepSeek-R1-Distill-Qwen and Devstral have no fixture on the reference machine and are
+therefore not gated here.
 
 ## Compiled-program identity
 
@@ -166,17 +167,6 @@ result after the whole matrix has run, against `.github/standalone-expectations.
 
 Recorded honestly rather than gated away. None of these is a passing configuration.
 
-**OpenCL, Llama F16, CPU-parity.** Measured on this branch, on an NVIDIA OpenCL platform
-with TornadoVM 6.0.0: `CpuGpuParityAccelTest.llama3_2_1b_f16` reports about 21% of logit
-elements outside the tolerance, worst case 10.6× the bound, and
-`LoweredGoldenParityAccelTest` and `ThreePhaseModeAccelTest.batchedPrefillDecodeAgreesWithSingleToken`
-fail with it. Generated text is still correct — argmax survives — and every other row in
-the suite passes, including Qwen3 F16, Qwen2.5 F16 and both Q8_0 rows. It is **not** the
-lowered path (identical with `llama.lowering=off`) and **not** the single-pass RMS
-capability (identical with it withheld). CUDA and Metal are unaffected. This backend had
-never been run through the accelerator suite before, so it is a newly measured gap rather
-than a regression. **Do not claim numerical parity on OpenCL.**
-
 **Kernel capture on Metal.** `withPrintKernel()` produces no kernel source, so
 `CompiledProgramIdentityAccelTest` cannot observe there. A capture-path gap, not a
 numerical one.
@@ -223,10 +213,11 @@ Measured on this branch, RTX 5090 Laptop, TornadoVM 6.0.0 built from the pinned 
 
 | Configuration | Class A | Class B |
 | --- | --- | --- |
-| JDK 21, CUDA | 531 tests, 0 failures | 87 tests, 0 failures, 0 errors, 6 skipped |
-| JDK 25, CUDA | 531 tests, 0 failures | 87 tests, 0 failures, 0 errors, 6 skipped |
-| JDK 21, OpenCL | 531 tests, 0 failures | 87 tests, **3 failures**, 0 errors, 7 skipped — the Llama F16 parity gap above |
-| JDK 25, OpenCL | 531 tests, 0 failures | 87 tests, **3 failures**, 0 errors, 7 skipped — the same three |
+| JDK 21, CUDA | 531 tests, 0 failures | 94 tests, 0 failures, 0 errors, 6 skipped |
+| JDK 25, CUDA | 531 tests, 0 failures | 94 tests, 0 failures, 0 errors, 6 skipped |
+| JDK 21, OpenCL | 531 tests, 0 failures | 94 tests, 0 failures, 0 errors, 7 skipped |
+| JDK 25, OpenCL | 531 tests, 0 failures | 94 tests, 0 failures, 0 errors, 7 skipped |
 
-The six skips each name a reason: an absent fixture, an absent `TENSOR_CORE_MMA`, or a
-Metal-only kernel-selection check.
+CPU↔GPU parity covers all eleven fixture/representation combinations on both backends. The
+skips each name a reason: an absent fixture, an absent `TENSOR_CORE_MMA`, or a Metal-only
+kernel-selection check.

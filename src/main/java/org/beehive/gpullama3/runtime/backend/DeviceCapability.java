@@ -62,6 +62,16 @@ public final class DeviceCapability {
      * fusedQKVMatmulXSimd32} (32-lane shuffle reduction) for the QKV projection task, so it belongs
      * here by this file's own bar.
      */
+    /**
+     * Packed FP16 pair arithmetic ({@code Half2.mult}) holds CPU parity on this device.
+     *
+     * <p>It rounds each product to FP16 before the FP32 accumulator sees it, once per term, so
+     * whether that is acceptable is a property of the device's FP16 multiply and not of the kernel.
+     * Withheld on OpenCL, where the Llama-shaped FP16 QKV projection drifts far enough from the CPU
+     * reference to fail the parity gate while the same kernel holds on CUDA.
+     */
+    public static final DeviceCapability PACKED_HALF2_MATH = of("packed-half2-math");
+
     public static final DeviceCapability SUBGROUP_SHUFFLE_32 = of("subgroup-shuffle-32");
 
     private final String name;

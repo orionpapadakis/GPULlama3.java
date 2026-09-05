@@ -79,8 +79,8 @@ public final class Q8_0FloatTensor extends FloatTensor {
      * why llama.cpp does this — but this is not one.
      *
      * <p>It also breaks CPU/GPU parity, since the GPU path does not quantize activations: {@code
-     * CpuGpuParityAccelTest} reports 64.08% of elements outside budget with it on and 0% with it
-     * off. The output stays semantically intact (0/64 argmax disagreements), so this is a numerics
+     * CpuGpuParity} reports 64.08% of elements outside budget with it on and 0% with it off. The
+     * output stays semantically intact (0/64 argmax disagreements), so this is a numerics
      * divergence, not a defect — but it is one the default should not carry.
      */
     static final boolean QUANTIZE_ACTIVATION =
