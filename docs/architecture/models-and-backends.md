@@ -83,6 +83,15 @@ that loss is systematic rather than cancelling, and on OpenCL it was large enoug
 CPU parity for the Llama-shaped FP16 QKV projection while the identical kernel held on CUDA.
 Where the capability is withheld, the projection widens each pair before multiplying.
 
+The capability is narrower than its name suggests, and the distinction matters. Other
+kernels use packed pairs and are unaffected on OpenCL — `fusedRmsNormFFNGateUp`, shared with
+Qwen3, holds parity there. What is specific to the QKV projection is that **both** operands
+are FP16: the weights, and an activation that `mapContextWithQuantize` has already rounded
+to FP16. That is a double rounding before an FP16 multiply, and it is the combination, not
+packed arithmetic on its own, that loses the accuracy. Metal keeps the packed path and has
+not been evaluated against this; a Metal FP16 investigation should measure it before
+assuming the CUDA result carries over.
+
 ## What each backend supports
 
 | Capability | CPU | CUDA | OpenCL | Metal |

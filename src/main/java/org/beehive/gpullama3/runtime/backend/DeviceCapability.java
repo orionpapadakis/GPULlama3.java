@@ -62,17 +62,26 @@ public final class DeviceCapability {
      * fusedQKVMatmulXSimd32} (32-lane shuffle reduction) for the QKV projection task, so it belongs
      * here by this file's own bar.
      */
+    public static final DeviceCapability SUBGROUP_SHUFFLE_32 = of("subgroup-shuffle-32");
+
     /**
-     * Packed FP16 pair arithmetic ({@code Half2.mult}) holds CPU parity on this device.
+     * The doubly-rounded FP16 QKV projection is accurate enough on this device.
      *
-     * <p>It rounds each product to FP16 before the FP32 accumulator sees it, once per term, so
-     * whether that is acceptable is a property of the device's FP16 multiply and not of the kernel.
-     * Withheld on OpenCL, where the Llama-shaped FP16 QKV projection drifts far enough from the CPU
-     * reference to fail the parity gate while the same kernel holds on CUDA.
+     * <p>{@code fusedQKVMatmulX} multiplies a packed FP16 weight pair by a packed FP16 activation
+     * pair, so the product is rounded to FP16 before the FP32 accumulator sees it — once per term,
+     * over a projection row, in a direction that does not cancel. Withheld on OpenCL, where that
+     * cost the Llama-shaped FP16 families their CPU parity (worst relative L2 0.0109 against CUDA's
+     * 0.0011 for the identical kernel); where it is withheld, the projection widens each pair
+     * before multiplying instead.
+     *
+     * <p><b>Narrower than the name suggests.</b> Other kernels multiply packed pairs and hold
+     * parity on OpenCL — {@code fusedRmsNormFFNGateUp}, which Qwen3 shares, is one. What is
+     * specific to the QKV projection is that <i>both</i> operands are FP16: the weights, and an
+     * activation {@code mapContextWithQuantize} has already rounded to FP16. Read this as a
+     * statement about that combination, not about packed arithmetic generally. Metal keeps the
+     * packed path and has not been measured against this question.
      */
     public static final DeviceCapability PACKED_HALF2_MATH = of("packed-half2-math");
-
-    public static final DeviceCapability SUBGROUP_SHUFFLE_32 = of("subgroup-shuffle-32");
 
     private final String name;
 
