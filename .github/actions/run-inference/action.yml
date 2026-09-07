@@ -91,15 +91,32 @@ runs:
           -n ${{ inputs.max_tokens }} \
           --seed ${{ inputs.seed }} \
           ${{ inputs.flags }} <<'RUNNER'
-        import subprocess, sys
+        import os, signal, subprocess, sys
         log, minutes, cmd = sys.argv[1], float(sys.argv[2]), sys.argv[3:]
         with open(log, "wb") as out:
-            p = subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT)
+            # start_new_session, and the kill below goes to the process GROUP. llama-tornado is a
+            # Python wrapper that starts java with subprocess.run, so java is this runner's
+            # grandchild. p.kill() reached the wrapper only: the JVM survived its own row, kept
+            # holding its unified-memory buffers -- ~9.5 GiB for Phi-3-mini-Q8_0, measured -- and
+            # starved every row that followed on a 16 GiB machine. Run 33996905843 ended with
+            # "Terminate orphan process: pid (7972) (java)" twice, one per timed-out row, which is
+            # the leak this closes.
+            p = subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
             try:
                 sys.exit(p.wait(timeout=minutes * 60))
             except subprocess.TimeoutExpired:
-                p.kill()
-                p.wait()
+                group = os.getpgid(p.pid)
+                # SIGTERM first so the JVM can release its device buffers, SIGKILL if it will not.
+                for sig, grace in ((signal.SIGTERM, 20), (signal.SIGKILL, 10)):
+                    try:
+                        os.killpg(group, sig)
+                    except ProcessLookupError:
+                        break
+                    try:
+                        p.wait(timeout=grace)
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
                 out.write(("\nrow timed out after %s minutes\n" % sys.argv[2]).encode())
                 sys.exit(124)
         RUNNER
@@ -144,7 +161,13 @@ runs:
           record "NO-METRICS" "$METRICS_FILE absent or empty"
           exit 0
         fi
-        EXEC_PATH=$(grep -o '"execution_path"[[:space:]]*:[[:space:]]*"[^"]*"' "$METRICS_FILE" | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/')
+        # `|| true`: with no matching line grep returns 1, pipefail propagates it, and `bash -e`
+        # kills the step *before* the NO-EXEC-PATH branch below can record anything. Run
+        # 34125287708 lost all 20 rows on all three backends that way, reporting "No standalone
+        # rows were recorded" -- indistinguishable from a matrix-wide failure -- when the actual
+        # fault was one absent JSON field. The same guard is already on SIGNATURE above, for the
+        # same reason.
+        EXEC_PATH=$(grep -o '"execution_path"[[:space:]]*:[[:space:]]*"[^"]*"' "$METRICS_FILE" | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/' || true)
         if [ -z "$EXEC_PATH" ]; then
           echo "::error::$ROW_LABEL reported no execution_path, so no accelerator plan was built — a CPU fallback would look identical to success here"
           record "NO-EXEC-PATH" "metrics lacked execution_path"

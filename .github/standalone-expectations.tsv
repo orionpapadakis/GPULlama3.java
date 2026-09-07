@@ -64,10 +64,28 @@
 # That is Apple's OpenCL-over-Metal shim refusing the paged flash-attention kernel; the same model
 # and kernel run correctly on metal. It does not affect CI, whose opencl leg is Linux, so it has no
 # row here — but it will bite anyone benchmarking --opencl on a Mac.
-# Phi-3-mini in FP16 does not complete on Metal. Observed twice: the run reaches the
-# accelerator, emits a few tokens ("aysaysays") and then makes no further progress, so it
-# consumes whatever budget it is given. It is a real hang with no diagnostic, not a
-# toolchain refusal, and it is recorded here only so the other Metal rows stay enforceable
-# -- it is unresolved, not accepted. Q8_0 on the same model and backend is unaffected.
+# Phi-3-mini does not complete on Metal in CI. Both rows are host memory, not a kernel defect,
+# and the earlier note here ("a real hang with no diagnostic") was wrong about the cause:
+#
+#   * The Mac runner is an Apple M4 reporting 11.8 GB of Metal memory, so a 16 GB machine.
+#     Apple Silicon is unified: a device buffer is host RAM.
+#   * Measured on an M4 Pro at the CI row's own -n 160, Phi-3-mini-Q8_0 peaks at 9.5 GiB RSS,
+#     and F16 carries roughly 3.7 GiB more of weights on top of that. The heap size does not
+#     move either number (8g and 20g both measure 9.5 GiB), so this is off-heap unified memory
+#     and not a JVM heap that could be tuned down.
+#   * Genuine over-capacity is NOT what this looks like. A model that truly does not fit fails
+#     in ~30 s with [GPUL-MEM-001] DeviceMemoryExhaustedException, verified on Qwen3-8B-F16.
+#     These rows instead swap: correct tokens arrive, then progress stops. That is the
+#     signature of thrashing, which is why no exception is ever raised.
+#
+# Until run 33996905843 a timed-out row also leaked its JVM -- the runner killed the
+# llama-tornado wrapper and not its java grandchild, leaving a process measured at 16.1 GiB RSS
+# alive for the rest of the job on a 16 GB machine. That is fixed in .github/actions/
+# run-inference (the kill goes to the process group), so the Q8_0 row now gets an unstarved
+# machine and may well pass. If it does, this job fails with "NEW PASS" and its line below is
+# to be deleted -- that is the table working, not a regression.
+#
+# The F16 row is expected to stay blocked on a 16 GB runner. It is a machine-size limit,
+# recorded so the other Metal rows stay enforceable; it is not an accepted defect.
 metal	Phi-3-mini-4k-instruct	F16	standard	timed out
 metal	Phi-3-mini-4k-instruct	Q8_0	standard	timed out
