@@ -215,6 +215,12 @@ public final class ArchRules {
     public static final String SERVER = "org.beehive.gpullama3.server";
 
     /**
+     * The runnable API examples. They are an integration like the CLI: their whole purpose is to
+     * show a caller what the facade looks like in use, and printing the answer is the showing.
+     */
+    public static final String EXAMPLES = "org.beehive.gpullama3.examples";
+
+    /**
      * Rule 8a defines generation policy as "the token loop, stop conditions, streaming, transport,
      * console I/O" and allows {@code generation.**} → {@code model.**}. So this package is not a
      * violator of either rule: it is the layer both rules describe, and recognizing it is what the
@@ -290,7 +296,10 @@ public final class ArchRules {
 
     private static boolean isIntegration(JavaClass c) {
         String outer = c.getName().split("\\$")[0];
-        return CLI_TYPES.contains(outer) || inPackage(c, SERVER) || inPackage(c, GENERATION);
+        return CLI_TYPES.contains(outer)
+                || inPackage(c, SERVER)
+                || inPackage(c, EXAMPLES)
+                || inPackage(c, GENERATION);
     }
 
     private static boolean printsToConsole(JavaClass c) {
