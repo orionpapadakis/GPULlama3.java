@@ -164,6 +164,7 @@ jobs:
           model: Phi-3-mini-4k-instruct
           quantization: F16
           configuration: standard
+          max_tokens: 32
           metrics_file: ${{ runner.temp }}/metrics-${{ inputs.backend }}-phi3-mini-fp16-standard.json
 
       - name: FP16 - Run Granite-3.2-2b-instruct-f16.gguf
@@ -266,6 +267,7 @@ jobs:
           model: Phi-3-mini-4k-instruct
           quantization: Q8_0
           configuration: standard
+          max_tokens: 32
           metrics_file: ${{ runner.temp }}/metrics-${{ inputs.backend }}-phi3-mini-q8-standard.json
 
       - name: Q8 - Run Qwen2.5-1.5b-instruct-q8_0.gguf
@@ -402,4 +404,3 @@ jobs:
           name: metrics-${{ inputs.backend }}-${{ github.run_id }}
           path: ${{ runner.temp }}/metrics-${{ inputs.backend }}-*.json
           if-no-files-found: warn
-

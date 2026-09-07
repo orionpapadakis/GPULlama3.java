@@ -5,6 +5,7 @@ import org.beehive.gpullama3.backend.tornado.kernels.Phi3PagedKvKernels;
 import org.beehive.gpullama3.backend.tornado.kernels.TransformerComputeKernelsLayered;
 import org.beehive.gpullama3.backend.tornado.kernels.TransformerPagedKvKernels;
 import org.beehive.gpullama3.backend.tornado.layers.AbstractTransformerLayerTaskGraphs;
+import org.beehive.gpullama3.backend.tornado.scheduling.SchedulerDetectionService;
 import org.beehive.gpullama3.backend.tornado.scheduling.SchedulerType;
 import org.beehive.gpullama3.backend.tornado.scheduling.WorkerGridFactory;
 import org.beehive.gpullama3.inference.state.Phi3State;
@@ -34,6 +35,7 @@ public class Phi3FP16FFNLayers
     private final Phi3State phi3State;
     // Phi3-specific dimension for combined QKV buffer
     private final int opSize;
+    private final boolean useSimd32 = SchedulerDetectionService.isSubgroupShuffle32Supported();
 
     public Phi3FP16FFNLayers(
             String taskGraphName,
@@ -185,7 +187,9 @@ public class Phi3FP16FFNLayers
 
         unifiedLayer.task(
                 "attn_rms_qkv_projection",
-                Phi3Kernels::fusedRmsNormQKVMatmulDirect,
+                useSimd32
+                        ? Phi3Kernels::fusedRmsNormQKVMatmulDirectSimd32
+                        : Phi3Kernels::fusedRmsNormQKVMatmulDirect,
                 context,
                 phi3State.workspace.wrapX, // input
                 phi3State.workspace.wrapQ, // output Q
@@ -237,16 +241,28 @@ public class Phi3FP16FFNLayers
                 state.kvBlockStride); // context length
 
         // Output Projection with Residual
-        unifiedLayer.task(
-                "attn_output_proj",
-                TransformerComputeKernelsLayered::matrixVectorGenericWithResidual,
-                context,
-                phi3State.workspace.wrapXb, // input: attention output
-                phi3State.workspace.wrapX, // output: wrapX += Wo · wrapXb
-                weights.woLayered[layerIndex].asHalfFloatArray(), // Wo [dim × dim]
-                config.dim(), // input dim
-                config.dim(), // output dim
-                LOCAL_WORK_GROUP_SIZE_ALLOC);
+        if (useSimd32) {
+            unifiedLayer.task(
+                    "attn_output_proj",
+                    TransformerComputeKernelsLayered::matrixVectorGenericWithResidualSimd32,
+                    context,
+                    phi3State.workspace.wrapXb,
+                    phi3State.workspace.wrapX,
+                    weights.woLayered[layerIndex].asHalfFloatArray(),
+                    config.dim(),
+                    config.dim());
+        } else {
+            unifiedLayer.task(
+                    "attn_output_proj",
+                    TransformerComputeKernelsLayered::matrixVectorGenericWithResidual,
+                    context,
+                    phi3State.workspace.wrapXb,
+                    phi3State.workspace.wrapX,
+                    weights.woLayered[layerIndex].asHalfFloatArray(),
+                    config.dim(),
+                    config.dim(),
+                    LOCAL_WORK_GROUP_SIZE_ALLOC);
+        }
 
         // ═══════════════════════════════════════════════════════════════════════
         //                              FFN BLOCK
@@ -276,7 +292,9 @@ public class Phi3FP16FFNLayers
 
         unifiedLayer.task(
                 "rms_ffn_silu",
-                Phi3Kernels::fusedRmsNormFFNGateUpSiLU,
+                useSimd32
+                        ? Phi3Kernels::fusedRmsNormFFNGateUpSiLUSimd32
+                        : Phi3Kernels::fusedRmsNormFFNGateUpSiLU,
                 context,
                 phi3State.workspace.wrapX, // input
                 phi3State.workspace.wrapHbU, // output (direct to final FFN buffer)
@@ -288,16 +306,28 @@ public class Phi3FP16FFNLayers
                 LOCAL_WORK_GROUP_SIZE_ALLOC);
 
         // Down Projection with Residual
-        unifiedLayer.task(
-                "ffn_down_proj",
-                TransformerComputeKernelsLayered::matrixVectorGenericWithResidual,
-                context,
-                phi3State.workspace.wrapHbU, // input: FFN intermediate
-                phi3State.workspace.wrapX, // output: wrapX += wDown · wrapHbU
-                weights.wDownLayered[layerIndex].asHalfFloatArray(), // wDown [dim × hiddenDim]
-                config.hiddenDim(), // input dim
-                config.dim(), // output dim
-                LOCAL_WORK_GROUP_SIZE_ALLOC);
+        if (useSimd32) {
+            unifiedLayer.task(
+                    "ffn_down_proj",
+                    TransformerComputeKernelsLayered::matrixVectorGenericWithResidualSimd32,
+                    context,
+                    phi3State.workspace.wrapHbU,
+                    phi3State.workspace.wrapX,
+                    weights.wDownLayered[layerIndex].asHalfFloatArray(),
+                    config.hiddenDim(),
+                    config.dim());
+        } else {
+            unifiedLayer.task(
+                    "ffn_down_proj",
+                    TransformerComputeKernelsLayered::matrixVectorGenericWithResidual,
+                    context,
+                    phi3State.workspace.wrapHbU,
+                    phi3State.workspace.wrapX,
+                    weights.wDownLayered[layerIndex].asHalfFloatArray(),
+                    config.hiddenDim(),
+                    config.dim(),
+                    LOCAL_WORK_GROUP_SIZE_ALLOC);
+        }
 
         unifiedLayer.persistOnDevice(phi3State.workspace.wrapX);
         return unifiedLayer;

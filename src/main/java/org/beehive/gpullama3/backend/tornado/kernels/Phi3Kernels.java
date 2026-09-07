@@ -185,6 +185,50 @@ public class Phi3Kernels {
         }
     }
 
+    /** 32-lane shuffle variant of {@link #fusedRmsNormQKVMatmulDirect}. */
+    public static void fusedRmsNormQKVMatmulDirectSimd32(
+            KernelContext context,
+            FloatArray x,
+            FloatArray q,
+            FloatArray k,
+            FloatArray v,
+            FloatArray rmsWeights,
+            FloatArray rmsScale,
+            HalfFloatArray wqkv,
+            int dim,
+            int kvDim,
+            int localWorkGroupSize) {
+
+        int rowId = context.groupIdx;
+        int localId = context.localIdx;
+        if (rowId >= dim + 2 * kvDim) {
+            return;
+        }
+
+        float scale = rmsScale.get(0);
+        int rowOffset = rowId * dim;
+        float sum = 0.0f;
+        for (int j = localId; j < dim; j += 32) {
+            sum += wqkv.get(rowOffset + j).getFloat32() * (rmsWeights.get(j) * scale * x.get(j));
+        }
+
+        sum += context.simdShuffleDown(sum, 16);
+        sum += context.simdShuffleDown(sum, 8);
+        sum += context.simdShuffleDown(sum, 4);
+        sum += context.simdShuffleDown(sum, 2);
+        sum += context.simdShuffleDown(sum, 1);
+
+        if (localId == 0) {
+            if (rowId < dim) {
+                q.set(rowId, sum);
+            } else if (rowId < dim + kvDim) {
+                k.set(rowId - dim, sum);
+            } else {
+                v.set(rowId - dim - kvDim, sum);
+            }
+        }
+    }
+
     /**
      * Fused RMSNorm apply + Gate/Up projection + SiLU + GLU in one kernel.
      *
@@ -278,6 +322,53 @@ public class Phi3Kernels {
         if (localId == 0) {
             float silu = gateResult / (1.0f + TornadoMath.exp(-gateResult));
             output.set(rowId, silu * upResult);
+        }
+    }
+
+    /** 32-lane shuffle variant of {@link #fusedRmsNormFFNGateUpSiLU}. */
+    public static void fusedRmsNormFFNGateUpSiLUSimd32(
+            KernelContext context,
+            FloatArray x,
+            FloatArray output,
+            FloatArray rmsWeights,
+            FloatArray rmsScale,
+            HalfFloatArray wUp,
+            int dim,
+            int hiddenDim,
+            int localWorkGroupSize) {
+
+        int rowId = context.groupIdx;
+        int localId = context.localIdx;
+        if (rowId >= hiddenDim) {
+            return;
+        }
+
+        float scale = rmsScale.get(0);
+        int gateOffset = rowId * dim;
+        int upOffset = (hiddenDim + rowId) * dim;
+        float gate = 0.0f;
+        float up = 0.0f;
+        for (int j = localId; j < dim; j += 32) {
+            float normalized = rmsWeights.get(j) * scale * x.get(j);
+            gate += wUp.get(gateOffset + j).getFloat32() * normalized;
+            up += wUp.get(upOffset + j).getFloat32() * normalized;
+        }
+
+        gate += context.simdShuffleDown(gate, 16);
+        gate += context.simdShuffleDown(gate, 8);
+        gate += context.simdShuffleDown(gate, 4);
+        gate += context.simdShuffleDown(gate, 2);
+        gate += context.simdShuffleDown(gate, 1);
+
+        up += context.simdShuffleDown(up, 16);
+        up += context.simdShuffleDown(up, 8);
+        up += context.simdShuffleDown(up, 4);
+        up += context.simdShuffleDown(up, 2);
+        up += context.simdShuffleDown(up, 1);
+
+        if (localId == 0) {
+            float silu = gate / (1.0f + TornadoMath.exp(-gate));
+            output.set(rowId, silu * up);
         }
     }
 }
