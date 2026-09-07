@@ -1,0 +1,19 @@
+# Standalone-inference rows that do NOT work on the pinned toolchain, and why.
+#
+# Read by the "Assert standalone inference results" step. Any row not listed here must pass, with
+# the backend it resolved and a real execution_path both asserted. A row listed here must FAIL, and
+# fail with the named cause — if it starts passing, or fails for a different reason, the job goes
+# red and says so. These are recorded limitations, not silenced ones.
+#
+# Toolchain: TornadoVM v6.0.0, which pom.xml declares (tornadovm.base.version), built from its tag
+# by .github/actions/setup-tornadovm.
+#
+# Columns, tab-separated:
+#   backend  model  quantization  configuration  cause-substring
+#
+# TornadoVM 6.0.0 removed the former batch-prefill and hidden-class failures.
+#
+# Phi-3 FP16 is numerically correct on an M4 Pro: CPU/Metal parity has zero violations across
+# 2,052,096 logits (max absolute difference 0.0029875), and legacy/lowered parity passes.
+#
+# The table is empty. Every standalone row must pass.

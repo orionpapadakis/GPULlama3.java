@@ -12,7 +12,7 @@ Usage:
 """
 import json, sys, glob, os, re, statistics, argparse
 
-BACKENDS = ["opencl", "ptx", "cuda"]
+BACKENDS = ["opencl", "cuda"]
 QUANTS = ["Q8_0", "F16"]
 # Longest first so "batch-prefill-decode-cuda-graphs" matches before "prefill-decode".
 CONFIGS = [
@@ -103,7 +103,7 @@ def build_table(rows):
 
 def build_compare(rows, config="standard"):
     """Pivot to one row per family/size/quant: decode mean per backend + CUDA
-    speedup vs OpenCL and vs PTX (for the given config)."""
+    speedup vs OpenCL (for the given config)."""
     piv = {}  # (rank,family,size,quant) -> {backend: decode_mean}
     for (backend, model, quant, cfg), d in rows.items():
         if cfg != config or not d["eval"]:
@@ -112,7 +112,7 @@ def build_compare(rows, config="standard"):
         piv.setdefault((rank, fam, size, quant), {})[backend] = statistics.mean(d["eval"])
     out = []
     for (rank, fam, size, quant), be in sorted(piv.items()):
-        o, p, c = be.get("opencl"), be.get("ptx"), be.get("cuda")
+        o, c = be.get("opencl"), be.get("cuda")
         def spd(ref):
             if c is None or not ref:
                 return "-"
@@ -120,16 +120,16 @@ def build_compare(rows, config="standard"):
             return f"{c/ref:.2f}x ({pct:+.0f}%)"
         def n(x):
             return f"{x:.1f}" if x is not None else "-"
-        out.append([fam, size, quant, n(o), n(p), n(c), spd(o), spd(p)])
+        out.append([fam, size, quant, n(o), n(c), spd(o)])
     return out
 
 
 def print_compare(rows, config="standard"):
     data = build_compare(rows, config)
-    hdr = ["family", "size", "quant", "opencl", "ptx", "cuda", "CUDA vs OpenCL", "CUDA vs PTX"]
+    hdr = ["family", "size", "quant", "opencl", "cuda", "CUDA vs OpenCL"]
     widths = [max(len(hdr[i]), max((len(str(r[i])) for r in data), default=0)) for i in range(len(hdr))]
     fr = lambda v: "  ".join(str(x).ljust(widths[i]) for i, x in enumerate(v))
-    print(f"\n## CUDA vs OpenCL/PTX — decode tok/s, config='{config}'  (>1.00x = CUDA faster)\n")
+    print(f"\n## CUDA vs OpenCL — decode tok/s, config='{config}'  (>1.00x = CUDA faster)\n")
     print(fr(hdr)); print(fr(["-" * w for w in widths]))
     for r in data:
         print(fr(r))
@@ -141,7 +141,7 @@ def main():
     ap.add_argument("--csv")
     ap.add_argument("--md")
     ap.add_argument("--compare", action="store_true",
-                    help="Also print a CUDA-vs-OpenCL/PTX speedup table (standard config).")
+                    help="Also print a CUDA-vs-OpenCL speedup table (standard config).")
     args = ap.parse_args()
 
     rd = args.results_dir
