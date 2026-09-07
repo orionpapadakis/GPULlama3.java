@@ -87,14 +87,12 @@ public final class Allowlists {
      * Rule 15 — classes outside the provider package that still dispatch on {@code ModelType}.
      *
      * <p>What remains is the legacy load path, kept selectable with {@code -Dllama.providers=false}
-     * for one release, and the CLI plumbing that names a model type before a provider has been
-     * chosen. Adding a <i>new</i> family no longer lands here: it is a new provider file plus one
-     * service line.
+     * for one release. Adding a <i>new</i> family no longer lands here: it is a new provider file
+     * plus one service line. The CLI left this list when it moved onto the public facade — it now
+     * reads {@code ModelInfo.architecture()} rather than naming a {@code ModelType}.
      */
     public static final Set<String> RULE_15 =
-            frozen(
-                    "org.beehive.gpullama3.model.loader.ModelLoader",
-                    "org.beehive.gpullama3.LlamaApp");
+            frozen("org.beehive.gpullama3.model.loader.ModelLoader");
 
     /**
      * Rule 16 — console I/O in library code.

@@ -173,14 +173,34 @@ public final class EngineInferenceService implements AutoCloseable {
      * <p>Per turn, through the model's own template. Identical to what {@code InferenceService}
      * does today, which is what makes the two paths comparable at all.
      */
+    /**
+     * The facade's chat message as the family's chat template wants it.
+     *
+     * <p>This tier tokenizes for itself because continuous batching is an engine-tier feature the
+     * public facade does not expose: there is no {@code GenerationSession} here to render the
+     * template. Only text turns reach this server, so only text is translated.
+     */
+    private static ChatFormat.Message asFormatMessage(
+            org.beehive.gpullama3.api.ChatMessage message) {
+        StringBuilder text = new StringBuilder();
+        for (org.beehive.gpullama3.api.ChatContent piece : message.content()) {
+            if (piece instanceof org.beehive.gpullama3.api.ChatContent.Text t) {
+                text.append(t.text());
+            }
+        }
+        return new ChatFormat.Message(
+                new ChatFormat.Role(message.role().name().toLowerCase(java.util.Locale.ROOT)),
+                text.toString());
+    }
+
     private int[] prepareTokens(InferenceService.Request request) {
         ChatFormat chatFormat = model.chatFormat();
         List<Integer> tokens = new ArrayList<>();
         if (model.shouldAddBeginOfText()) {
             tokens.add(chatFormat.getBeginOfText());
         }
-        for (ChatFormat.Message message : request.messages()) {
-            tokens.addAll(chatFormat.encodeMessage(message));
+        for (org.beehive.gpullama3.api.ChatMessage message : request.messages()) {
+            tokens.addAll(chatFormat.encodeMessage(asFormatMessage(message)));
         }
         tokens.addAll(
                 chatFormat.encodeHeader(new ChatFormat.Message(ChatFormat.Role.ASSISTANT, "")));

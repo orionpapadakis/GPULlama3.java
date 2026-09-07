@@ -17,8 +17,13 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import org.beehive.gpullama3.Options;
+import org.beehive.gpullama3.api.ChatMessage;
+import org.beehive.gpullama3.api.ChatRole;
+import org.beehive.gpullama3.api.LocalModel;
+import org.beehive.gpullama3.api.LocalModels;
+import org.beehive.gpullama3.api.ModelOptions;
 import org.beehive.gpullama3.model.Model;
-import org.beehive.gpullama3.model.format.ChatFormat;
+import org.beehive.gpullama3.runtime.backend.BackendId;
 
 /**
  * OpenAI-compatible HTTP server for GPULlama3, built on the JDK {@link HttpServer} (no external
@@ -141,7 +146,6 @@ public final class OpenAIServer {
                         path, "server", null, null, true, 0.0f, 0.95f, 1234L, 512, false, false,
                         gpu, false, 1);
         System.err.println("[server] loading " + path.getFileName() + " (gpu=" + gpu + ") ...");
-        Model model = loadModel(options);
         String served = path.getFileName().toString().replaceAll("\\.gguf$", "");
 
         OpenAIServer server;
@@ -156,6 +160,9 @@ public final class OpenAIServer {
                             + " maxQueuedRequests="
                             + maxQueued
                             + (prefixEntries > 0 ? " prefixCacheEntries=" + prefixEntries : ""));
+            // Continuous batching is an engine-tier feature the public facade does not expose, so
+            // this branch loads the model directly. Every other path goes through the facade.
+            Model model = loadModel(options);
             server =
                     new OpenAIServer(
                             new EngineInferenceService(
@@ -163,7 +170,14 @@ public final class OpenAIServer {
                             served,
                             gpu);
         } else {
-            server = new OpenAIServer(new InferenceService(model, gpu), served, gpu);
+            LocalModel model =
+                    LocalModels.load(
+                            path,
+                            ModelOptions.builder()
+                                    .contextLength(options.maxTokens())
+                                    .backend(gpu ? null : BackendId.CPU)
+                                    .build());
+            server = new OpenAIServer(new InferenceService(model), served, gpu);
         }
         server.start(port);
     }
@@ -307,7 +321,7 @@ public final class OpenAIServer {
             return;
         }
 
-        List<ChatFormat.Message> messages = new ArrayList<>();
+        List<ChatMessage> messages = new ArrayList<>();
         try {
             if (chat) {
                 Object msgs = body.get("messages");
@@ -319,7 +333,7 @@ public final class OpenAIServer {
                     Map<String, Object> m = (Map<String, Object>) o;
                     String role = Json.str(m, "role", "user");
                     String content = Json.str(m, "content", "");
-                    messages.add(new ChatFormat.Message(new ChatFormat.Role(role), content));
+                    messages.add(ChatMessage.of(chatRole(role), content));
                 }
             } else {
                 Object prompt = body.get("prompt");
@@ -329,7 +343,7 @@ public final class OpenAIServer {
                     sendError(ex, 400, "'prompt' must be a non-empty string");
                     return;
                 }
-                messages.add(new ChatFormat.Message(ChatFormat.Role.USER, text));
+                messages.add(ChatMessage.of(ChatRole.USER, text));
             }
         } catch (Exception e) {
             sendError(ex, 400, "Malformed request: " + e.getMessage());
@@ -355,6 +369,21 @@ public final class OpenAIServer {
         } else {
             fullResponse(ex, req, id, created, chat);
         }
+    }
+
+    /**
+     * The OpenAI role names, mapped onto the facade's roles. An unknown role is a client error, not
+     * a silent downgrade to "user": a request whose role the server does not understand would be
+     * rendered into the wrong place in the chat template.
+     */
+    private static ChatRole chatRole(String role) {
+        return switch (role) {
+            case "system" -> ChatRole.SYSTEM;
+            case "user" -> ChatRole.USER;
+            case "assistant" -> ChatRole.ASSISTANT;
+            case "tool" -> ChatRole.TOOL;
+            default -> throw new IllegalArgumentException("unknown role: " + role);
+        };
     }
 
     // ── Non-streaming ─────────────────────────────────────────────────────────
