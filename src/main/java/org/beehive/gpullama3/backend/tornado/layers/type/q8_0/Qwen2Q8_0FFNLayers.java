@@ -160,6 +160,24 @@ public class Qwen2Q8_0FFNLayers
                 config.rmsNormEps(), // epsilon
                 qwen2State.localSize); // local memory size
 
+        // Final normalization (non-NVIDIA only). Not optional: on the NON_NVIDIA path
+        // rmsReduceKernel() is reductionOneBlockWithLayer, which splits the sum of squares across
+        // workgroups and combines them with no inter-workgroup synchronization, so the scale it
+        // leaves in temp is only correct once this task recomputes it. The FFN block below has
+        // always had its counterpart; the attention block did not, which made every Metal run of
+        // Qwen2 Q8_0 normalize the attention input by a partial sum and emit token salad while
+        // exiting 0. Invisible on CUDA and on OpenCL-over-NVIDIA, where SINGLE_PASS_RMS selects
+        // the single-workgroup reduction and no finalize task exists to omit.
+        if (shouldUseFinalNormalization()) {
+            unifiedLayer.task(
+                    "attn_rms_finalize",
+                    TransformerComputeKernelsLayered::reductionFinalNormalization,
+                    context,
+                    qwen2State.workspace.temp, // scale factor (in/out)
+                    config.dim(), // dimension
+                    config.rmsNormEps()); // epsilon
+        }
+
         unifiedLayer.task(
                 "attn_rms_qkv_projection",
                 Qwen3Kernels::fusedRmsNormQKVMatmulQ8_0,
