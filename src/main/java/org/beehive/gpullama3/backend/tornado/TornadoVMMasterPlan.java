@@ -173,4 +173,24 @@ public interface TornadoVMMasterPlan {
                         .name()
                         .toLowerCase(java.util.Locale.ROOT));
     }
+
+    /**
+     * Reports the lowered path for a caller that acquires its lowered program itself.
+     *
+     * <p>{@link #buildPlan} is no longer "the one factory every caller reaches": the facade caches
+     * compiled programs and calls {@code LoweredPlanSelection.lower} directly, so a session created
+     * through it built a lowered plan and reported nothing. That stayed invisible while the CLI
+     * went around the facade; once the CLI entered through it, every standalone CI row lost its
+     * {@code execution_path}, and the assertion step reads that field to tell an accelerator run
+     * from a CPU fallback.
+     *
+     * <p>Reported per session rather than per compile, because the cache answers a second session
+     * without calling the supplier at all — and the question the field answers ("which path did
+     * this run take") is a property of the run, not of the compile.
+     */
+    public static void reportLoweredPath(
+            org.beehive.gpullama3.model.Model model,
+            org.beehive.gpullama3.inference.state.State state) {
+        reportPath(org.beehive.gpullama3.runtime.backend.ExecutionPath.LOWERED, model, state);
+    }
 }

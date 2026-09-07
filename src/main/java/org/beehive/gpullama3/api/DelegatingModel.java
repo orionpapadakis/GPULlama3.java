@@ -408,6 +408,11 @@ final class DelegatingModel implements TextGenerationModel {
                                                 loweredWorkspace,
                                                 org.beehive.gpullama3.auxiliary.metrics
                                                         .RunMetricsSink.installedOrDisabled()));
+        // After the acquire, not inside the supplier: on a cache hit the supplier never runs, and
+        // this session took the lowered path just the same. Without it a run through the facade
+        // reports no execution_path at all.
+        org.beehive.gpullama3.backend.tornado.TornadoVMMasterPlan.reportLoweredPath(
+                delegate, loweredWorkspace);
         var perSession =
                 new org.beehive.gpullama3.backend.tornado.lowering.SharedWorkspacePlan(
                         loweredProgram,
