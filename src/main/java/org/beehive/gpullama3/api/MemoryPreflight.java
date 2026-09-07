@@ -12,7 +12,7 @@ import org.beehive.gpullama3.runtime.memory.MemoryPlan;
  * Builds a {@link MemoryPlan} from a model file, and refuses a load that cannot fit.
  *
  * <p>Package-private machinery behind {@link LocalModels#preflight}. It exists as its own type so
- * the façade stays a façade: this is where the backend is asked, and {@code LocalModels} does not
+ * the facade stays a facade: this is where the backend is asked, and {@code LocalModels} does not
  * name {@code TornadoMemoryModel} or a device.
  */
 final class MemoryPreflight {

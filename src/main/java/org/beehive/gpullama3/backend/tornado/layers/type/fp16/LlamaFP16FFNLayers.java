@@ -375,9 +375,9 @@ public class LlamaFP16FFNLayers
 
         // Same logical operation, same task name, same output contract either way; only the
         // reduction kernel differs, by device capability (fusedRmsNormFFNGateUpWarp is the same
-        // kernel Qwen3FP16FFNLayers already selects on PTX via isWarpShuffleSupported() -
+        // kernel Qwen3FP16FFNLayers already selects on CUDA via isWarpShuffleSupported() -
         // reused here, not duplicated, gated on the separately-verified Metal capability so
-        // CUDA/PTX/OpenCL selection for Llama is unchanged).
+        // CUDA and OpenCL selection for Llama is unchanged).
         if (useSimd32Reduction) {
             unifiedLayer.task(
                     "rms_ffn_gate_up",

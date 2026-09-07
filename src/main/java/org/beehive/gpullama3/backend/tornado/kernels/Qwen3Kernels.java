@@ -339,9 +339,9 @@ public class Qwen3Kernels {
     /**
      * Warp-shuffle variant of {@link #fusedRmsNormQKVMatmul}. Assumes a 32-lane workgroup per
      * output row. Reduces each row's dot product with {@code simdShuffleDown} (no shared-memory
-     * barriers), matching the reduction strategy of llama.cpp's {@code mul_mat_vec}. Used on
-     * PTX/CUDA only (see {@code SchedulerDetectionService.isWarpShuffleSupported}); OpenCL
-     * miscompiles the shuffle.
+     * barriers), matching the reduction strategy of llama.cpp's {@code mul_mat_vec}. Used on CUDA
+     * only (see {@code SchedulerDetectionService.isWarpShuffleSupported}); OpenCL miscompiles the
+     * shuffle.
      */
     public static void fusedRmsNormQKVMatmulWarp(
             KernelContext context,

@@ -123,7 +123,7 @@ public class TransformerComputeKernelsLayered {
      * Warp-shuffle variant of {@link #fusedRmsNormFFNGateUp}. Assumes a 32-lane workgroup per
      * output row (the decode worker shape). Reduces each row's dot product with {@code
      * simdShuffleDown} instead of a shared-memory tree, eliminating the per-row barriers and shared
-     * round-trip — the same reduction strategy as llama.cpp's {@code mul_mat_vec}. Used on PTX/CUDA
+     * round-trip — the same reduction strategy as llama.cpp's {@code mul_mat_vec}. Used on CUDA
      * only (see {@code SchedulerDetectionService.isWarpShuffleSupported}); OpenCL miscompiles the
      * shuffle.
      */
@@ -914,7 +914,7 @@ public class TransformerComputeKernelsLayered {
     }
 
     /**
-     * PTX/Metal SIMD variant of fusedQKVMatmulX for LLaMA FP16 decode. It assumes the existing
+     * CUDA/Metal SIMD variant of fusedQKVMatmulX for LLaMA FP16 decode. It assumes the existing
      * decode worker shape: one 32-lane workgroup per Q/K/V output row.
      */
     public static void fusedQKVMatmulXSimd32(
@@ -1088,7 +1088,7 @@ public class TransformerComputeKernelsLayered {
     // @formatter:on
 
     /**
-     * PTX/Metal SIMD variant of {@link #matrixVectorGeneric(KernelContext, HalfFloatArray,
+     * CUDA/Metal SIMD variant of {@link #matrixVectorGeneric(KernelContext, HalfFloatArray,
      * FloatArray, HalfFloatArray, int, int, int)} — same kernel shape as {@link
      * #matrixVectorGenericWithResidualSimd32}, minus the residual add: this call site (the
      * vocabulary projection) has no residual to accumulate into. Assumes the existing decode worker
@@ -1167,7 +1167,7 @@ public class TransformerComputeKernelsLayered {
     }
 
     /**
-     * PTX/Metal SIMD variant of matrixVectorGenericWithResidual for LLaMA FP16 decode. It assumes
+     * CUDA/Metal SIMD variant of matrixVectorGenericWithResidual for LLaMA FP16 decode. It assumes
      * the existing decode worker shape: one 32-lane workgroup per output row.
      */
     public static void matrixVectorGenericWithResidualSimd32(

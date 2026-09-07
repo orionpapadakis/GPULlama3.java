@@ -7,7 +7,7 @@ import java.util.function.Consumer;
 import org.beehive.gpullama3.tokenizer.Tokenizer;
 
 /**
- * Turns the loop's raw token ids into the façade's ordered event stream [A5].
+ * Turns the loop's raw token ids into the facade's ordered event stream [A5].
  *
  * <h2>Why a token is held back</h2>
  *

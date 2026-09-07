@@ -48,7 +48,7 @@ public class Qwen3FP16FFNLayers
     // head: see State.SPLIT_KV.
     private final boolean isMetalBackend = SchedulerDetectionService.isMetalBackend();
     private final int attentionSplits = isMetalBackend ? 1 : State.SPLIT_KV;
-    // GEMV reduction strategy: 32-lane warp-shuffle on PTX/CUDA, shared-memory trees elsewhere.
+    // GEMV reduction strategy: 32-lane warp-shuffle on CUDA, shared-memory trees elsewhere.
     // Warp is
     // faster but the OpenCL backend miscompiles simdShuffleDown, so it is auto-selected by backend.
     //
@@ -63,7 +63,7 @@ public class Qwen3FP16FFNLayers
     // verified fusedQKVMatmulXSimd32. All four run on the existing 32-wide worker grid
     // (LOCAL_WORK_GROUP_SIZE_ALLOC == 32), so no grid-scheduler change is needed.
     //
-    // SUBGROUP_SHUFFLE_32 is granted to Metal only (TornadoDevices.capabilitiesOf), so PTX/CUDA and
+    // SUBGROUP_SHUFFLE_32 is granted to Metal only (TornadoDevices.capabilitiesOf), so CUDA and
     // OpenCL selection is byte-for-byte unchanged.
     private final boolean useWarpMatmul =
             SchedulerDetectionService.isWarpShuffleSupported()

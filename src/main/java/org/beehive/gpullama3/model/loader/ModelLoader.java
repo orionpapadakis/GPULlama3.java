@@ -155,8 +155,8 @@ public abstract class ModelLoader {
     /**
      * The identity a provider and its diagnostics see.
      *
-     * <p>Was a hardcoded {@code BackendId.CUDA} for every non-CPU load — wrong on Metal, PTX and
-     * OpenCL alike, and a defect this method's callers ({@code FamilyProviders} and {@code
+     * <p>Was a hardcoded {@code BackendId.CUDA} for every non-CPU load — wrong on Metal and OpenCL
+     * alike, and a defect this method's callers ({@code FamilyProviders} and {@code
      * Gemma4Provider}, both only ever comparing the value to {@code BackendId.CPU}) could not
      * observe. When a real accelerator is resolved, this reports it truthfully instead.
      *

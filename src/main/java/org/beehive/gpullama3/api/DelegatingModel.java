@@ -15,10 +15,10 @@ import org.beehive.gpullama3.runtime.kv.KvStorageRequest;
 import org.beehive.gpullama3.runtime.policy.ExecutionPolicy;
 
 /**
- * The façade over today's {@code Model}: everything a user holds, nothing a user should not.
+ * The facade over today's {@code Model}: everything a user holds, nothing a user should not.
  *
  * <p>Package-private on purpose — it is reached only as {@link LocalModel} or {@link
- * TextGenerationModel}, so no accessor of the internal model can leak through the façade.
+ * TextGenerationModel}, so no accessor of the internal model can leak through the facade.
  *
  * <p>Thread-safe, as the interface promises: the delegate is immutable after load, and the only
  * mutable state here is the set of open sessions, which is synchronized.

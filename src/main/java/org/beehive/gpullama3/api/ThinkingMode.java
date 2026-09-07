@@ -5,7 +5,7 @@ package org.beehive.gpullama3.api;
  *
  * <p>It exists because a real consumer needs it. The Quarkus extension publishes {@code
  * enable-thinking} as configuration and implemented it by reaching into {@code ChatFormat};
- * migrating it onto the façade without this would have silently dropped a published property.
+ * migrating it onto the facade without this would have silently dropped a published property.
  *
  * <h2>Where it lives, and where it does not</h2>
  *

@@ -10,10 +10,10 @@ import org.beehive.gpullama3.model.format.ToolCallExtract;
 import org.beehive.gpullama3.runtime.diagnostics.DiagnosticCode;
 
 /**
- * Turns a façade conversation into the tokens the model sees.
+ * Turns a facade conversation into the tokens the model sees.
  *
- * <p>Package-private, and the <b>only</b> place the façade names {@link ChatFormat}. Formatting
- * stays model-owned and internal [§9]: no façade type carries a chat format, a template or a
+ * <p>Package-private, and the <b>only</b> place the facade names {@link ChatFormat}. Formatting
+ * stays model-owned and internal [§9]: no facade type carries a chat format, a template or a
  * stop-token set, and a caller cannot influence how a family renders a turn.
  *
  * <p>The assembly order is the one both integrations already use — tool definitions into the system
@@ -151,7 +151,7 @@ final class ConversationEncoder {
      * changes nothing.
      *
      * <p>The translation from a mode to tokens is the family's, and it stays here rather than
-     * anywhere a caller can see: no thinking token or control string reaches the façade.
+     * anywhere a caller can see: no thinking token or control string reaches the facade.
      */
     void appendThinkingControl(List<Integer> tokens) {
         if (thinkingMode.isExplicit()) {
@@ -187,7 +187,7 @@ final class ConversationEncoder {
             if (call.name() == null || call.name().isBlank() || call.argumentsJson() == null) {
                 continue; // not a valid call; not reported as one
             }
-            // The id is optional in the internal extract and required on the façade, because a
+            // The id is optional in the internal extract and required on the facade, because a
             // caller has to match a result back to a call. Formats that do not emit one get a
             // positional identifier rather than a null the caller has to handle.
             String id =
@@ -235,7 +235,7 @@ final class ConversationEncoder {
      *
      * <p><b>Compact, and with an empty description omitted</b> — deliberately, because this is the
      * text a model reads and reasons about. The shape and spacing match what the LangChain4j and
-     * Quarkus adapters produced before they moved onto this façade (a {@code LinkedHashMap} through
+     * Quarkus adapters produced before they moved onto this facade (a {@code LinkedHashMap} through
      * their JSON writer), and that is the text the formats' tool prompts were written against.
      * Rendering {@code "description": ""} where there was previously no key at all is exactly the
      * kind of difference a model notices and this project cannot predict.

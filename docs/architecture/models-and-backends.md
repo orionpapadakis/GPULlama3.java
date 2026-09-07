@@ -49,12 +49,12 @@ as a numerical result nobody can attribute.
 
 ## Backends
 
-`BackendId` is `CPU`, `CUDA`, `PTX`, `OPENCL` or `METAL`. CUDA, PTX, OpenCL and Metal are
+`BackendId` is `CPU`, `CUDA`, `OPENCL` or `METAL`. CUDA, OpenCL and Metal are
 *TornadoVM* backends: capabilities of one GPULlama backend, selected by which SDK is
 installed, not separate GPULlama backends.
 
 The launcher detects installed backends from `$TORNADOVM_HOME/etc/tornado.backend`. On a
-multi-backend SDK, `--cuda`/`--opencl`/`--ptx`/`--metal` force one and set TornadoVM's own
+multi-backend SDK, `--cuda`/`--opencl`/`--metal` force one and set TornadoVM's own
 device-0 priority to match; on a single-backend SDK they are redundant but harmless. A
 backend the SDK does not contain is an error, not a fallback.
 
@@ -115,8 +115,9 @@ assuming the CUDA result carries over.
 Recorded external limitations, each with its named cause:
 
 - **Batched prefill on Metal** — TornadoVM lowers the MMA batch-prefill kernels
-  (`gemmMMAQKV` and siblings) only on PTX/CUDA:
-  `TornadoInternalError: unimplemented: MMA instructions only supported for the PTX backend`.
+  (`gemmMMAQKV` and siblings) only on CUDA:
+  `TornadoInternalError: unimplemented: MMA instructions only supported for the PTX backend`
+  (TornadoVM's message still names PTX, the assembly the CUDA backend emits).
 - **Q8_0 batched prefill on CUDA** — a TornadoVM CUDA address-lowering gap on the Q8_0
   tensor-core kernel: `TornadoInternalError: unimplemented: address origin unimplemented`
   in `CUDAAddressLowering.lower`. Reported upstream as beehive-lab/TornadoVM#1057.

@@ -1868,7 +1868,7 @@ public final class TransformerBatchPrefillKernels {
      * The IEEE half-precision bit pattern of {@code v}, round-to-nearest-even, computed with plain
      * arithmetic.
      *
-     * <p>Deliberately not {@code new HalfFloat(v).getHalfFloatValue()}. That is what the PTX
+     * <p>Deliberately not {@code new HalfFloat(v).getHalfFloatValue()}. That is what the CUDA
      * backend cannot lower inside the tensor-core kernels below — "unimplemented: address origin
      * unimplemented: ...calc.MulNode" in {@code CUDAAddressLowering.lower} — which is why Q8_0
      * batched prefill failed on CUDA while the same kernels compiled elsewhere. The constructor

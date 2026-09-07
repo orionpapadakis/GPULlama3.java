@@ -39,7 +39,7 @@ public class BackendSpiTypesTest {
     public void backendIdsAreComparedByValueAndCanonicalizedByCase() {
         assertEquals(BackendId.CUDA, BackendId.of("CUDA"));
         assertEquals(BackendId.CUDA.hashCode(), BackendId.of("  cuda  ").hashCode());
-        assertNotEquals(BackendId.CUDA, BackendId.PTX);
+        assertNotEquals(BackendId.CUDA, BackendId.METAL);
     }
 
     @Test
@@ -59,9 +59,9 @@ public class BackendSpiTypesTest {
 
     @Test
     public void deviceIdentityIsTheBackendAndTheHandleTogether() {
-        assertEquals(DeviceId.of(BackendId.PTX, "0"), DeviceId.of(BackendId.PTX, "0"));
+        assertEquals(DeviceId.of(BackendId.CUDA, "0"), DeviceId.of(BackendId.CUDA, "0"));
         // The same handle on two backends is two devices, which is why the backend is in the id.
-        assertNotEquals(DeviceId.of(BackendId.PTX, "0"), DeviceId.of(BackendId.OPENCL, "0"));
+        assertNotEquals(DeviceId.of(BackendId.CUDA, "0"), DeviceId.of(BackendId.OPENCL, "0"));
     }
 
     @Test
@@ -69,8 +69,8 @@ public class BackendSpiTypesTest {
         // The scheduler mode is overridable, so two lowerings on one device can differ. If
         // capabilities were folded into the identity, the cache key could not tell them apart --
         // and if the identity varied with them, one device would key as several.
-        Device plain = device(BackendId.PTX, "0", "NVIDIA");
-        Device capable = device(BackendId.PTX, "0", "NVIDIA", DeviceCapability.WARP_SHUFFLE);
+        Device plain = device(BackendId.CUDA, "0", "NVIDIA");
+        Device capable = device(BackendId.CUDA, "0", "NVIDIA", DeviceCapability.WARP_SHUFFLE);
         assertEquals(plain.id(), capable.id());
         assertNotEquals(plain.capabilities(), capable.capabilities());
     }
@@ -146,9 +146,9 @@ public class BackendSpiTypesTest {
     @Test
     public void selectorsAreImmutableUnderChaining() {
         DeviceSelector base = DeviceSelector.any();
-        DeviceSelector derived = base.withBackend(BackendId.PTX).withIndex(1);
+        DeviceSelector derived = base.withBackend(BackendId.METAL).withIndex(1);
         assertTrue(base.backendId().isEmpty());
-        assertEquals(BackendId.PTX, derived.backendId().orElseThrow());
+        assertEquals(BackendId.METAL, derived.backendId().orElseThrow());
         assertEquals(1, derived.index().orElseThrow());
     }
 

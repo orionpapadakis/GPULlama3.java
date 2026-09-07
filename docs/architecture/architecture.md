@@ -70,7 +70,7 @@ executable. Backends implement the SPI, and nothing above the SPI knows they exi
 
 | Package | Layer | Contents |
 | --- | --- | --- |
-| `api` | public API | the façade: `LocalModels`, `LocalModel`, `GenerationSession`, requests, results, events, options |
+| `api` | public API | the facade: `LocalModels`, `LocalModel`, `GenerationSession`, requests, results, events, options |
 | `engine` | engine | `LLMEngine`, `Scheduler`, request handles and states |
 | `model`, `model/<family>`, `model/architecture`, `model/provider`, `model/loader` | models | loaded models, family descriptions, the provider SPIs, GGUF loading |
 | `inference`, `inference/state`, `inference/weights`, `inference/sampler`, `inference/op` | models/programs | generation loop, session state, weights, samplers, the CPU operation implementations |

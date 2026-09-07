@@ -2,7 +2,7 @@
 
 A Java-native transformer inference engine that compiles reusable Java inference
 components through TornadoVM into execution plans for local accelerators. TornadoVM is the
-compiler and runtime; this project never builds its own IR or generates device code.
+compiler and runtime.
 
 ## Where to look
 
@@ -10,7 +10,7 @@ compiler and runtime; this project never builds its own IR or generates device c
 | --- | --- |
 | [`architecture.md`](architecture.md) | layers, dependency direction, principal abstractions, provider discovery |
 | [`execution.md`](execution.md) | loading, sessions, programs, backend lowering, program caching, execution modes, sampling |
-| [`api.md`](api.md) | the stable façade, options, conversations, tools, streaming, lifecycle |
+| [`api.md`](api.md) | the stable facade, options, conversations, tools, streaming, lifecycle |
 | [`memory-and-concurrency.md`](memory-and-concurrency.md) | ownership, close semantics, KV storage, shared workspaces, what serializes |
 | [`models-and-backends.md`](models-and-backends.md) | adding a family, dtypes and materialization, per-backend capability and limitations |
 | [`verification.md`](verification.md) | gates, numerical references, the CI matrix, performance methodology, known limitations |
@@ -37,7 +37,7 @@ device workspace, and then invokes many times. Invocations move values into pers
 control arrays; they never rebind buffers. KV storage lives in a pooled block store that
 sessions lease from, so several sessions can share one compiled program and one device copy
 of the weights. Above sessions, an optional **engine** tier batches requests across
-sequences. The public façade exposes none of this: no TornadoVM type, no GGUF type and no
+sequences. The public facade exposes none of this: no TornadoVM type, no GGUF type and no
 CLI type appears in any public signature.
 
 ## Constraints that are not negotiable

@@ -137,7 +137,7 @@ makes a divergence reviewable instead of looking like a bug.
 artifacts. `deploy-maven-central.yml` runs the JDK 21 and JDK 25 legs separately, because
 each JDK produces exactly one of the two.
 
-Two integrations consume the façade and are validated against it:
+Two integrations consume the facade and are validated against it:
 
 - **LangChain4j** — `langchain4j-gpu-llama3`, selecting `-jdk21`/`-jdk25` from JDK-specific
   profiles.
@@ -152,4 +152,4 @@ integration update.
 
 CI's `quarkus-langchain4j-integration` job clones the branch named by
 `QUARKUS_LANGCHAIN4J_REF` and builds it against the artifact the run just installed, so a
-façade change that breaks the extension is visible here rather than downstream.
+facade change that breaks the extension is visible here rather than downstream.

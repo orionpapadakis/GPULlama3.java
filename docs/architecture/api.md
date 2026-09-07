@@ -1,8 +1,7 @@
 # Public API
 
-The façade is the only supported way in. It exposes no TornadoVM type, no GGUF type and no
-CLI type in any signature, on purpose: a caller should be able to depend on this project
-without depending on its accelerator.
+The facade is the only supported way in. Abstracts away the runtime and accelerator components.
+Hence, it exposes no TornadoVM type, no GGUF type and no CLI type in any signature.
 
 ## Stability
 
@@ -13,7 +12,7 @@ without a major version.
 `GenerationRequest` · `GenerationResult` · `GenerationEvent` · `ModelOptions` ·
 `SessionOptions` · `ChatRole` · `ChatContent` · `ToolSpec` · `ThinkingMode`
 
-Everything else that is reachable from the façade carries `@Experimental`, including types
+Everything else that is reachable from the facade carries `@Experimental`, including types
 that live outside `api/**` — `BackendId`, `DeviceSelector`, `ExecutionPolicy`,
 `StorageOptions`, `MemoryPlan`, `DataType`, `DiagnosticCode` — because living outside the
 package does not make a type stable. `@Experimental` permits breaking changes; in exchange
@@ -82,7 +81,7 @@ timings and any tool calls.
 ## Conversations
 
 `ChatMessage` pairs a `ChatRole` (`SYSTEM`, `USER`, `ASSISTANT`, `TOOL`) with `ChatContent`,
-which is one of `Text`, `ToolCall` or `ToolResult`. The façade renders the family's chat
+which is one of `Text`, `ToolCall` or `ToolResult`. The facade renders the family's chat
 template itself, including tool definitions: a caller passes structured messages and never
 assembles a template.
 

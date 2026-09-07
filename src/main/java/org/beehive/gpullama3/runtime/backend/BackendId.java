@@ -26,9 +26,6 @@ public final class BackendId {
     /** The host CPU. A first-class backend, not a fallback. */
     public static final BackendId CPU = of("cpu");
 
-    /** TornadoVM's PTX backend. */
-    public static final BackendId PTX = of("ptx");
-
     /** TornadoVM's OpenCL backend. */
     public static final BackendId OPENCL = of("opencl");
 

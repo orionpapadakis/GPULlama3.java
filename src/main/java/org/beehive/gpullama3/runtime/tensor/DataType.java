@@ -20,7 +20,7 @@ import org.beehive.gpullama3.api.Experimental;
  * the format mapping takes a load target rather than being a global function.
  *
  * <p>Nothing depends on this type yet; it is introduced ahead of the descriptors and the mapping
- * that use it. Its public exposure arrives with the façade's dtype accessors.
+ * that use it. Its public exposure arrives with the facade's dtype accessors.
  */
 @Experimental
 public enum DataType {

@@ -47,7 +47,7 @@ public class Qwen2FP16FFNLayers
      * <p>Same gate, same kernels and same reasoning as {@code
      * LlamaFP16FFNLayers.useSimd32Reduction} and {@code Qwen3FP16FFNLayers.useWarpMatmul}. {@code
      * SUBGROUP_SHUFFLE_32} is granted to Metal only ({@code TornadoDevices.capabilitiesOf}), so
-     * PTX/CUDA and OpenCL keep the exact kernels they select today — this class had no capability
+     * CUDA and OpenCL keep the exact kernels they select today — this class had no capability
      * branch at all before.
      */
     private final boolean useSimd32Reduction =

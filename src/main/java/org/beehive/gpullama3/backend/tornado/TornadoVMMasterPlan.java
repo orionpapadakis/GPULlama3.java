@@ -37,7 +37,7 @@ public interface TornadoVMMasterPlan {
     boolean ENABLE_TORNADOVM_INIT_TIME =
             Boolean.parseBoolean(System.getProperty("llama.EnableTimingForTornadoVMInit", "False"));
 
-    /** When {@code true}, {@code withCUDAGraph()} is called — PTX/CUDA backend only. */
+    /** When {@code true}, {@code withCUDAGraph()} is called — CUDA backend only. */
     boolean CUDA_GRAPHS = Boolean.parseBoolean(System.getProperty("llama.cudaGraphs", "false"));
 
     /**

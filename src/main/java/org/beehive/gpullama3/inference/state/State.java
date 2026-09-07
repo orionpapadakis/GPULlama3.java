@@ -42,7 +42,7 @@ public abstract class State {
      * How this state's key/value storage is shaped, resolved <b>per construction</b>.
      *
      * <p>Defaulted from the properties so the CLI, the benchmark harness and every existing test
-     * behave as before. The façade resolves it at model load and hands it in.
+     * behave as before. The facade resolves it at model load and hands it in.
      */
     private final org.beehive.gpullama3.runtime.policy.StorageOptions storageOptions;
 
@@ -248,7 +248,7 @@ public abstract class State {
      * already holds — putting it here is what let the readers migrate off class constants without
      * threading a parameter through forty construction signatures.
      *
-     * <p>Defaulted from the system properties so a state built outside the façade — the CLI, the
+     * <p>Defaulted from the system properties so a state built outside the facade — the CLI, the
      * benchmark harness, a test — behaves exactly as it did when these were {@code static final}
      * fields. A session replaces it once, before anything reads it.
      */

@@ -57,7 +57,7 @@ public class FacadeSurfaceTest {
                 "chat formatting stays internal and model-driven",
                 builderMethods.contains("chatTemplate") || builderMethods.contains("template"));
         assertFalse(
-                "no chat format, stop-token set or template reaches the façade",
+                "no chat format, stop-token set or template reaches the facade",
                 builderMethods.contains("chatFormat") || builderMethods.contains("stopTokens"));
         assertEquals(
                 "the request builder's surface is pinned exactly, so a tenth method is a"
@@ -82,7 +82,7 @@ public class FacadeSurfaceTest {
      * What the types are matters as much as that they exist: {@code backend} takes a {@code
      * BackendId} and {@code device} takes a {@code DeviceSelector} — <b>neutral selection
      * values</b>. A builder taking a resolved {@code Device}, or a backend implementation object,
-     * would publish the backend through the façade, which is the thing this arrangement exists to
+     * would publish the backend through the facade, which is the thing this arrangement exists to
      * prevent.
      */
     @Test

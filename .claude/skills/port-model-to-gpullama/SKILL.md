@@ -91,7 +91,7 @@ If every answer is yes, this is a composition exercise and section 4 is the whol
 
 **Stop and write a short design proposal** when the port requires any of:
 
-- a new public API concept, or any change to a frozen façade type;
+- a new public API concept, or any change to a frozen facade type;
 - a new `OperationKind` or `TensorRole`;
 - a tensor layout or view the descriptor vocabulary cannot express;
 - new KV ownership, a new layer topology, or KV shared across layers;
@@ -121,7 +121,7 @@ found later is a defect in something already believed correct.
    `architecture` agree with it, and a `validateConfiguration` on the `ModelArchitecture`
    that rejects a metadata block that cannot be run — before any weight is read.
 2. **Configuration, tokenizer, chat format.** The chat template, special tokens and stop
-   tokens are the family's, and they stay internal: nothing about them reaches the façade.
+   tokens are the family's, and they stay internal: nothing about them reaches the facade.
 3. **Tensor descriptors and loading.** Map each tensor to a `TensorRole`. Materialize into
    the representation the chosen backend executes. Decoding a quantized tensor is a loading
    concern; it is not a kernel's job and not a model's.
@@ -137,7 +137,7 @@ found later is a defect in something already believed correct.
    only what the selection layer can execute.
 7. **State, workspace and KV.** A `KvStorageFactory` if the layout differs, and whatever
    the state must allocate. Anything sized at allocation must be known at allocation.
-8. **CLI and façade reachability.** The model loads through `LocalModels.load`, opens a
+8. **CLI and facade reachability.** The model loads through `LocalModels.load`, opens a
    session, and generates — with no new public type and no family name in any signature.
 
 Register each provider in `src/main/resources/META-INF/services/`. There is no central

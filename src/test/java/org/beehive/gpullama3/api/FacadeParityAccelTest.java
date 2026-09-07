@@ -31,7 +31,7 @@ public class FacadeParityAccelTest {
 
     /**
      * The same total budget on both sides. The existing path's {@code maxTokens} counts the prompt
-     * too, and the façade caps its request at the session's context length, so equal numbers here
+     * too, and the facade caps its request at the session's context length, so equal numbers here
      * mean equal budgets — an unequal budget would show up as one side stopping mid-sentence and
      * read like a delegation bug.
      */
@@ -74,13 +74,13 @@ public class FacadeParityAccelTest {
         String facade = facadeText(modelPath, gpu);
 
         assertEquals(
-                (gpu ? "GPU" : "CPU") + ": the façade must produce the existing path's text",
+                (gpu ? "GPU" : "CPU") + ": the facade must produce the existing path's text",
                 legacy,
                 facade);
         assertTrue("the comparison is worthless if both are empty", legacy.length() > 0);
     }
 
-    /** The façade, driven exactly as a user would drive it. */
+    /** The facade, driven exactly as a user would drive it. */
     private static String facadeText(Path modelPath, boolean gpu) throws Exception {
         String previous = System.getProperty(GPU_PROPERTY);
         System.setProperty(GPU_PROPERTY, Boolean.toString(gpu));

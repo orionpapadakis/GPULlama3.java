@@ -10,7 +10,7 @@ public class SchedulerDetectionService {
 
     /**
      * Whether the active device evaluates warp/sub-group shuffle reductions ({@code
-     * KernelContext.simdShuffleDown}) correctly. PTX does; the OpenCL backend compiles the shuffle
+     * KernelContext.simdShuffleDown}) correctly. CUDA does; the OpenCL backend compiles the shuffle
      * but produces incorrect results, so the warp-shuffle GEMV kernels must only run where this
      * holds (elsewhere the shared-memory GEMVs are used).
      */
@@ -21,7 +21,7 @@ public class SchedulerDetectionService {
     /**
      * Whether the active device's {@code KernelContext.simdShuffleDown} produces correct results
      * for the fused Q/K/V projection kernel's 32-lane butterfly reduction — verified on Metal, and
-     * deliberately independent of {@link #isWarpShuffleSupported()} (PTX's answer to a different
+     * deliberately independent of {@link #isWarpShuffleSupported()} (CUDA's answer to a different
      * question). Where this is false, the fused QKV projection uses the shared-memory reduction
      * kernel instead ({@code fusedQKVMatmulX}), which works everywhere.
      */

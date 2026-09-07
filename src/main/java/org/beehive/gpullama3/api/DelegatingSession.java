@@ -43,7 +43,7 @@ final class DelegatingSession implements GenerationSession {
     /** This sequence's claim on KV storage, from the session runtime the model handle owns. */
     private final KvLease lease;
 
-    /** The only thing in the façade that names a chat format. */
+    /** The only thing in the facade that names a chat format. */
     private final ConversationEncoder encoder;
 
     private int position;
@@ -101,7 +101,7 @@ final class DelegatingSession implements GenerationSession {
         // domain's workspace and only does so when the policies already agree.
     }
 
-    /** This session's resolved policy. Package-private: it is not façade v1 surface. */
+    /** This session's resolved policy. Package-private: it is not facade v1 surface. */
     ExecutionPolicy executionPolicy() {
         return executionPolicy;
     }
@@ -129,7 +129,7 @@ final class DelegatingSession implements GenerationSession {
                         request.seed() != null ? request.seed() : System.nanoTime());
 
         // Tool-aware stop handling is a consequence of attaching tools, never an independent
-        // choice, and the façade never exposes a stop-token set [§6].
+        // choice, and the facade never exposes a stop-token set [§6].
         Set<Integer> stopTokens = encoder.stopTokens(!request.tools().isEmpty());
 
         TokenEventStream events =

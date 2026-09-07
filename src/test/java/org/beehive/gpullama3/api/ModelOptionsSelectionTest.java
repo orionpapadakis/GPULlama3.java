@@ -27,18 +27,18 @@ public class ModelOptionsSelectionTest {
     @Test
     public void aSelectorSuppliesTheBackendWhenNoneIsStatedDirectly() {
         ModelOptions options =
-                ModelOptions.builder().device(DeviceSelector.backend(BackendId.PTX)).build();
-        assertEquals(BackendId.PTX, options.resolvedBackend());
+                ModelOptions.builder().device(DeviceSelector.backend(BackendId.METAL)).build();
+        assertEquals(BackendId.METAL, options.resolvedBackend());
     }
 
     @Test
     public void anExplicitBackendAndAnAgreeingSelectorAreFine() {
         ModelOptions options =
                 ModelOptions.builder()
-                        .backend(BackendId.PTX)
-                        .device(DeviceSelector.backend(BackendId.PTX))
+                        .backend(BackendId.METAL)
+                        .device(DeviceSelector.backend(BackendId.METAL))
                         .build();
-        assertEquals(BackendId.PTX, options.resolvedBackend());
+        assertEquals(BackendId.METAL, options.resolvedBackend());
     }
 
     @Test

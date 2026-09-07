@@ -74,12 +74,8 @@ public final class TornadoDevices {
      * rather than collapsing to a default — a backend this project has not heard of is still a
      * distinct backend, and merging it into another would make two of them share cache entries.
      *
-     * <p><b>PTX is deliberately not a case.</b> TornadoVM removed {@code TornadoVMBackendType.PTX}
-     * in favour of CUDA, so naming the constant pins this project to the 5.2.0 release line and
-     * fails to compile against anything newer — which is exactly what broke the build. The default
-     * branch already produces the identical value: {@link BackendId#of} lower-cases its argument,
-     * so {@code of("PTX")} is {@link BackendId#PTX}. Removing the case changes no behaviour on a
-     * TornadoVM that still has the constant, and lets the code build against one that does not.
+     * <p>NVIDIA devices arrive as {@code CUDA}. TornadoVM removed its separate PTX backend in
+     * favour of CUDA, so there is no PTX case to write and naming the constant would not compile.
      */
     private static BackendId backendId(TornadoVMBackendType type) {
         return switch (type) {
@@ -94,11 +90,15 @@ public final class TornadoDevices {
      * replaces.
      *
      * <ul>
-     *   <li><b>warp shuffle</b> — PTX only. The OpenCL backend compiles {@code
-     *       KernelContext.simdShuffleDown} and computes the wrong answer, so the warp GEMVs fall
-     *       back to the shared-memory variants there. (The CUDA backend is expected to qualify once
-     *       it merges; the old predicate carried that as a TODO and this keeps the same behaviour
-     *       rather than pre-enabling it.)
+     *   <li><b>warp shuffle</b> — <b>granted to nothing today.</b> The predicate was "PTX only",
+     *       written when NVIDIA devices arrived under a separate PTX backend; TornadoVM has since
+     *       folded PTX into CUDA, so the test matched no device and the warp GEMVs were never
+     *       selected. Granting it to CUDA is correct — the 11 CPU-parity cases pass either way —
+     *       but measurably slower on the one device it was tried on (RTX 5090 Laptop, Qwen3-1.7B
+     *       decode: 141 to 134 tok/s in FP16, 149 to 125 in Q8_0), so it stays off deliberately
+     *       rather than by accident. The OpenCL backend is a separate matter: it compiles {@code
+     *       KernelContext.simdShuffleDown} and computes the wrong answer, so it must never have
+     *       this capability regardless of speed.
      *   <li><b>tensor-core MMA</b> — CUDA only; TornadoVM lowers the MMA intrinsics nowhere else.
      *   <li><b>split-KV attention</b> — everywhere except Metal, which fails to JIT {@code
      *       processHeadsFlashAttentionSplitKV}.
@@ -108,23 +108,20 @@ public final class TornadoDevices {
      *   <li><b>32-wide subgroup shuffle</b> — Metal only, and deliberately not the same grant as
      *       warp shuffle above: verified for exactly the fused Q/K/V projection kernel's five-step
      *       butterfly reduction (Metal parity task, {@code DeviceCapability.SUBGROUP_SHUFFLE_32}),
-     *       not for warp shuffle in general. PTX and OpenCL are unaffected by this grant.
+     *       not for warp shuffle in general. CUDA and OpenCL are unaffected by this grant.
      * </ul>
      */
     private static DeviceCapabilities capabilitiesOf(
             TornadoVMBackendType type, String platformName) {
         Set<DeviceCapability> capabilities = new HashSet<>();
         String name = platformName.toLowerCase(Locale.ROOT);
-        if ("PTX".equals(type.name())) {
-            capabilities.add(DeviceCapability.WARP_SHUFFLE);
-        }
         if (type == TornadoVMBackendType.CUDA) {
             capabilities.add(DeviceCapability.TENSOR_CORE_MMA);
         }
         if (type != TornadoVMBackendType.METAL) {
             capabilities.add(DeviceCapability.SPLIT_KV_ATTENTION);
         }
-        if (name.contains("nvidia") || name.contains("cuda") || name.contains("ptx")) {
+        if (name.contains("nvidia") || name.contains("cuda")) {
             capabilities.add(DeviceCapability.SINGLE_PASS_RMS);
         }
         if (type == TornadoVMBackendType.METAL) {

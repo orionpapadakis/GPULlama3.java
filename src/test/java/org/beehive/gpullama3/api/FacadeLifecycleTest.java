@@ -27,7 +27,7 @@ import org.junit.Test;
  */
 public class FacadeLifecycleTest {
 
-    /** The smallest thing that satisfies {@code Model}; the façade only reads its configuration. */
+    /** The smallest thing that satisfies {@code Model}; the facade only reads its configuration. */
     private static final class StubModel implements Model {
 
         private int statesCreated;

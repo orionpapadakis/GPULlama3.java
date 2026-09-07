@@ -35,7 +35,7 @@ import org.beehive.gpullama3.model.format.ChatFormat;
  *
  * <h2>What to use instead</h2>
  *
- * <p>These are <b>transitional</b>. New code uses the façade, which owns a session rather than a
+ * <p>These are <b>transitional</b>. New code uses the facade, which owns a session rather than a
  * loop:
  *
  * <pre>
@@ -52,7 +52,7 @@ import org.beehive.gpullama3.model.format.ChatFormat;
  * <p>The mapping is exact: {@code options.prompt()} → {@code prompt}, {@code
  * options.systemPrompt()} → {@code systemPrompt}, {@code options.maxTokens()} → {@code
  * maxNewTokens}, {@code options.temperature()}/{@code topp()}/{@code seed()} → the request's own
- * fields, and the {@code Consumer<String>} → {@code onToken}. What the façade does <b>not</b>
+ * fields, and the {@code Consumer<String>} → {@code onToken}. What the facade does <b>not</b>
  * reproduce is console echo: it returns text and streams tokens, and printing is the caller's
  * business, which is the point of the rule.
  */

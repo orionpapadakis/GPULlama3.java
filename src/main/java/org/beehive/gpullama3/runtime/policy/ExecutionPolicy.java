@@ -37,11 +37,11 @@ import org.beehive.gpullama3.api.Experimental;
  *
  * <h2>Where it lives</h2>
  *
- * <p>In {@code runtime}, not in the façade, for the same reason the metrics seam is there: it is
+ * <p>In {@code runtime}, not in the facade, for the same reason the metrics seam is there: it is
  * <b>written from above</b> — a caller sets it through {@code ModelOptions} or {@code
  * SessionOptions} — and <b>read from below</b>, by the plans and layers that must not depend on the
  * public API package. A policy type in {@code api} would have made every backend that reads a
- * policy depend on the façade.
+ * policy depend on the facade.
  *
  * @see Overrides for the field-by-field session override
  */

@@ -20,8 +20,11 @@ public final class DeviceCapability {
 
     /**
      * Warp/sub-group shuffle reductions ({@code KernelContext.simdShuffleDown}) produce correct
-     * results. PTX does; the OpenCL backend compiles the shuffle and computes the wrong answer, so
-     * the warp-shuffle GEMV kernels fall back to the shared-memory variants there.
+     * results. No backend is granted this today: the OpenCL backend compiles the shuffle and
+     * computes the wrong answer, and CUDA — which computes it correctly — was measured slower than
+     * the shared-memory variants it would replace. {@code TornadoDevices.capabilitiesOf} carries
+     * the numbers. The kernels stay because the decision is per-device and only one device has been
+     * measured.
      */
     public static final DeviceCapability WARP_SHUFFLE = of("warp-shuffle");
 
@@ -48,17 +51,17 @@ public final class DeviceCapability {
      * A 32-wide subgroup butterfly reduction over {@code KernelContext.simdShuffleDown} produces
      * correct results for the fused Q/K/V projection kernel family.
      *
-     * <p><b>Deliberately narrower than {@link #WARP_SHUFFLE}.</b> That capability is PTX's
+     * <p><b>Deliberately narrower than {@link #WARP_SHUFFLE}.</b> That capability is CUDA's
      * shuffle-reduction correctness, verified wrong on OpenCL and never measured on Metal at all —
      * granting it to Metal would silently change every other call site gated on it (Qwen3's GEMV
      * kernel selection among them), none of which this capability's verification covers. This one
      * names exactly what was measured: {@code fusedQKVMatmulXSimd32}'s five-step 32-lane butterfly
      * (shuffle widths 16, 8, 4, 2, 1) against a CPU reference, isolated in its own minimal task
      * graph, with no rounding ambiguity in the inputs — exact agreement, no poisoned output
-     * remaining, on Metal (Apple Pro, TornadoVM 5.2.0-jdk21). Not evaluated on OpenCL or PTX, where
-     * {@link #WARP_SHUFFLE} already answers the equivalent question for the kernels gated on it. A
-     * capability that changes nothing observable does not need naming — this one selects between
-     * {@code fusedQKVMatmulX} (shared-memory reduction, works everywhere) and {@code
+     * remaining, on Metal (Apple Pro, TornadoVM 5.2.0-jdk21). Not evaluated on OpenCL or CUDA,
+     * where {@link #WARP_SHUFFLE} already answers the equivalent question for the kernels gated on
+     * it. A capability that changes nothing observable does not need naming — this one selects
+     * between {@code fusedQKVMatmulX} (shared-memory reduction, works everywhere) and {@code
      * fusedQKVMatmulXSimd32} (32-lane shuffle reduction) for the QKV projection task, so it belongs
      * here by this file's own bar.
      */

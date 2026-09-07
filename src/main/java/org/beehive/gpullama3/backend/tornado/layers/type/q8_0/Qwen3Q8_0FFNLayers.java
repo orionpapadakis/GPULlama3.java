@@ -49,7 +49,7 @@ public class Qwen3Q8_0FFNLayers
     // head: see State.SPLIT_KV.
     private final boolean isMetalBackend = SchedulerDetectionService.isMetalBackend();
     private final int attentionSplits = isMetalBackend ? 1 : State.SPLIT_KV;
-    // GEMV reduction strategy: 32-lane warp-shuffle on PTX/CUDA, shared-memory trees elsewhere.
+    // GEMV reduction strategy: 32-lane warp-shuffle on CUDA, shared-memory trees elsewhere.
     // Warp is
     // faster but the OpenCL backend miscompiles simdShuffleDown, so it is auto-selected by backend.
     private final boolean useWarpMatmul = SchedulerDetectionService.isWarpShuffleSupported();
