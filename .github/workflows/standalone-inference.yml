@@ -212,13 +212,10 @@ jobs:
           metrics_file: ${{ runner.temp }}/metrics-${{ inputs.backend }}-llama-1b-q8-prefill-decode.json
 
       - name: Q8 - Run Llama-3.2-1B-Instruct-Q8_0.gguf - Batch-Prefill-Decode
-        # Excluded on CUDA only, for a cause distinct from the batch-prefill defect the other
-        # backends hit here:
-        #   TornadoInternalError: unimplemented: address origin unimplemented: ...calc.Mul
-        #   at CUDAAddressLowering.lower
-        # a TornadoVM CUDA address-lowering gap on the Q8_0 tensor-core batch-prefill kernel
-        # (gemmMMAQKVQ8), reported as beehive-lab/TornadoVM#1057. Drop the guard once it is fixed.
-        if: inputs.backend != 'cuda'
+        # Ran everywhere except CUDA until the Q8_0 tensor-core batch-prefill kernel stopped asking
+        # TornadoVM to lower a half-word address it cannot (beehive-lab/TornadoVM#1057):
+        # packQ8Halves now computes the FP16 bit pattern arithmetically instead of allocating a
+        # HalfFloat, so there is nothing left to exclude.
         uses: ./.github/actions/run-inference
         with:
           backend: ${{ inputs.backend }}
@@ -251,9 +248,6 @@ jobs:
           metrics_file: ${{ runner.temp }}/metrics-${{ inputs.backend }}-qwen3-0-6b-q8-prefill-decode.json
 
       - name: Q8 - Run Qwen3-0.6B-Q8_0.gguf - Batch-Prefill-Decode
-        # Same CUDA address-lowering gap as the Llama Q8_0 batch-prefill step above
-        # (beehive-lab/TornadoVM#1057).
-        if: inputs.backend != 'cuda'
         uses: ./.github/actions/run-inference
         with:
           backend: ${{ inputs.backend }}

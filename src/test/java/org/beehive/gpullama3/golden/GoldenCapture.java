@@ -62,10 +62,57 @@ public final class GoldenCapture {
      */
     public static Result capture(Path ggufPath, boolean useGpu, List<Integer> forcedTokens)
             throws Exception {
+        return capture(ggufPath, useGpu, forcedTokens, 1);
+    }
+
+    /**
+     * The same capture, driven through batched prefill when {@code prefillBatchSize} is above one.
+     *
+     * <p>The execution policy is read from system properties when the {@link State} is built, and
+     * the batch width has to be known then too because the prefill workspace is sized from it. So
+     * the properties are set around construction and restored after: this harness is the only place
+     * that knows the mode is being forced, and a leaked property would silently change every later
+     * test in the same JVM.
+     *
+     * <p>Nothing else changes. The same prompt, the same forced token sequence and the same
+     * capturing sampler, so a difference in the rows is a difference in the arithmetic of the
+     * batched kernels and not a difference in what was asked of them.
+     */
+    public static Result capture(
+            Path ggufPath, boolean useGpu, List<Integer> forcedTokens, int prefillBatchSize)
+            throws Exception {
         assertHostLogitsAvailable();
 
+        String previousPrefill = System.getProperty("llama.withPrefillDecode");
+        String previousBatch = System.getProperty("llama.prefillBatchSize");
+        if (prefillBatchSize > 1) {
+            System.setProperty("llama.withPrefillDecode", "true");
+            System.setProperty("llama.prefillBatchSize", String.valueOf(prefillBatchSize));
+        }
+        try {
+            return captureWithCurrentPolicy(ggufPath, useGpu, forcedTokens, prefillBatchSize);
+        } finally {
+            restore("llama.withPrefillDecode", previousPrefill);
+            restore("llama.prefillBatchSize", previousBatch);
+        }
+    }
+
+    private static void restore(String key, String previous) {
+        if (previous == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, previous);
+        }
+    }
+
+    private static Result captureWithCurrentPolicy(
+            Path ggufPath, boolean useGpu, List<Integer> forcedTokens, int prefillBatchSize)
+            throws Exception {
         Model model = ModelLoader.loadModel(ggufPath, CONTEXT_LENGTH, true, useGpu);
-        State state = model.createNewState();
+        State state =
+                prefillBatchSize > 1
+                        ? State.withPrefillBatchSize(prefillBatchSize, () -> model.createNewState())
+                        : model.createNewState();
         ChatFormat chatFormat = model.chatFormat();
 
         List<Integer> promptTokens = new ArrayList<>();

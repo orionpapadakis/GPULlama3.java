@@ -152,11 +152,75 @@ Policy is resolved **once per generation**, never per token, and reaches the pla
 `ExecutionPolicy` value rather than as process-global system properties. The properties
 remain as defaults for the CLI; they are not read from inside the execution path.
 
-**Batched prefill stays default-off on every backend.** It is correct — the batched path
-agrees with single-token well inside the FP16 parity bounds, and that agreement is gated —
-but correctness does not decide a default. Turning it on needs its own paired performance
-evidence. Its per-backend availability is in
+**Batched prefill stays default-off on every backend**, and what keeps it off is
+correctness, not cost. Its per-backend availability is in
 [`models-and-backends.md`](models-and-backends.md).
+
+### What is settled
+
+Memory and speed no longer argue against it. Batched prefill used to hold the model's
+weights twice on the device — a prefill graph and a decode graph per layer each bound the
+same weight arrays — which put Llama-3.2-3B-F16 at 12463 MiB against 5531 MiB for
+`STANDARD`, and left 8B FP16 models unable to allocate on a 24 GB card in a mode they ran
+fine without. The decode graphs now consume the copy the prefill graph uploaded, and the
+mode costs about 3% more device memory than `STANDARD` (7081 MiB at batch 128, 7153 MiB at
+batch 512, against 6909 MiB). Decode throughput is unchanged (203.4 ± 2.0 against
+203.9 ± 2.5 tok/s on Llama-3.2-1B Q8_0), and prefill is several times faster.
+
+### What is not
+
+`CpuGpuParity` now runs each family in both modes. Against the same CPU reference and the
+same bounds, at batch 128:
+
+| Fixture | `STANDARD` | `BATCH_PREFILL_DECODE` |
+| --- | --- | --- |
+| Llama-3.2-1B F16 | passes | passes |
+| Llama-3.2-1B Q8_0 | passes | **0.76% of elements violate** (budget 0.01%), worst 8.25x tolerance |
+| Qwen3-0.6B F16 | passes | **64 logits rows against the reference's 63** |
+| Qwen3-0.6B Q8_0 | passes | **64 logits rows against the reference's 63** |
+
+Two independent problems.
+
+**Q8_0 batched prefill computes something different.** The batched Q8_0 projections
+dequantize to FP16 and accumulate through tensor-core MMA; the single-token path
+accumulates in FP32. The extra error is arithmetic rather than a defect, but it is far
+outside the bounds the single-token path meets, so promoting the mode would change the
+numbers every Q8_0 model produces.
+
+**Qwen3 generates one more token in batched mode.** The two loops drifted before they were
+merged — the batched one carries a generated-token budget the sequential one does not — and
+that difference is now measurable as a row-count mismatch. A prompt should not produce a
+different number of tokens because of how its prefill was scheduled, whatever the default
+is.
+
+### The options, and what each costs
+
+For the Q8_0 accuracy gap:
+
+1. **Accumulate the batched Q8_0 GEMM in FP32.** Keeps one set of bounds and one numerical
+   story; gives back some of the tensor-core speed that motivated the mode.
+2. **Give the batched Q8_0 path its own documented bounds**, the way
+   `DeviceCapability.PACKED_HALF2_MATH` documents a narrower guarantee. Honest only if the
+   looser bound is written down with its reason and measured, never widened to make a red
+   test green.
+3. **Keep batched prefill off for Q8_0 and on for FP16.** Precise, and the per-family
+   support matrix already makes availability conditional, so the machinery exists — but it
+   makes "which arithmetic ran" depend on the weight format, which is a thing callers then
+   have to know.
+4. **Leave it default-off for both.** No new evidence needed, and no gain.
+
+For the Qwen3 row count, only one of these is a fix; the rest are ways of not fixing it:
+
+1. **Align the two loops on one budget.** The drift is documented in
+   `TokenGenerationLoop`; making the batched loop count what the sequential one counts
+   removes the discrepancy at the source.
+2. **Align the sequential loop to the batched one instead**, if the batched count is the
+   intended one — same work, opposite direction, and it changes existing behaviour.
+3. **Compare only the overlapping rows in the harness.** Makes the test pass and leaves the
+   inconsistency in the engine; recorded here so nobody reaches for it by accident.
+
+A default flip needs the Qwen3 drift fixed and a deliberate choice from the Q8_0 list, in
+that order — the row count is wrong independently of what the default is.
 
 ## The generation loop
 

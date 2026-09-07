@@ -81,7 +81,30 @@ abstract class CpuGpuParity {
     static final Bounds FP16 = new Bounds(5e-3, 1e-2, 8e-3, 2e-3, 0.99999, 1e-4, 0.5);
     static final Bounds Q8_0 = new Bounds(1.7e-4, 1e-2, 3.4e-4, 1e-4, 0.999999, 1e-4, 0.5);
 
+    /** The CPU reference against the accelerator running its default single-token path. */
     void assertParity(Fixture fixture, Bounds bounds) throws Exception {
+        assertParity(fixture, bounds, 1);
+    }
+
+    /**
+     * The same comparison with the accelerator driven through batched prefill.
+     *
+     * <p>Batched prefill is a different program, not a faster one: its own MMA GEMMs for the
+     * projections, its own paged-KV attention, its own fused norm kernels. Checking only the
+     * single-token path leaves every prompt token a model processes in that mode unverified, which
+     * is where a silent numerical defect would sit. The CPU side is unchanged — there is one
+     * reference, and both accelerator modes are measured against it.
+     *
+     * <p>The bounds are the same. A mode that needs looser bounds to pass is a mode that computes
+     * something different, and that is the finding, not the configuration.
+     */
+    void assertParityBatched(Fixture fixture, Bounds bounds, int prefillBatchSize)
+            throws Exception {
+        assertParity(fixture, bounds, prefillBatchSize);
+    }
+
+    private void assertParity(Fixture fixture, Bounds bounds, int prefillBatchSize)
+            throws Exception {
         Path model = GoldenFixture.locate(fixture);
         if (model == null) {
             System.out.println(
@@ -94,7 +117,11 @@ abstract class CpuGpuParity {
         }
 
         GoldenCapture.Result cpu = GoldenCapture.capture(model, false);
-        GoldenCapture.Result gpu = GoldenCapture.capture(model, true, cpu.tokenIds);
+        GoldenCapture.Result gpu =
+                GoldenCapture.capture(model, true, cpu.tokenIds, prefillBatchSize);
+        if (prefillBatchSize > 1) {
+            System.out.printf("  batched prefill, batch %d%n", prefillBatchSize);
+        }
 
         assertEquals("compared row count", cpu.rows.size(), gpu.rows.size());
 
