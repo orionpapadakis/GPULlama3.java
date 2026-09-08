@@ -13,13 +13,16 @@ set -uo pipefail
 LABEL="${1:?usage: $0 <label> [extra flags...]}"; shift
 MODEL="${MODEL:-/opt/models/Phi-3-mini-4k-instruct-fp16.gguf}"
 TOKENS="${TOKENS:-32}"
+# A prompt long enough to fill every position leaves no position to sample at, which
+# is how a position-dependent stall is told apart from a sampling-dependent one.
+PROMPT="${PROMPT:-Tell me a joke}"
 BUDGET_SECONDS="${BUDGET_SECONDS:-420}"
 OUT="phi3-probe-${LABEL}"
 
 mkdir -p "$OUT"
 : > "$OUT/run.log"
 
-echo "model=$MODEL tokens=$TOKENS budget=${BUDGET_SECONDS}s extra=$*" | tee "$OUT/params.txt"
+echo "model=$MODEL tokens=$TOKENS budget=${BUDGET_SECONDS}s prompt_words=$(echo "$PROMPT" | wc -w) extra=$*" | tee "$OUT/params.txt"
 
 # Line-buffer the launcher's stdout so the log shows when a token actually appeared,
 # not when the pipe was flushed at kill time.
@@ -27,7 +30,7 @@ echo "model=$MODEL tokens=$TOKENS budget=${BUDGET_SECONDS}s extra=$*" | tee "$OU
     --gpu \
     --metal \
     --model "$MODEL" \
-    --prompt "Tell me a joke" \
+    --prompt "$PROMPT" \
     -n "$TOKENS" \
     --verbose-init \
     "$@" 2>&1 \
